@@ -428,10 +428,11 @@ const SOURCE_SKIRMISH_GAME_INFO_SNAPSHOT_VERSION = 4;
 const SOURCE_SKIRMISH_GAME_SLOT_COUNT = 8;
 const SOURCE_SKIRMISH_GAME_INFO_RELEASE_CRC_INTERVAL = 100;
 const SOURCE_MONEY_SNAPSHOT_VERSION = 1;
+const SOURCE_W3D_TERRAIN_LOGIC_SNAPSHOT_VERSION = 1;
 const SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION = 2;
 const SOURCE_PARTITION_SNAPSHOT_VERSION = 2;
 const SOURCE_PARTITION_CELL_SNAPSHOT_VERSION = 1;
-const SOURCE_PARTITION_PLAYER_COUNT = 8;
+const SOURCE_PARTITION_PLAYER_COUNT = 16;
 const LEGACY_PLAYER_SNAPSHOT_VERSION = 2;
 const SOURCE_PLAYERS_LIST_SNAPSHOT_VERSION = 1;
 const SOURCE_PLAYER_ENTRY_SNAPSHOT_VERSION = 8;
@@ -447,6 +448,7 @@ const SOURCE_BUILD_LIST_RESOURCE_GATHERER_COUNT = 10;
 const SOURCE_AI_STRUCTURES_TO_REPAIR_COUNT = 2;
 const SOURCE_RESOURCE_GATHERING_MANAGER_SNAPSHOT_VERSION = 1;
 const SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION = 1;
+const SOURCE_CAVE_SYSTEM_SNAPSHOT_VERSION = 1;
 const SOURCE_SCORE_KEEPER_SNAPSHOT_VERSION = 1;
 const SOURCE_SQUAD_SNAPSHOT_VERSION = 1;
 const SOURCE_OBJECT_ID_LINKED_LIST_VERSION = 1;
@@ -455,7 +457,12 @@ const SOURCE_SIDES_LIST_SAVE_STATE_VERSION = 2;
 const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 10;
 const SOURCE_GAME_CLIENT_SNAPSHOT_VERSION = 3;
 const SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION = 1;
+const SOURCE_DRAWABLE_AMBIENT_SOUND_ENABLED_VERSION = 4;
+const SOURCE_DRAWABLE_MATRIX_SNAPSHOT_VERSION = 5;
+const SOURCE_DRAWABLE_AMBIENT_SOUND_SCRIPT_VERSION = 6;
+const SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION = 7;
 const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 1;
+const SOURCE_W3D_TERRAIN_VISUAL_HEIGHT_MAP_SNAPSHOT_VERSION = 2;
 const SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION = 3;
 const SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION = 1;
@@ -898,6 +905,7 @@ interface RuntimeSaveDrawableSnapshotState {
 }
 
 interface RuntimeSaveDrawableSourceFallbackState {
+  readonly sourceVersion: number;
   readonly selectionFlashEnvelopeBytes: Uint8Array | null;
   readonly colorTintEnvelopeBytes: Uint8Array | null;
   readonly terrainDecalType: number;
@@ -3415,8 +3423,11 @@ function parseRawGameClientDrawableFallback(
   xferLoad.open('parse-raw-game-client-drawable-fallback');
   try {
     xferLoad.xferObjectID(0);
-    const version = xferLoad.xferVersion(7);
-    if (version !== 7) {
+    const version = xferLoad.xferVersion(SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION);
+    if (
+      version < SOURCE_DRAWABLE_MATRIX_SNAPSHOT_VERSION
+      || version > SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION
+    ) {
       return null;
     }
     xferLoad.xferUnsignedInt(0);
@@ -3472,18 +3483,26 @@ function parseRawGameClientDrawableFallback(
     const expirationDate = xferLoad.xferUnsignedInt(0);
     const iconBytes = readSourceDrawableIconBytes(xferLoad, rawBytes);
     const ambientSoundEnabled = xferLoad.xferBool(true);
-    const ambientSoundEnabledFromScript = xferLoad.xferBool(true);
-    const customAmbientStart = xferLoad.getOffset();
-    const customizedAmbientSound = xferLoad.xferBool(false);
-    if (customizedAmbientSound) {
-      xferLoad.xferBool(false);
+    const ambientSoundEnabledFromScript = version >= SOURCE_DRAWABLE_AMBIENT_SOUND_SCRIPT_VERSION
+      ? xferLoad.xferBool(true)
+      : true;
+    let customAmbientSoundBytes = new Uint8Array(0);
+    if (version >= SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION) {
+      const customAmbientStart = xferLoad.getOffset();
+      const customizedAmbientSound = xferLoad.xferBool(false);
+      if (customizedAmbientSound) {
+        xferLoad.xferBool(false);
+      } else if (xferLoad.getRemaining() !== 0) {
+        throw new Error(`Source drawable has ${xferLoad.getRemaining()} trailing custom ambient bytes.`);
+      }
+      customAmbientSoundBytes = rawBytes.slice(customAmbientStart);
     } else if (xferLoad.getRemaining() !== 0) {
-      throw new Error(`Source drawable has ${xferLoad.getRemaining()} trailing custom ambient bytes.`);
+      throw new Error(`Source drawable v${version} has ${xferLoad.getRemaining()} trailing bytes.`);
     }
-    const customAmbientSoundBytes = rawBytes.slice(customAmbientStart);
     xferLoad.skip(xferLoad.getRemaining());
 
     return {
+      sourceVersion: version,
       selectionFlashEnvelopeBytes,
       colorTintEnvelopeBytes,
       terrainDecalType,
@@ -3518,6 +3537,8 @@ function parseRawGameClientDrawableFallback(
       flashCount,
       flashColor,
     };
+  } catch {
+    return null;
   } finally {
     xferLoad.close();
   }
@@ -3551,8 +3572,11 @@ function parseRawGameClientDrawableSnapshotState(
   xferLoad.open('parse-raw-game-client-drawable-snapshot');
   try {
     const objectId = xferLoad.xferObjectID(0);
-    const version = xferLoad.xferVersion(7);
-    if (version !== 7) {
+    const version = xferLoad.xferVersion(SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION);
+    if (
+      version < SOURCE_DRAWABLE_MATRIX_SNAPSHOT_VERSION
+      || version > SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION
+    ) {
       return null;
     }
     const drawableId = xferLoad.xferUnsignedInt(0);
@@ -3580,6 +3604,8 @@ function parseRawGameClientDrawableSnapshotState(
       hiddenByStealth: fallback.hiddenByStealth,
       shroudStatusObjectId: fallback.shroudStatusObjectId,
     };
+  } catch {
+    return null;
   } finally {
     xferLoad.close();
   }
@@ -3663,7 +3689,7 @@ function readRawGameClientDrawableId(blockData: ArrayBuffer): number | null {
   xferLoad.open('read-raw-game-client-drawable-id');
   try {
     xferLoad.xferObjectID(0);
-    xferLoad.xferVersion(7);
+    xferLoad.xferVersion(SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION);
     const drawableId = xferLoad.xferUnsignedInt(0);
     return Number.isFinite(drawableId) && drawableId > 0
       ? Math.trunc(drawableId)
@@ -3683,7 +3709,7 @@ function inspectRawGameClientDrawableHeader(
   try {
     return {
       objectId: xferLoad.xferObjectID(0),
-      version: xferLoad.xferVersion(7),
+      version: xferLoad.xferVersion(SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION),
       drawableId: xferLoad.xferUnsignedInt(0),
     };
   } catch {
@@ -3752,13 +3778,17 @@ class DrawableSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(7);
-    if (version !== 7) {
+    const fallback = this.state.sourceDrawableFallback;
+    const targetVersion = fallback?.sourceVersion ?? SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION;
+    const version = xfer.xferVersion(targetVersion);
+    if (
+      version < SOURCE_DRAWABLE_MATRIX_SNAPSHOT_VERSION
+      || version > SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION
+    ) {
       throw new Error(`Unsupported drawable snapshot version ${version}`);
     }
 
     xfer.xferUnsignedInt(this.state.drawableId);
-    const fallback = this.state.sourceDrawableFallback;
     xferModelConditionFlags(xfer, this.state.modelConditionFlags);
     xferSourceMatrix3DRawBytes(xfer, this.state.transformMatrixBytes);
     const selectionFlashEnvelopeBytes = fallback?.selectionFlashEnvelopeBytes ?? null;
@@ -3827,9 +3857,15 @@ class DrawableSnapshot implements Snapshot {
     xfer.xferObjectID(this.state.shroudStatusObjectId);
     xfer.xferUnsignedInt(fallback?.expirationDate ?? 0);
     xfer.xferUser(fallback?.iconBytes ?? new Uint8Array([0]));
-    xfer.xferBool(this.state.ambientSoundEnabled && (fallback?.ambientSoundEnabled ?? true));
-    xfer.xferBool(this.state.ambientSoundEnabledFromScript && (fallback?.ambientSoundEnabledFromScript ?? true));
-    xfer.xferUser(fallback?.customAmbientSoundBytes ?? new Uint8Array([0]));
+    if (version >= SOURCE_DRAWABLE_AMBIENT_SOUND_ENABLED_VERSION) {
+      xfer.xferBool(this.state.ambientSoundEnabled && (fallback?.ambientSoundEnabled ?? true));
+    }
+    if (version >= SOURCE_DRAWABLE_AMBIENT_SOUND_SCRIPT_VERSION) {
+      xfer.xferBool(this.state.ambientSoundEnabledFromScript && (fallback?.ambientSoundEnabledFromScript ?? true));
+    }
+    if (version >= SOURCE_DRAWABLE_CUSTOM_AMBIENT_SOUND_VERSION) {
+      xfer.xferUser(fallback?.customAmbientSoundBytes ?? new Uint8Array([0]));
+    }
   }
 
   loadPostProcess(): void {
@@ -4260,6 +4296,11 @@ class TerrainLogicSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
+    const wrapperVersion = xfer.xferVersion(SOURCE_W3D_TERRAIN_LOGIC_SNAPSHOT_VERSION);
+    if (wrapperVersion !== SOURCE_W3D_TERRAIN_LOGIC_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported W3D terrain-logic snapshot version ${wrapperVersion}`);
+    }
+
     const version = xfer.xferVersion(SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION);
     if (version !== SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported terrain-logic snapshot version ${version}`);
@@ -4454,7 +4495,11 @@ function xferSourceTunnelTrackerState(
   xfer: Xfer,
   state: GameLogicTunnelTrackerSaveState,
 ): GameLogicTunnelTrackerSaveState {
-  const tunnelIds = xfer.xferObjectIDList(state.tunnelIds);
+  const version = xfer.xferVersion(SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION);
+  if (version !== SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported tunnel-tracker snapshot version ${version}`);
+  }
+  const tunnelIds = xferSourceObjectIdLinkedList(xfer, state.tunnelIds);
   const savedPassengerCount = xfer.xferInt(state.passengerIds.length);
   if (savedPassengerCount < 0) {
     throw new Error(`Tunnel tracker passenger count ${savedPassengerCount} is invalid.`);
@@ -4737,6 +4782,10 @@ function xferSourceCaveTrackerVector(
   xfer: Xfer,
   trackers: GameLogicCaveTrackerSaveState[],
 ): GameLogicCaveTrackerSaveState[] {
+  const version = xfer.xferVersion(SOURCE_CAVE_SYSTEM_SNAPSHOT_VERSION);
+  if (version !== SOURCE_CAVE_SYSTEM_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported cave-system snapshot version ${version}`);
+  }
   const maxCaveIndex = trackers.reduce(
     (currentMax, tracker) => Math.max(currentMax, Math.trunc(tracker.caveIndex)),
     -1,
@@ -10004,6 +10053,7 @@ function sourceDeployStyleStateToInt(state: unknown, fallback: number): number {
     case 'DEPLOY': return 1;
     case 'READY_TO_ATTACK': return 2;
     case 'UNDEPLOY': return 3;
+    case 'ALIGNING_TURRETS': return 4;
     default:
       return Number.isFinite(fallback) ? Math.max(0, Math.trunc(fallback)) : 0;
   }
@@ -24139,6 +24189,8 @@ interface SourcePlayerEntryState {
   skillPointsModifier: number;
   listInScoreScreen: boolean;
   attackedByPlayerIndices: number[];
+  visionSpiedBy: number[];
+  visionSpiedMask: number;
   cashBountyPercent: number;
   scoreKeeper: SourcePlayerScoreKeeperState;
   kindOfCostModifiers: SourcePlayerKindOfCostModifierState[];
@@ -24268,6 +24320,29 @@ function xferSourceStringBitFlags(
   }
   const uniqueValues = [...new Set(values.filter((value) => value.trim().length > 0))];
   const count = xfer.xferInt(uniqueValues.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferAsciiString(''));
+    }
+    return loaded;
+  }
+  for (const value of uniqueValues) {
+    xfer.xferAsciiString(value);
+  }
+  return uniqueValues;
+}
+
+function xferSourceUpgradeMaskNames(
+  xfer: Xfer,
+  values: string[],
+): string[] {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source upgrade-mask snapshot version ${version}`);
+  }
+  const uniqueValues = [...new Set(values.filter((value) => value.trim().length > 0))];
+  const count = xfer.xferUnsignedShort(uniqueValues.length);
   if (xfer.getMode() === XferMode.XFER_LOAD) {
     const loaded: string[] = [];
     for (let index = 0; index < count; index += 1) {
@@ -24786,6 +24861,10 @@ function xferSourceScoreObjectCountMap(
   xfer: Xfer,
   objectCounts: Array<{ templateName: string; count: number }>,
 ): Array<{ templateName: string; count: number }> {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported score object-count map snapshot version ${version}`);
+  }
   const count = xfer.xferUnsignedShort(objectCounts.length);
   if (xfer.getMode() === XferMode.XFER_LOAD) {
     const loaded: Array<{ templateName: string; count: number }> = [];
@@ -24960,6 +25039,24 @@ function normalizeSourceObjectIdArray(value: unknown): number[] {
   }
   return value.flatMap((objectId) =>
     Number.isFinite(objectId) ? [Math.max(0, Math.trunc(objectId as number))] : []);
+}
+
+function normalizeSourcePlayerVisionSpiedBy(value: unknown): number[] {
+  const counters = Array.isArray(value) ? value : [];
+  return Array.from({ length: SOURCE_SCRIPT_ENGINE_PLAYER_COUNT }, (_unused, index) =>
+    Number.isFinite(counters[index])
+      ? Math.max(0, Math.trunc(counters[index] as number))
+      : 0);
+}
+
+function sourcePlayerVisionSpiedMaskFromCounters(counters: readonly number[]): number {
+  let mask = 0;
+  for (let index = 0; index < SOURCE_SCRIPT_ENGINE_PLAYER_COUNT; index += 1) {
+    if ((counters[index] ?? 0) > 0) {
+      mask |= (1 << index);
+    }
+  }
+  return mask & 0xffff;
 }
 
 function normalizeSourceSquadArrays(value: unknown): number[][] {
@@ -25242,6 +25339,8 @@ function buildSourcePlayerEntryState(
   const sideSkillPointsModifier = getRuntimeStateMap<number>(state, 'sideSkillPointsModifier').get(side);
   const sideBattlePlanBonuses = getRuntimeStateMap<Record<string, unknown>>(state, 'sideBattlePlanBonuses').get(side);
   const sideAttackedByMap = getRuntimeStateMap<Set<string>>(state, 'sideAttackedBy');
+  const sideVisionSpiedByMap = getRuntimeStateMap<unknown>(state, 'sideVisionSpiedBy');
+  const sideVisionSpiedMaskMap = getRuntimeStateMap<number>(state, 'sideVisionSpiedMask');
   const scriptSidesUnitsShouldHunt = state.scriptSidesUnitsShouldHunt instanceof Set
     ? state.scriptSidesUnitsShouldHunt as Set<string>
     : new Set<string>();
@@ -25322,6 +25421,13 @@ function buildSourcePlayerEntryState(
       ? [Math.trunc(attackerIndex)]
       : [];
   });
+  const visionSpiedBy = runtimeStateSideMapHas(sideVisionSpiedByMap, side)
+    ? normalizeSourcePlayerVisionSpiedBy(getRuntimeStateSideMapValue(sideVisionSpiedByMap, side))
+    : normalizeSourcePlayerVisionSpiedBy([]);
+  const visionSpiedMaskValue = getRuntimeStateSideMapValue(sideVisionSpiedMaskMap, side);
+  const visionSpiedMask = Number.isFinite(visionSpiedMaskValue)
+    ? Math.max(0, Math.trunc(Number(visionSpiedMaskValue))) & 0xffff
+    : sourcePlayerVisionSpiedMaskFromCounters(visionSpiedBy);
   const playerRelations: SourcePlayerRelationEntry[] = [];
   const teamRelations: SourcePlayerRelationEntry[] = [];
   if (runtimeStateSideMapHas(sideSourcePlayerRelationsMap, side)) {
@@ -25453,6 +25559,8 @@ function buildSourcePlayerEntryState(
     skillPointsModifier: Number.isFinite(sideSkillPointsModifier) ? Number(sideSkillPointsModifier) : 1,
     listInScoreScreen: !sideScoreScreenExcluded.has(side),
     attackedByPlayerIndices,
+    visionSpiedBy,
+    visionSpiedMask,
     cashBountyPercent: Number.isFinite(sideCashBountyPercent) ? Number(sideCashBountyPercent) : 0,
     scoreKeeper: {
       totalMoneyEarned: Math.max(0, Math.trunc(Number(sideScoreState?.moneyEarned ?? 0))),
@@ -25504,6 +25612,7 @@ function buildSourcePlayerEntryState(
 function buildGameLogicPlayersStateFromSourcePlayers(
   players: SourcePlayerEntryState[],
   mapData: MapDataJSON | null | undefined,
+  sourcePlayerIncludesGeneralsVisionSpyFields = false,
 ): GameLogicPlayersSaveState {
   const state: Record<string, unknown> = {};
   const playerSideByIndex = new Map<number, string>();
@@ -25565,6 +25674,8 @@ function buildGameLogicPlayersStateFromSourcePlayers(
     invalidKindOf?: string[];
   }>();
   const sideAttackedBy = new Map<string, Set<string>>();
+  const sideVisionSpiedBy = new Map<string, number[]>();
+  const sideVisionSpiedMask = new Map<string, number>();
   const scriptSidesUnitsShouldHunt = new Set<string>();
   const playerRelationshipOverrides = new Map<string, number>();
   const teamRelationshipOverrides = new Map<string, number>();
@@ -25710,6 +25821,14 @@ function buildGameLogicPlayersStateFromSourcePlayers(
       }
       attackedBySet.add(attackerSide);
     }
+    if (
+      sourcePlayerIncludesGeneralsVisionSpyFields
+      || player.visionSpiedBy.some((counter) => counter > 0)
+      || player.visionSpiedMask !== 0
+    ) {
+      sideVisionSpiedBy.set(player.side, normalizeSourcePlayerVisionSpiedBy(player.visionSpiedBy));
+      sideVisionSpiedMask.set(player.side, Math.max(0, Math.trunc(player.visionSpiedMask)) & 0xffff);
+    }
     if (player.battlePlanBonuses) {
       sideBattlePlanBonuses.set(player.side, {
         bombardmentCount: player.bombardBattlePlans,
@@ -25821,6 +25940,9 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   state.sideScoreState = sideScoreState;
   state.sideScoreScreenExcluded = sideScoreScreenExcluded;
   state.sideAttackedBy = sideAttackedBy;
+  state.sourcePlayerIncludesGeneralsVisionSpyFields = sourcePlayerIncludesGeneralsVisionSpyFields;
+  state.sideVisionSpiedBy = sideVisionSpiedBy;
+  state.sideVisionSpiedMask = sideVisionSpiedMask;
   state.sideBattlePlanBonuses = sideBattlePlanBonuses;
   state.scriptSidesUnitsShouldHunt = scriptSidesUnitsShouldHunt;
   state.playerRelationshipOverrides = playerRelationshipOverrides;
@@ -25852,6 +25974,7 @@ class SourcePlayersSnapshot implements Snapshot {
   private readonly teamFactoryState: GameLogicTeamFactorySaveState | null | undefined;
   private readonly sidesListState: GameLogicSidesListSaveState | null | undefined;
   private readonly sourceUpgradeOrder: readonly string[] | null | undefined;
+  private readonly includesGeneralsPlayerVisionSpyFields: boolean;
 
   constructor(
     payload: GameLogicPlayersSaveState | null = null,
@@ -25860,6 +25983,7 @@ class SourcePlayersSnapshot implements Snapshot {
       teamFactoryState?: GameLogicTeamFactorySaveState | null;
       sidesListState?: GameLogicSidesListSaveState | null;
       sourceUpgradeOrder?: readonly string[] | null;
+      includesGeneralsPlayerVisionSpyFields?: boolean;
     } = {},
   ) {
     this.payload = payload;
@@ -25867,6 +25991,15 @@ class SourcePlayersSnapshot implements Snapshot {
     this.teamFactoryState = options.teamFactoryState;
     this.sidesListState = options.sidesListState;
     this.sourceUpgradeOrder = options.sourceUpgradeOrder;
+    this.includesGeneralsPlayerVisionSpyFields = Boolean(
+      options.includesGeneralsPlayerVisionSpyFields === true
+      || (
+        payload?.state
+        && typeof payload.state === 'object'
+        && !Array.isArray(payload.state)
+        && (payload.state as Record<string, unknown>).sourcePlayerIncludesGeneralsVisionSpyFields === true
+      ),
+    );
   }
 
   crc(_xfer: Xfer): void {
@@ -25922,6 +26055,8 @@ class SourcePlayersSnapshot implements Snapshot {
           skillPointsModifier: 1,
           listInScoreScreen: true,
           attackedByPlayerIndices: [],
+          visionSpiedBy: Array.from({ length: SOURCE_SCRIPT_ENGINE_PLAYER_COUNT }, () => 0),
+          visionSpiedMask: 0,
           cashBountyPercent: 0,
           scoreKeeper: {
             totalMoneyEarned: 0,
@@ -25992,8 +26127,8 @@ class SourcePlayersSnapshot implements Snapshot {
       player.isPlayerDead = xfer.xferBool(player.isPlayerDead);
       player.disableProofRadarCount = xfer.xferInt(player.disableProofRadarCount);
       player.radarDisabled = xfer.xferBool(player.radarDisabled);
-      player.upgradesInProgress = xferSourceStringBitFlags(xfer, player.upgradesInProgress);
-      player.upgradesCompleted = xferSourceStringBitFlags(xfer, player.upgradesCompleted);
+      player.upgradesInProgress = xferSourceUpgradeMaskNames(xfer, player.upgradesInProgress);
+      player.upgradesCompleted = xferSourceUpgradeMaskNames(xfer, player.upgradesCompleted);
       const energyVersion = xfer.xferVersion(SOURCE_ENERGY_SNAPSHOT_VERSION);
       if (energyVersion === 1) {
         void xfer.xferInt(0);
@@ -26110,6 +26245,18 @@ class SourcePlayersSnapshot implements Snapshot {
         }
       }
       player.attackedByPlayerIndices = attackedBy;
+      if (this.includesGeneralsPlayerVisionSpyFields) {
+        const visionSpiedByInput = normalizeSourcePlayerVisionSpiedBy(player.visionSpiedBy);
+        const visionSpiedBy: number[] = [];
+        for (let index = 0; index < SOURCE_SCRIPT_ENGINE_PLAYER_COUNT; index += 1) {
+          visionSpiedBy.push(xfer.xferInt(visionSpiedByInput[index] ?? 0));
+        }
+        player.visionSpiedBy = visionSpiedBy;
+        player.visionSpiedMask = xfer.xferUnsignedShort(player.visionSpiedMask);
+      } else {
+        player.visionSpiedBy = normalizeSourcePlayerVisionSpiedBy(player.visionSpiedBy);
+        player.visionSpiedMask = Math.max(0, Math.trunc(player.visionSpiedMask)) & 0xffff;
+      }
       player.cashBountyPercent = xfer.xferReal(player.cashBountyPercent);
       player.scoreKeeper = xferSourceScoreKeeperState(xfer, player.scoreKeeper);
       player.kindOfCostModifiers = xferSourceKindOfCostModifiers(xfer, player.kindOfCostModifiers);
@@ -26179,7 +26326,11 @@ class SourcePlayersSnapshot implements Snapshot {
     }
 
     if (xfer.getMode() === XferMode.XFER_LOAD) {
-      this.payload = buildGameLogicPlayersStateFromSourcePlayers(loadedPlayers, this.mapData);
+      this.payload = buildGameLogicPlayersStateFromSourcePlayers(
+        loadedPlayers,
+        this.mapData,
+        this.includesGeneralsPlayerVisionSpyFields,
+      );
     }
   }
 
@@ -27455,25 +27606,167 @@ function tryParseSourcePlayersChunk(
     mapData?: MapDataJSON | null;
     teamFactoryState?: GameLogicTeamFactorySaveState | null;
     sidesListState?: GameLogicSidesListSaveState | null;
+    includesGeneralsPlayerVisionSpyFields?: boolean;
   } = {},
 ): GameLogicPlayersSaveState | null {
-  try {
-    const snapshot = new SourcePlayersSnapshot(null, options);
-    const chunkData = data instanceof Uint8Array
-      ? (() => {
-          const copy = new Uint8Array(data.byteLength);
-          copy.set(data);
-          return copy.buffer;
-        })()
-      : data;
-    const xferLoad = new XferLoad(chunkData);
-    xferLoad.open('source-players');
-    xferLoad.xferSnapshot(snapshot);
-    xferLoad.close();
-    return snapshot.payload ?? null;
-  } catch {
-    return null;
+  const chunkData = data instanceof Uint8Array
+    ? (() => {
+        const copy = new Uint8Array(data.byteLength);
+        copy.set(data);
+        return copy.buffer;
+      })()
+    : data;
+  const layoutCandidates = options.includesGeneralsPlayerVisionSpyFields === undefined
+    ? [false, true]
+    : [options.includesGeneralsPlayerVisionSpyFields];
+
+  for (const includesGeneralsPlayerVisionSpyFields of layoutCandidates) {
+    try {
+      const snapshot = new SourcePlayersSnapshot(null, {
+        ...options,
+        includesGeneralsPlayerVisionSpyFields,
+      });
+      const xferLoad = new XferLoad(chunkData.slice(0));
+      xferLoad.open('source-players');
+      xferLoad.xferSnapshot(snapshot);
+      const remaining = xferLoad.getRemaining();
+      xferLoad.close();
+      if (remaining !== 0) {
+        throw new Error(`Source players parser left ${remaining} unread bytes.`);
+      }
+      return snapshot.payload ?? null;
+    } catch {
+      continue;
+    }
   }
+
+  return null;
+}
+
+export interface RuntimeSaveSourcePlayersLayoutInspection {
+  includesGeneralsPlayerVisionSpyFields: boolean;
+  parsed: boolean;
+  remainingBytes: number | null;
+  error: string | null;
+  offset: number | null;
+  lastOperations?: Array<{ op: string; offset: number; value?: unknown }>;
+}
+
+class TracedXferLoad extends XferLoad {
+  readonly lastOperations: Array<{ op: string; offset: number; value?: unknown }> = [];
+
+  private recordOperation(op: string, value?: unknown, offset = this.getOffset()): void {
+    this.lastOperations.push(value === undefined ? { op, offset } : { op, offset, value });
+    if (this.lastOperations.length > 12000) {
+      this.lastOperations.shift();
+    }
+  }
+
+  xferByte(value: number): number {
+    const offset = this.getOffset();
+    const result = super.xferByte(value);
+    this.recordOperation('byte', result, offset);
+    return result;
+  }
+
+  xferInt(value: number): number {
+    const offset = this.getOffset();
+    const result = super.xferInt(value);
+    this.recordOperation('int', result, offset);
+    return result;
+  }
+
+  xferUnsignedInt(value: number): number {
+    const offset = this.getOffset();
+    const result = super.xferUnsignedInt(value);
+    this.recordOperation('uint', result, offset);
+    return result;
+  }
+
+  xferUnsignedShort(value: number): number {
+    const offset = this.getOffset();
+    const result = super.xferUnsignedShort(value);
+    this.recordOperation('ushort', result, offset);
+    return result;
+  }
+
+  xferReal(value: number): number {
+    const offset = this.getOffset();
+    const result = super.xferReal(value);
+    this.recordOperation('real', result, offset);
+    return result;
+  }
+
+  xferAsciiString(value: string): string {
+    const offset = this.getOffset();
+    const result = super.xferAsciiString(value);
+    this.recordOperation('ascii', result, offset);
+    return result;
+  }
+
+  xferUnicodeString(value: string): string {
+    const offset = this.getOffset();
+    const result = super.xferUnicodeString(value);
+    this.recordOperation('unicode', result, offset);
+    return result;
+  }
+
+  xferImplementation(data: Uint8Array): Uint8Array {
+    const offset = this.getOffset();
+    const result = super.xferImplementation(data);
+    this.recordOperation(`user:${data.byteLength}`, result.byteLength, offset);
+    return result;
+  }
+}
+
+export function inspectRuntimeSaveSourcePlayersChunkLayouts(
+  data: ArrayBuffer | Uint8Array,
+  options: {
+    mapData?: MapDataJSON | null;
+    teamFactoryState?: GameLogicTeamFactorySaveState | null;
+    sidesListState?: GameLogicSidesListSaveState | null;
+  } = {},
+): RuntimeSaveSourcePlayersLayoutInspection[] {
+  const chunkData = data instanceof Uint8Array
+    ? (() => {
+        const copy = new Uint8Array(data.byteLength);
+        copy.set(data);
+        return copy.buffer;
+      })()
+    : data;
+
+  return [false, true].map((includesGeneralsPlayerVisionSpyFields) => {
+    const snapshot = new SourcePlayersSnapshot(null, {
+      ...options,
+      includesGeneralsPlayerVisionSpyFields,
+    });
+    const xferLoad = new TracedXferLoad(chunkData.slice(0));
+    xferLoad.open('inspect-source-players');
+    try {
+      xferLoad.xferSnapshot(snapshot);
+      const remainingBytes = xferLoad.getRemaining();
+      xferLoad.close();
+      return {
+        includesGeneralsPlayerVisionSpyFields,
+        parsed: remainingBytes === 0,
+        remainingBytes,
+        error: remainingBytes === 0 ? null : `Source players parser left ${remainingBytes} unread bytes.`,
+        offset: xferLoad.getOffset(),
+        lastOperations: [...xferLoad.lastOperations],
+      };
+    } catch (error) {
+      const offset = xferLoad.getOffset();
+      xferLoad.close();
+      return {
+        includesGeneralsPlayerVisionSpyFields,
+        parsed: false,
+        remainingBytes: xferLoad.getRemaining(),
+        error: error instanceof Error ? error.message : String(error),
+        offset,
+        lastOperations: [...xferLoad.lastOperations],
+      };
+    }
+  });
 }
 
 function tryParseLegacyPlayersChunk(data: ArrayBuffer | Uint8Array): GameLogicPlayersSaveState | null {
@@ -28909,6 +29202,7 @@ export function buildRuntimeSaveFile(params: {
   mapDrawableIdCounter?: number | null;
   browserRuntimeState?: unknown;
   includeBrowserRuntimeCoreState?: boolean;
+  preservePassthroughBlockBytes?: boolean;
 }): {
   data: ArrayBuffer;
   metadata: {
@@ -29022,6 +29316,7 @@ export function buildRuntimeSaveFile(params: {
     generatedGhostObjectEntries,
   );
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
+  const preservePassthroughBlockBytes = params.preservePassthroughBlockBytes === true;
   const hasSourceGameLogicPassthrough = hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_LOGIC_BLOCK);
   const includeBrowserRuntimeCoreState = params.includeBrowserRuntimeCoreState === true
     && !hasSourceGameLogicPassthrough;
@@ -29148,7 +29443,7 @@ export function buildRuntimeSaveFile(params: {
     state.addSnapshotBlock(
       SOURCE_GAME_LOGIC_BLOCK,
       new RawPassthroughSnapshot(
-        parsedSourceGameLogicState
+        parsedSourceGameLogicState && !preservePassthroughBlockBytes
           ? buildSourceGameLogicChunk(parsedSourceGameLogicState, {
               campaignState,
               coreState: gameLogicPayload,
@@ -29204,7 +29499,17 @@ export function buildRuntimeSaveFile(params: {
       }),
     );
   }
-  state.addSnapshotBlock(SOURCE_SIDES_LIST_BLOCK, new SidesListSnapshot(sidesListPayload));
+  const sidesListPassthroughBlock = orderedPassthroughBlocks.find(
+    (block) => block.blockName.toLowerCase() === SOURCE_SIDES_LIST_BLOCK.toLowerCase(),
+  );
+  if (sidesListPassthroughBlock && preservePassthroughBlockBytes) {
+    state.addSnapshotBlock(
+      sidesListPassthroughBlock.blockName,
+      new RawPassthroughSnapshot(sidesListPassthroughBlock.blockData),
+    );
+  } else {
+    state.addSnapshotBlock(SOURCE_SIDES_LIST_BLOCK, new SidesListSnapshot(sidesListPayload));
+  }
   state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, new TacticalViewSnapshot(tacticalViewPayload));
   for (const passthroughBlock of orderedPassthroughBlocks) {
     if (passthroughBlock.blockName.toLowerCase() === BROWSER_RUNTIME_STATE_BLOCK.toLowerCase()) {
@@ -29253,7 +29558,12 @@ export function buildRuntimeSaveFile(params: {
   const ghostObjectPassthroughBlock = orderedPassthroughBlocks.find(
     (block) => block.blockName.toLowerCase() === SOURCE_GHOST_OBJECT_BLOCK.toLowerCase(),
   );
-  if (params.particleSystemState) {
+  if (particleSystemPassthroughBlock && preservePassthroughBlockBytes) {
+    state.addSnapshotBlock(
+      particleSystemPassthroughBlock.blockName,
+      new RawPassthroughSnapshot(particleSystemPassthroughBlock.blockData),
+    );
+  } else if (params.particleSystemState) {
     state.addSnapshotBlock(
       SOURCE_PARTICLE_SYSTEM_BLOCK,
       new ParticleSystemSnapshot(params.particleSystemState),
@@ -29281,7 +29591,12 @@ export function buildRuntimeSaveFile(params: {
       ),
     );
   }
-  if (ghostObjectState !== null || !ghostObjectPassthroughBlock) {
+  if (ghostObjectPassthroughBlock && preservePassthroughBlockBytes) {
+    state.addSnapshotBlock(
+      ghostObjectPassthroughBlock.blockName,
+      new RawPassthroughSnapshot(ghostObjectPassthroughBlock.blockData),
+    );
+  } else if (ghostObjectState !== null || !ghostObjectPassthroughBlock) {
     state.addSnapshotBlock(
       SOURCE_GHOST_OBJECT_BLOCK,
       new GhostObjectSnapshot(
@@ -29630,7 +29945,7 @@ function parseSourceTerrainVisualChunk(
     if (w3dVersion === 1 && xferLoad.getRemaining() === 0) {
       return { mode: 'parsed', treeEntries: [], waterGridSnapshot };
     }
-    if (w3dVersion !== SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
+    if (w3dVersion < SOURCE_W3D_TERRAIN_VISUAL_HEIGHT_MAP_SNAPSHOT_VERSION) {
       return null;
     }
     const heightMapLength = xferLoad.xferInt(0);
@@ -29638,6 +29953,15 @@ function parseSourceTerrainVisualChunk(
       return null;
     }
     xferLoad.xferUser(new Uint8Array(heightMapLength));
+    if (
+      w3dVersion === SOURCE_W3D_TERRAIN_VISUAL_HEIGHT_MAP_SNAPSHOT_VERSION
+      && xferLoad.getRemaining() === 0
+    ) {
+      return { mode: 'parsed', treeEntries: [], waterGridSnapshot };
+    }
+    if (w3dVersion !== SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
+      return null;
+    }
     const renderObjectVersion = xferLoad.xferVersion(SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION);
     if (renderObjectVersion !== SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION) {
       return null;

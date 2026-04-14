@@ -17581,7 +17581,7 @@ describe('Script condition groundwork', () => {
   it('evaluates named-selected from current selection state', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('Scout', 'America', ['INFANTRY'], [
+        makeObjectDef('Scout', 'America', ['INFANTRY', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         ]),
       ],
@@ -17608,7 +17608,7 @@ describe('Script condition groundwork', () => {
   it('invalidates named-selected condition cache only when selection changes', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('Scout', 'America', ['INFANTRY'], [
+        makeObjectDef('Scout', 'America', ['INFANTRY', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         ]),
       ],
@@ -19944,7 +19944,7 @@ describe('Script condition groundwork', () => {
   it('executes script input disable/enable actions using source action ids', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('Ranger', 'America', ['INFANTRY'], [
+        makeObjectDef('Ranger', 'America', ['INFANTRY', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         ]),
       ],
@@ -20116,6 +20116,7 @@ describe('Script condition groundwork', () => {
       spawnedEntities: Map<number, {
         objectStatusFlags: Set<string>;
         isIndestructible: boolean;
+        isSelectable: boolean;
         scriptAiRecruitable: boolean;
       }>;
     };
@@ -20135,8 +20136,8 @@ describe('Script condition groundwork', () => {
       actionType: 300, // ID collision path: 300 + 3 params => TEAM_AFFECT_OBJECT_PANEL_FLAGS
       params: ['PanelTeam', 'Selectable', 0],
     })).toBe(true);
-    expect(privateApi.spawnedEntities.get(1)?.objectStatusFlags.has('UNSELECTABLE')).toBe(true);
-    expect(privateApi.spawnedEntities.get(2)?.objectStatusFlags.has('UNSELECTABLE')).toBe(true);
+    expect(privateApi.spawnedEntities.get(1)?.isSelectable).toBe(false);
+    expect(privateApi.spawnedEntities.get(2)?.isSelectable).toBe(false);
 
     expect(logic.executeScriptAction({
       actionType: 505, // TEAM_AFFECT_OBJECT_PANEL_FLAGS (offset id)
@@ -33140,7 +33141,7 @@ describe('Script condition groundwork', () => {
   it('applies core map object property overrides from updateObjValuesFromMapProperties', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('MapPropertyTarget', 'America', ['VEHICLE'], [
+        makeObjectDef('MapPropertyTarget', 'America', ['VEHICLE', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 90 }),
         ], {
           ExperienceRequired: [0, 10, 20, 30],
@@ -33187,6 +33188,7 @@ describe('Script condition groundwork', () => {
         shroudClearingRange: number;
         baseShroudClearingRange: number;
         isIndestructible: boolean;
+        isSelectable: boolean;
         modelConditionFlags: Set<string>;
         objectStatusFlags: Set<string>;
       }>;
@@ -33212,7 +33214,7 @@ describe('Script condition groundwork', () => {
     expect(entity?.objectStatusFlags.has('SCRIPT_UNPOWERED')).toBe(true);
     expect(entity?.objectStatusFlags.has('SCRIPT_UNSELLABLE')).toBe(true);
     expect(entity?.objectStatusFlags.has('SCRIPT_TARGETABLE')).toBe(true);
-    expect(entity?.objectStatusFlags.has('UNSELECTABLE')).toBe(true);
+    expect(entity?.isSelectable).toBe(false);
   });
 
   it('applies map object objectGrantUpgradeN entries with source contiguous-index behavior', () => {
@@ -37652,21 +37654,21 @@ describe('Script condition groundwork', () => {
   it('executes script force-select and destroy-all-contained actions using source action ids', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('TransportTruck', 'America', ['VEHICLE', 'TRANSPORT'], [
+        makeObjectDef('TransportTruck', 'America', ['VEHICLE', 'TRANSPORT', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 600, InitialHealth: 600 }),
           makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
             Slots: 4,
           }),
         ]),
-        makeObjectDef('Passenger', 'America', ['INFANTRY'], [
+        makeObjectDef('Passenger', 'America', ['INFANTRY', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         ], {
           TransportSlotCount: 1,
         }),
-        makeObjectDef('Ranger', 'America', ['INFANTRY'], [
+        makeObjectDef('Ranger', 'America', ['INFANTRY', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         ]),
-        makeObjectDef('MissileDefender', 'America', ['INFANTRY'], [
+        makeObjectDef('MissileDefender', 'America', ['INFANTRY', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         ]),
       ],
@@ -45152,7 +45154,7 @@ describe('getLocalPlayerAllSciences', () => {
   it('handlePointerInput: left-click on entity selects it', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+        makeObjectDef('Tank', 'America', ['VEHICLE', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         ]),
       ],
@@ -45179,7 +45181,7 @@ describe('getLocalPlayerAllSciences', () => {
   it('handlePointerInput: left-click on empty ground clears selection', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+        makeObjectDef('Tank', 'America', ['VEHICLE', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         ]),
       ],
@@ -45211,7 +45213,7 @@ describe('getLocalPlayerAllSciences', () => {
   it('handlePointerInput: right-click with selection on ground issues moveTo', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+        makeObjectDef('Tank', 'America', ['VEHICLE', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
           makeBlock('LocomotorSet', 'SET_NORMAL TankLocomotor', {}),
         ]),
@@ -45261,7 +45263,7 @@ describe('getLocalPlayerAllSciences', () => {
   it('handlePointerInput: right-click on enemy issues attackEntity', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+        makeObjectDef('Tank', 'America', ['VEHICLE', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
           makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'TankGun'] }),
         ]),
@@ -45317,7 +45319,7 @@ describe('getLocalPlayerAllSciences', () => {
   it('handlePointerInput: right-click on damaged friendly building with dozer issues repairBuilding', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('Dozer', 'America', ['VEHICLE', 'DOZER'], [
+        makeObjectDef('Dozer', 'America', ['VEHICLE', 'DOZER', 'SELECTABLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
           makeBlock('LocomotorSet', 'SET_NORMAL DozerLoco', {}),
         ]),

@@ -315,6 +315,12 @@ export interface VertexWaterSetting {
 export interface GameDataConfig {
   weaponBonusEntries: WeaponBonusEntry[];
   /**
+   * Source parity: GlobalData::m_partitionCellSize.
+   * Parsed from GameData.ini via INI::parseReal and consumed by PartitionManager::init().
+   * Retail ZH value: 40.0.
+   */
+  partitionCellSize?: number;
+  /**
    * Source parity: GlobalData::m_healthBonus[LEVEL_COUNT]
    * Indexed by VeterancyLevel: [REGULAR, VETERAN, ELITE, HEROIC].
    * Loaded from GameData.ini fields: HealthBonus_Veteran, HealthBonus_Elite, HealthBonus_Heroic.
@@ -681,6 +687,7 @@ export class IniDataRegistry {
           healthBonuses: bundle.gameData.healthBonuses
             ? ([...bundle.gameData.healthBonuses] as [number, number, number, number])
             : [1.0, 1.0, 1.0, 1.0],
+          partitionCellSize: bundle.gameData.partitionCellSize,
           sellPercentage: bundle.gameData.sellPercentage,
           soloPlayerHealthBonuses: bundle.gameData.soloPlayerHealthBonuses
             ? [
@@ -777,6 +784,7 @@ export class IniDataRegistry {
       ? {
           weaponBonusEntries: [...this.gameData.weaponBonusEntries],
           healthBonuses: [...this.gameData.healthBonuses] as [number, number, number, number],
+          partitionCellSize: this.gameData.partitionCellSize,
           sellPercentage: this.gameData.sellPercentage,
           soloPlayerHealthBonuses: [
             [...this.gameData.soloPlayerHealthBonuses[0]] as [number, number, number],
@@ -1003,6 +1011,7 @@ export class IniDataRegistry {
         ? {
             weaponBonusEntries: [...this.gameData.weaponBonusEntries],
             healthBonuses: [...this.gameData.healthBonuses] as [number, number, number, number],
+            partitionCellSize: this.gameData.partitionCellSize,
             sellPercentage: this.gameData.sellPercentage,
             soloPlayerHealthBonuses: [
               [...this.gameData.soloPlayerHealthBonuses[0]] as [number, number, number],
@@ -1425,6 +1434,13 @@ export class IniDataRegistry {
       sellPercentage = sellPctValue;
     }
 
+    // ── Partition cell size (source parity: GlobalData.cpp:193, PartitionManager.cpp:2599) ──
+    let partitionCellSize = this.gameData?.partitionCellSize;
+    const partitionCellSizeValue = extractNumber(block.fields['PartitionCellSize']);
+    if (partitionCellSizeValue !== undefined) {
+      partitionCellSize = partitionCellSizeValue;
+    }
+
     // ── Solo player health bonuses (source parity: GlobalData.cpp:408-414) ──
     // m_soloPlayerHealthBonusForDifficulty[PLAYERTYPE_COUNT][DIFFICULTY_COUNT], all default 1.0.
     // INI fields: HumanSoloPlayerHealthBonus_Easy/Normal/Hard, AISoloPlayerHealthBonus_Easy/Normal/Hard.
@@ -1461,6 +1477,7 @@ export class IniDataRegistry {
     this.gameData = {
       weaponBonusEntries: entries,
       healthBonuses,
+      partitionCellSize,
       sellPercentage,
       soloPlayerHealthBonuses,
       vertexWaterSettings,

@@ -5376,7 +5376,7 @@ interface FireWeaponCollideProfile {
  * Source parity: DeployStyleAIUpdate — deploy/undeploy state machine for units that must
  * deploy to attack and pack to move (artillery, mortars, gatling cannons).
  */
-type DeployState = 'READY_TO_MOVE' | 'DEPLOY' | 'READY_TO_ATTACK' | 'UNDEPLOY';
+type DeployState = 'READY_TO_MOVE' | 'DEPLOY' | 'READY_TO_ATTACK' | 'UNDEPLOY' | 'ALIGNING_TURRETS';
 
 interface DeployStyleProfile {
   unpackTimeFrames: number;
@@ -7192,6 +7192,27 @@ const DEFAULT_GAME_LOGIC_CONFIG: Readonly<GameLogicConfig> = {
 
 const OBJECT_DONT_RENDER_FLAG = 0x100;
 
+function resolveSourceTerrainPartitionExtent(
+  mapData: MapDataJSON,
+  heightmap: HeightmapGrid,
+  activeBoundaryIndex: number,
+): { worldWidth: number; worldDepth: number } {
+  const boundaries = Array.isArray(mapData.heightmap.boundaries) ? mapData.heightmap.boundaries : [];
+  const boundary = boundaries[Math.max(0, Math.trunc(activeBoundaryIndex))] ?? boundaries[0];
+  const boundaryX = Number(boundary?.x);
+  const boundaryY = Number(boundary?.y);
+  if (Number.isFinite(boundaryX) && boundaryX >= 0 && Number.isFinite(boundaryY) && boundaryY >= 0) {
+    return {
+      worldWidth: boundaryX * MAP_XY_FACTOR,
+      worldDepth: boundaryY * MAP_XY_FACTOR,
+    };
+  }
+  return {
+    worldWidth: heightmap.worldWidth,
+    worldDepth: heightmap.worldDepth,
+  };
+}
+
 /**
  * Template names that are not game entities — they belong to separate
  * C++ subsystems (TerrainRoads, WaypointManager) and should not be
@@ -8796,6 +8817,7 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'sideScoreScreenExcluded',
   'sideAttackedBy',
   'sideAttackedFrame',
+  'sourcePlayerIncludesGeneralsVisionSpyFields',
   'sideVisionSpiedBy',
   'sideVisionSpiedMask',
   'sideBattlePlanBonuses',
@@ -9635,6 +9657,23 @@ interface SourceAIUpdateInterfaceImportState {
   ignoreObstacleId: number | null;
   upgradedLocomotors: boolean | null;
   attitude: number | null;
+  turretSnapshots: SourceTurretAIImportState[];
+}
+
+interface SourceTurretAIImportState {
+  currentAngle: number;
+  currentPitch: number;
+  enableSweepUntilFrame: number;
+  target: number;
+  continuousFireExpirationFrame: number;
+  playRotSound: boolean;
+  playPitchSound: boolean;
+  positiveSweep: boolean;
+  didFire: boolean;
+  enabled: boolean;
+  firesWhileTurning: boolean;
+  targetWasSetByIdleMood: boolean;
+  sleepUntilFrame: number;
 }
 
 interface SourceAIUpdateInterfaceTailImportState {
@@ -9645,6 +9684,7 @@ interface SourceAIUpdateInterfaceTailImportState {
   ignoreObstacleId: number;
   upgradedLocomotors: boolean;
   attitude: number;
+  turretSnapshots: SourceTurretAIImportState[];
 }
 
 interface SourceAICommandStorageImportState {
@@ -11004,6 +11044,7 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly scriptSequentialScripts: ScriptSequentialScriptState[] = [];
   /** Source parity: ScriptEngine script lists loaded from map SidesList. */
   private readonly mapScriptLists: MapScriptListRuntime[] = [];
+  private readonly sourceSidesListScriptPresentByIndex: boolean[] = [];
   private readonly mapScriptsByNameUpper = new Map<string, MapScriptRuntime>();
   private readonly mapScriptGroupsByNameUpper = new Map<string, MapScriptGroupRuntime>();
   private readonly scriptPlayerSideByName = new Map<string, string>();
@@ -11049,6 +11090,11 @@ export class GameLogicSubsystem implements Subsystem {
   /** Source parity: Player::m_attackedBy + m_attackedFrame. */
   private readonly sideAttackedBy = new Map<string, Set<string>>();
   private readonly sideAttackedFrame = new Map<string, number>();
+  /**
+   * Source ABI selector: vanilla Generals serializes Player-level spy-vision fields,
+   * while Zero Hour moved that state to Object::xfer.
+   */
+  private sourcePlayerIncludesGeneralsVisionSpyFields = false;
   /** Source parity: Player::m_visionSpiedBy / m_visionSpiedMask. */
   private readonly sideVisionSpiedBy = new Map<string, number[]>();
   private readonly sideVisionSpiedMask = new Map<string, number>();
@@ -11487,6 +11533,9 @@ export class GameLogicSubsystem implements Subsystem {
           && this.config.sellPercentage === SOURCE_DEFAULT_SELL_PERCENTAGE) {
         this.config.sellPercentage = gameDataConfig.sellPercentage;
       }
+      if (gameDataConfig.partitionCellSize !== undefined) {
+        this.config.partitionCellSize = Math.max(1, gameDataConfig.partitionCellSize);
+      }
     }
     const aiConfig = iniDataRegistry.getAiConfig();
     this.runtimeAiConfig = {
@@ -11606,7 +11655,16 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Initialize fog of war grid based on map dimensions.
     if (heightmap) {
-      this.fogOfWarGrid = new FogOfWarGrid(heightmap.worldWidth, heightmap.worldDepth, MAP_XY_FACTOR);
+      const partitionExtent = resolveSourceTerrainPartitionExtent(
+        mapData,
+        heightmap,
+        this.scriptActiveBoundaryIndex ?? 0,
+      );
+      this.fogOfWarGrid = new FogOfWarGrid(
+        partitionExtent.worldWidth,
+        partitionExtent.worldDepth,
+        this.config.partitionCellSize,
+      );
       this.initializeObserverMapReveals();
     }
 
@@ -14679,6 +14737,8 @@ export class GameLogicSubsystem implements Subsystem {
 
   captureSourcePlayerRuntimeSaveState(): GameLogicPlayersSaveState {
     const state = this.captureSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS);
+    state.sourcePlayerIncludesGeneralsVisionSpyFields =
+      this.sourcePlayerIncludesGeneralsVisionSpyFields;
     const currentSelectionBySide = this.captureSourcePlayerCurrentSelectionBySide();
     state.sideSourceSpecialPowerReadyTimers = this.captureSourceSpecialPowerReadyTimersBySide();
     state.sideSourcePlayerTeamPrototypeIds = this.captureSourcePlayerTeamPrototypeIdsBySide();
@@ -14735,8 +14795,8 @@ export class GameLogicSubsystem implements Subsystem {
     return {
       version: SOURCE_SIDES_LIST_RUNTIME_SAVE_STATE_VERSION,
       state: this.captureSourceRuntimeStateByKeys(SOURCE_SIDES_LIST_METADATA_RUNTIME_STATE_KEYS),
-      scriptLists: this.mapScriptLists.map((scriptList) => ({
-        present: true,
+      scriptLists: this.mapScriptLists.map((scriptList, sideIndex) => ({
+        present: this.sourceSidesListScriptPresentByIndex[sideIndex] ?? true,
         scripts: (scriptList?.scripts ?? []).map((script) => ({
           active: script.active,
         })),
@@ -14784,7 +14844,24 @@ export class GameLogicSubsystem implements Subsystem {
     if (this.mapScriptLists.length === 0 && snapshot.scriptLists.length > 0) {
       throw new Error('Source sides-list save-state requires loaded map scripts before restore.');
     }
-    if (snapshot.scriptLists.length !== this.mapScriptLists.length) {
+    if (snapshot.scriptLists.length > this.mapScriptLists.length) {
+      for (
+        let sideIndex = this.mapScriptLists.length;
+        sideIndex < snapshot.scriptLists.length;
+        sideIndex += 1
+      ) {
+        const savedScriptList = snapshot.scriptLists[sideIndex];
+        if (
+          savedScriptList?.present
+          || (savedScriptList?.scripts.length ?? 0) !== 0
+          || (savedScriptList?.groups.length ?? 0) !== 0
+        ) {
+          throw new Error(`Source sides-list save-state references missing side script list ${sideIndex}.`);
+        }
+        this.mapScriptLists[sideIndex] = { scripts: [], groups: [] };
+        this.sourceSidesListScriptPresentByIndex[sideIndex] = false;
+      }
+    } else if (snapshot.scriptLists.length < this.mapScriptLists.length) {
       throw new Error(
         `Source sides-list save-state count mismatch: expected ${this.mapScriptLists.length}, got ${snapshot.scriptLists.length}.`,
       );
@@ -14800,11 +14877,13 @@ export class GameLogicSubsystem implements Subsystem {
         if ((currentScriptList?.scripts.length ?? 0) !== 0 || (currentScriptList?.groups.length ?? 0) !== 0) {
           throw new Error(`Source sides-list save-state side ${sideIndex} is missing a script list.`);
         }
+        this.sourceSidesListScriptPresentByIndex[sideIndex] = false;
         continue;
       }
       if (!currentScriptList) {
         throw new Error(`Source sides-list save-state references missing side script list ${sideIndex}.`);
       }
+      this.sourceSidesListScriptPresentByIndex[sideIndex] = true;
       if (savedScriptList.scripts.length !== currentScriptList.scripts.length) {
         throw new Error(
           `Source sides-list script count mismatch for side ${sideIndex}: expected ${currentScriptList.scripts.length}, got ${savedScriptList.scripts.length}.`,
@@ -14899,6 +14978,19 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     this.scriptActiveBoundaryIndex = Math.max(0, Math.trunc(snapshot.activeBoundary ?? 0));
+    if (this.loadedMapData && this.mapHeightmap) {
+      const partitionExtent = resolveSourceTerrainPartitionExtent(
+        this.loadedMapData,
+        this.mapHeightmap,
+        this.scriptActiveBoundaryIndex,
+      );
+      this.fogOfWarGrid = new FogOfWarGrid(
+        partitionExtent.worldWidth,
+        partitionExtent.worldDepth,
+        this.config.partitionCellSize,
+      );
+      this.initializeObserverMapReveals();
+    }
     this.dynamicWaterUpdates.length = 0;
 
     for (const waterUpdate of snapshot.waterUpdates) {
@@ -16730,7 +16822,7 @@ export class GameLogicSubsystem implements Subsystem {
     xfer.xferAsciiString('');
   }
 
-  private skipSourceTurretAISnapshot(xfer: XferLoad): void {
+  private parseSourceTurretAISnapshot(xfer: XferLoad): SourceTurretAIImportState {
     const version = xfer.xferVersion(2);
     if (version < 1 || version > 2) {
       throw new Error(`Unsupported source TurretAI import version ${version}.`);
@@ -16739,21 +16831,34 @@ export class GameLogicSubsystem implements Subsystem {
     if (stateMachineVersion !== 1) {
       throw new Error(`Unsupported source TurretStateMachine import version ${stateMachineVersion}.`);
     }
-    xfer.xferReal(0);
-    xfer.xferReal(0);
-    xfer.xferUnsignedInt(0);
-    xfer.xferUser(new Uint8Array(4));
-    xfer.xferUnsignedInt(0);
-    xfer.xferBool(false);
-    xfer.xferBool(false);
-    xfer.xferBool(false);
-    xfer.xferBool(false);
-    xfer.xferBool(false);
-    xfer.xferBool(false);
-    xfer.xferBool(false);
-    if (version >= 2) {
-      xfer.xferUnsignedInt(0);
-    }
+    const currentAngle = xfer.xferReal(0);
+    const currentPitch = xfer.xferReal(0);
+    const enableSweepUntilFrame = xfer.xferUnsignedInt(0);
+    const target = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+    const continuousFireExpirationFrame = xfer.xferUnsignedInt(0);
+    const playRotSound = xfer.xferBool(false);
+    const playPitchSound = xfer.xferBool(false);
+    const positiveSweep = xfer.xferBool(false);
+    const didFire = xfer.xferBool(false);
+    const enabled = xfer.xferBool(false);
+    const firesWhileTurning = xfer.xferBool(false);
+    const targetWasSetByIdleMood = xfer.xferBool(false);
+    const sleepUntilFrame = version >= 2 ? xfer.xferUnsignedInt(0) : 0;
+    return {
+      currentAngle,
+      currentPitch,
+      enableSweepUntilFrame,
+      target,
+      continuousFireExpirationFrame,
+      playRotSound,
+      playPitchSound,
+      positiveSweep,
+      didFire,
+      enabled,
+      firesWhileTurning,
+      targetWasSetByIdleMood,
+      sleepUntilFrame,
+    };
   }
 
   private parseSourceAIUpdateInterfaceTailImportState(
@@ -16810,8 +16915,9 @@ export class GameLogicSubsystem implements Subsystem {
     xfer.xferUser(new Uint8Array(4));
     xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
     const boundedTurretCount = Math.min(Math.max(0, Math.trunc(turretCount)), SOURCE_AI_MAX_TURRETS);
+    const turretSnapshots: SourceTurretAIImportState[] = [];
     for (let index = 0; index < boundedTurretCount; index += 1) {
-      this.skipSourceTurretAISnapshot(xfer);
+      turretSnapshots.push(this.parseSourceTurretAISnapshot(xfer));
     }
     xfer.xferUser(new Uint8Array(4));
     const attitude = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
@@ -16825,6 +16931,7 @@ export class GameLogicSubsystem implements Subsystem {
       ignoreObstacleId,
       upgradedLocomotors,
       attitude,
+      turretSnapshots,
     };
   }
 
@@ -16888,6 +16995,7 @@ export class GameLogicSubsystem implements Subsystem {
           ignoreObstacleId: tail?.ignoreObstacleId ?? null,
           upgradedLocomotors: tail?.upgradedLocomotors ?? null,
           attitude: tail?.attitude ?? null,
+          turretSnapshots: tail?.turretSnapshots ?? [],
         };
       } catch {
         // Try the next likely base-class offset; derived AI updates only prepend xferVersion tags.
@@ -19238,6 +19346,7 @@ export class GameLogicSubsystem implements Subsystem {
       case 1: return 'DEPLOY';
       case 2: return 'READY_TO_ATTACK';
       case 3: return 'UNDEPLOY';
+      case 4: return 'ALIGNING_TURRETS';
       default: return null;
     }
   }
@@ -19465,6 +19574,36 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private applySourceTurretAISnapshotsToEntity(
+    entity: MapEntity,
+    turretSnapshots: readonly SourceTurretAIImportState[],
+  ): void {
+    for (let index = 0; index < turretSnapshots.length; index += 1) {
+      const snapshot = turretSnapshots[index]!;
+      const turretState = entity.turretStates[index];
+      const turretProfile = entity.turretProfiles[index];
+      if (!turretState || !turretProfile) {
+        continue;
+      }
+      turretState.currentAngle = Number.isFinite(snapshot.currentAngle)
+        ? snapshot.currentAngle
+        : turretState.currentAngle;
+      turretState.currentPitch = Number.isFinite(snapshot.currentPitch)
+        ? snapshot.currentPitch
+        : turretState.currentPitch;
+      turretState.enableSweepUntilFrame = Math.max(0, Math.trunc(snapshot.enableSweepUntilFrame));
+      turretState.continuousFireExpirationFrame = Math.max(0, Math.trunc(snapshot.continuousFireExpirationFrame));
+      turretState.playRotSound = snapshot.playRotSound;
+      turretState.playPitchSound = snapshot.playPitchSound;
+      turretState.positiveSweep = snapshot.positiveSweep;
+      turretState.didFire = snapshot.didFire;
+      turretState.targetWasSetByIdleMood = snapshot.targetWasSetByIdleMood;
+      turretState.sleepUntilFrame = Math.max(0, Math.trunc(snapshot.sleepUntilFrame));
+      turretProfile.enabled = snapshot.enabled;
+      turretProfile.firesWhileTurning = snapshot.firesWhileTurning;
+    }
+  }
+
   private applySourceAIUpdateInterfaceModulesToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -19506,6 +19645,7 @@ export class GameLogicSubsystem implements Subsystem {
         const ignoreObstacleId = Math.trunc(aiUpdateState.ignoreObstacleId);
         entity.ignoredMovementObstacleId = ignoreObstacleId > 0 ? ignoreObstacleId : null;
       }
+      this.applySourceTurretAISnapshotsToEntity(entity, aiUpdateState.turretSnapshots);
       if (aiUpdateState.pathfindGoalCell !== null) {
         const { x, y } = aiUpdateState.pathfindGoalCell;
         entity.pathfindGoalCell = x >= 0 && y >= 0 ? { x, z: y } : null;
@@ -37045,14 +37185,46 @@ export class GameLogicSubsystem implements Subsystem {
    * the given weapon slot.
    * (GeneralsMD/Code/GameEngine/Source/GameLogic/AI/TurretAI.cpp:516-518)
    */
-  /* @internal */ findTurretForWeaponSlot(entity: MapEntity, slotIndex: number): TurretProfile | null {
+  /* @internal */ findTurretIndexForWeaponSlot(entity: MapEntity, slotIndex: number): number | null {
     const slotBit = 1 << slotIndex;
-    for (const turret of entity.turretProfiles) {
+    for (let index = 0; index < entity.turretProfiles.length; index += 1) {
+      const turret = entity.turretProfiles[index]!;
       if ((turret.controlledWeaponSlotsMask & slotBit) !== 0) {
-        return turret;
+        return index;
       }
     }
     return null;
+  }
+
+  /* @internal */ findTurretForWeaponSlot(entity: MapEntity, slotIndex: number): TurretProfile | null {
+    const turretIndex = this.findTurretIndexForWeaponSlot(entity, slotIndex);
+    return turretIndex === null ? null : entity.turretProfiles[turretIndex] ?? null;
+  }
+
+  /* @internal */ findTurretIndexForCurrentWeapon(entity: MapEntity): number | null {
+    return this.findTurretIndexForWeaponSlot(entity, entity.attackWeaponSlotIndex);
+  }
+
+  /* @internal */ isTurretInNaturalPosition(entity: MapEntity, turretIndex: number): boolean {
+    if (entity.objectStatusFlags.has('UNDER_CONSTRUCTION')) {
+      return true;
+    }
+    const profile = entity.turretProfiles[turretIndex];
+    const state = entity.turretStates[turretIndex];
+    if (!profile || !state) {
+      return false;
+    }
+    return Math.fround(state.currentAngle) === Math.fround(profile.naturalAngle)
+      && Math.fround(state.currentPitch) === Math.fround(profile.naturalPitch);
+  }
+
+  /* @internal */ recenterTurret(entity: MapEntity, turretIndex: number): void {
+    const state = entity.turretStates[turretIndex];
+    if (!state) {
+      return;
+    }
+    state.state = 'RECENTER';
+    state.holdUntilFrame = 0;
   }
 
   /**
@@ -40320,7 +40492,29 @@ export class GameLogicSubsystem implements Subsystem {
     if (!sourceEntity || !targetEntity) {
       return RELATIONSHIP_NEUTRAL;
     }
-    return this.getTeamRelationshipBySides(sourceEntity.side ?? '', targetEntity.side ?? '');
+
+    const sourceSide = this.normalizeSide(sourceEntity.side ?? '');
+    const targetSide = this.normalizeSide(targetEntity.side ?? '');
+    if (sourceSide && targetSide) {
+      return this.getTeamRelationshipBySides(sourceSide, targetSide);
+    }
+
+    // Source parity: Object::getRelationship delegates through Team/Player objects.
+    // Source-imported objects can have no resolved faction side yet while still
+    // sharing a real source team/player; preserve allied identity for that case.
+    const sourceTeamName = sourceEntity.sourceTeamNameUpper?.trim().toUpperCase() ?? '';
+    const targetTeamName = targetEntity.sourceTeamNameUpper?.trim().toUpperCase() ?? '';
+    if (sourceTeamName && targetTeamName && sourceTeamName === targetTeamName) {
+      return RELATIONSHIP_ALLIES;
+    }
+
+    const sourceOwnerToken = this.normalizeControllingPlayerToken(sourceEntity.controllingPlayerToken ?? undefined);
+    const targetOwnerToken = this.normalizeControllingPlayerToken(targetEntity.controllingPlayerToken ?? undefined);
+    if (sourceOwnerToken && targetOwnerToken && sourceOwnerToken === targetOwnerToken) {
+      return RELATIONSHIP_ALLIES;
+    }
+
+    return this.getTeamRelationshipBySides(sourceSide, targetSide);
   }
 
   setTeamRelationship(sourceSide: string, targetSide: string, relationship: number): void {
@@ -43685,12 +43879,40 @@ export class GameLogicSubsystem implements Subsystem {
     const affectsMask = this.resolveWeaponRadiusAffectsMask(weaponDef);
 
     const effectRadius = Math.max(primaryDamageRadius, secondaryDamageRadius);
+    const projectileObjectName = readStringField(weaponDef.fields, ['ProjectileObject'])?.trim() ?? '';
+    if (projectileObjectName && projectileObjectName.toUpperCase() !== 'NONE') {
+      // Source parity: WeaponTemplate::fireWeaponTemplate creates ProjectileObject
+      // and does not call dealDamageInternal until the projectile detonates.
+      const projectile = this.spawnEntityFromTemplate(
+        projectileObjectName,
+        targetX,
+        targetZ,
+        source.rotationY,
+        source.side,
+      );
+      if (projectile) {
+        projectile.producerEntityId = source.id;
+        projectile.controllingPlayerToken = source.controllingPlayerToken ?? projectile.controllingPlayerToken;
+        projectile.sourceTeamNameUpper = source.sourceTeamNameUpper ?? projectile.sourceTeamNameUpper;
+      }
+      this.visualEventBuffer.push({
+        type: 'WEAPON_FIRED',
+        x: source.x,
+        y: source.y,
+        z: source.z,
+        radius: 0,
+        sourceEntityId: source.id,
+        targetX,
+        targetY: this.resolveGroundHeight(targetX, targetZ),
+        targetZ,
+        projectileType: 'ARTILLERY',
+      });
+      return;
+    }
 
     if (effectRadius > 0 && (primaryDamage > 0 || secondaryDamage > 0)) {
       const effectRadiusSq = effectRadius * effectRadius;
       const primaryRadiusSq = primaryDamageRadius * primaryDamageRadius;
-      const sourceSide = this.normalizeSide(source.side);
-
       for (const target of this.spawnedEntities.values()) {
         if (target.destroyed || !target.canTakeDamage) continue;
 
@@ -43702,8 +43924,12 @@ export class GameLogicSubsystem implements Subsystem {
           }
           if ((affectsMask & WEAPON_AFFECTS_SELF) === 0) continue;
         } else {
-          const targetSide = this.normalizeSide(target.side);
-          const relationship = this.getTeamRelationshipBySides(sourceSide ?? '', targetSide ?? '');
+          if ((affectsMask & WEAPON_AFFECTS_SELF) === 0
+              && source.producerEntityId > 0
+              && source.producerEntityId === target.id) {
+            continue;
+          }
+          const relationship = this.getTeamRelationship(source, target);
           if (
             (affectsMask & WEAPON_DOESNT_AFFECT_SIMILAR) !== 0
             && relationship === RELATIONSHIP_ALLIES
@@ -54718,6 +54944,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.pendingScriptReinforcementTransportArrivalByEntityId.clear();
     this.scriptSequentialScripts.length = 0;
     this.mapScriptLists.length = 0;
+    this.sourceSidesListScriptPresentByIndex.length = 0;
     this.mapScriptsByNameUpper.clear();
     this.mapScriptGroupsByNameUpper.clear();
     this.scriptPlayerSideByName.clear();

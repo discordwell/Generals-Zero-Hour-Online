@@ -34,6 +34,12 @@ export interface HeightmapData {
   height: number;
   /** Border/margin size in cells (v3+). */
   borderSize: number;
+  /**
+   * Source parity: WorldHeightMap::getAllBoundaries returns active map extents
+   * in heightmap grid cells. W3DTerrainLogic::getExtent multiplies the active
+   * pair by MAP_XY_FACTOR before PartitionManager sizes its cells.
+   */
+  boundaries: Array<{ x: number; y: number }>;
   /** Raw height values, one byte per cell, row-major order. */
   data: Uint8Array;
 }
@@ -52,13 +58,19 @@ export class HeightmapExtractor {
       borderSize = reader.readInt32();
     }
 
+    const boundaries: Array<{ x: number; y: number }> = [];
     if (version >= 4) {
       const numBoundaries = reader.readInt32();
       if (numBoundaries < 0) {
         throw new Error(`HeightMapData has invalid boundary count: ${numBoundaries}`);
       }
       // Source parity: WorldHeightMap::ParseHeightMapData reads boundary (x,y) pairs.
-      reader.skip(numBoundaries * 2 * 4);
+      for (let index = 0; index < numBoundaries; index++) {
+        boundaries.push({
+          x: reader.readInt32(),
+          y: reader.readInt32(),
+        });
+      }
     }
 
     const dataSize = reader.readInt32();
@@ -70,7 +82,7 @@ export class HeightmapExtractor {
 
     const data = reader.readBytes(dataSize);
 
-    return { width, height, borderSize, data };
+    return { width, height, borderSize, boundaries, data };
   }
 
   /**

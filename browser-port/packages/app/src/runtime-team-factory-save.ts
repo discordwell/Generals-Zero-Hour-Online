@@ -260,7 +260,18 @@ class SourceEmptyTeamRelationSnapshot implements Snapshot {
     if (version !== SOURCE_TEAM_RELATION_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported team relation snapshot version ${version}`);
     }
-    xfer.xferUnsignedShort(0);
+    const relationCount = xfer.xferUnsignedShort(0);
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      for (let index = 0; index < relationCount; index += 1) {
+        xfer.xferUnsignedInt(0);
+        xfer.xferInt(0);
+      }
+      return;
+    }
+    for (let index = 0; index < relationCount; index += 1) {
+      xfer.xferUnsignedInt(0);
+      xfer.xferInt(0);
+    }
   }
 
   loadPostProcess(): void {}
@@ -274,10 +285,28 @@ class SourceEmptyPlayerRelationSnapshot implements Snapshot {
     if (version !== SOURCE_PLAYER_RELATION_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported player relation snapshot version ${version}`);
     }
-    xfer.xferUnsignedShort(0);
+    const relationCount = xfer.xferUnsignedShort(0);
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      for (let index = 0; index < relationCount; index += 1) {
+        xfer.xferInt(0);
+        xfer.xferInt(0);
+      }
+      return;
+    }
+    for (let index = 0; index < relationCount; index += 1) {
+      xfer.xferInt(0);
+      xfer.xferInt(0);
+    }
   }
 
   loadPostProcess(): void {}
+}
+
+function getXferRemainingBytes(xfer: Xfer): number | null {
+  const maybeWithRemaining = xfer as Xfer & { getRemaining?: () => number };
+  return typeof maybeWithRemaining.getRemaining === 'function'
+    ? maybeWithRemaining.getRemaining()
+    : null;
 }
 
 class SourceTeamTemplateInfoSnapshot implements Snapshot {
@@ -286,9 +315,13 @@ class SourceTeamTemplateInfoSnapshot implements Snapshot {
   crc(_xfer: Xfer): void {}
 
   xfer(xfer: Xfer): void {
+    const remainingBeforeVersion = getXferRemainingBytes(xfer);
     const version = xfer.xferVersion(SOURCE_TEAM_TEMPLATE_INFO_SNAPSHOT_VERSION);
     if (version !== SOURCE_TEAM_TEMPLATE_INFO_SNAPSHOT_VERSION) {
-      throw new Error(`Unsupported team template-info snapshot version ${version}`);
+      throw new Error(
+        `Unsupported team template-info snapshot version ${version}`
+        + (remainingBeforeVersion === null ? '' : ` with ${remainingBeforeVersion} bytes remaining before version`),
+      );
     }
     this.team.productionPriority = xfer.xferInt(this.team.productionPriority);
   }
@@ -509,31 +542,42 @@ class SourceTeamFactorySnapshot implements Snapshot {
     this.state.state.scriptNextSourceTeamId = nextTeamId;
 
     const prototypeCount = xfer.xferUnsignedShort(prototypeOrder.length);
-    if (xfer.getMode() === XferMode.XFER_LOAD && prototypeCount !== prototypeOrder.length) {
-      throw new Error(
-        `Source team-factory prototype count mismatch: save has ${prototypeCount}, map loaded ${prototypeOrder.length}.`,
-      );
-    }
+    const hasExactPrototypeOrder = xfer.getMode() !== XferMode.XFER_LOAD
+      || prototypeCount === prototypeOrder.length;
 
-    for (let index = 0; index < prototypeOrder.length; index += 1) {
-      const prototypeNameUpper = prototypeOrder[index]!;
+    for (let index = 0; index < prototypeCount; index += 1) {
+      const prototypeId = xfer.xferUnsignedInt(
+        normalizePositiveInt(
+          hasExactPrototypeOrder
+            ? teamMap.get(prototypeOrder[index]!)?.sourcePrototypeId
+            : index + 1,
+          index + 1,
+        ),
+      );
+      const prototypeNameUpper = hasExactPrototypeOrder
+        ? prototypeOrder[index]!
+        : `__SOURCE_TEAM_PROTOTYPE_${prototypeId}`;
       const prototypeRecord = teamMap.get(prototypeNameUpper) ?? createPrototypePlaceholder(prototypeNameUpper);
       teamMap.set(prototypeNameUpper, prototypeRecord);
       if (!instanceMap.has(prototypeNameUpper)) {
         instanceMap.set(prototypeNameUpper, [prototypeNameUpper]);
       }
 
-      const prototypeId = xfer.xferUnsignedInt(
-        normalizePositiveInt(prototypeRecord.sourcePrototypeId, index + 1),
-      );
       prototypeRecord.sourcePrototypeId = prototypeId;
-      xfer.xferSnapshot(new SourceTeamPrototypeSnapshot(
-        this.state,
-        prototypeNameUpper,
-        prototypeRecord,
-        this.playerState,
-        this.sidesListState,
-      ));
+      try {
+        xfer.xferSnapshot(new SourceTeamPrototypeSnapshot(
+          this.state,
+          prototypeNameUpper,
+          prototypeRecord,
+          this.playerState,
+          this.sidesListState,
+        ));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `Source team-factory prototype ${prototypeNameUpper} (${prototypeId}) failed: ${message}`,
+        );
+      }
     }
 
     let maxTeamId = 0;

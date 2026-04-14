@@ -121,6 +121,7 @@ async function main(): Promise<void> {
       width: parsed.heightmap.width,
       height: parsed.heightmap.height,
       borderSize: parsed.heightmap.borderSize,
+      boundaries: parsed.heightmap.boundaries,
       data: uint8ArrayToBase64(parsed.heightmap.data),
     },
     objects: parsed.objects.map((obj) => ({

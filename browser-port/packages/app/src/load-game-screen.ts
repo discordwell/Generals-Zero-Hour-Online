@@ -682,6 +682,7 @@ export class LoadGameScreen {
       await this.callbacks.onLoadSave(this.selectedSlotId);
       this.closeDialog();
     } catch (error) {
+      console.error('Load game failed:', error);
       this.setDialogCopy('load', error instanceof Error ? error.message : String(error));
     }
   }

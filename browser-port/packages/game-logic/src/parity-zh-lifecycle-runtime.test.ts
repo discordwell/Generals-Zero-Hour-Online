@@ -264,12 +264,20 @@ describe('vision spied per-unit system', () => {
     // Before activating spy vision, no spy vision states
     expect(spyVisionEntityStates.size).toBe(0);
 
-    // Activate global spy vision
-    (logic as unknown as { activateGlobalSpyVision: (side: string, ms: number) => void })
-      .activateGlobalSpyVision('America', 10000);
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_SPY',
+      specialPowerName: 'SuperweaponSpySatellite',
+      commandOption: 0x20,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX: 40,
+      targetZ: 40,
+    });
 
-    // Step a few frames to let spy vision propagate
-    agent.step(5);
+    // Step a frame to process the command and update spy-vision fog.
+    agent.step(1);
 
     // Now spy vision entity states should contain per-entity entries
     // Format: `${entityId}:${spyingPlayerIndex}`

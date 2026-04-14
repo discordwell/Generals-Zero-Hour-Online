@@ -32,6 +32,7 @@ import { MAP_XY_FACTOR } from '@generals/terrain';
 
 export function loadMapScripts(self: GL, mapData: MapDataJSON): void {
   self.mapScriptLists.length = 0;
+  self.sourceSidesListScriptPresentByIndex.length = 0;
   self.mapScriptsByNameUpper.clear();
   self.mapScriptGroupsByNameUpper.clear();
   self.scriptPlayerSideByName.clear();
@@ -173,9 +174,11 @@ export function loadMapScripts(self: GL, mapData: MapDataJSON): void {
     const side = sidesList.sides[sideIndex];
     if (!side || !side.scripts) {
       self.mapScriptLists[sideIndex] = { scripts: [], groups: [] };
+      self.sourceSidesListScriptPresentByIndex[sideIndex] = false;
       continue;
     }
     self.mapScriptLists[sideIndex] = createMapScriptListRuntime(self, side.scripts, sideIndex);
+    self.sourceSidesListScriptPresentByIndex[sideIndex] = true;
   }
 }
 

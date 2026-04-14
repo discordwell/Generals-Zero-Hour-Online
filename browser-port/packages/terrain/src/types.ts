@@ -36,6 +36,11 @@ export interface HeightmapDataJSON {
   height: number;
   /** Border/margin size in cells. */
   borderSize: number;
+  /**
+   * Source WorldHeightMap active-boundary extents in heightmap grid cells.
+   * Boundary 0 is the default map extent used by W3DTerrainLogic::getExtent.
+   */
+  boundaries?: Array<{ x: number; y: number }>;
   /** Base64-encoded Uint8Array of raw height values (row-major, 0–255). */
   data: string;
 }

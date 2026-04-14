@@ -7120,6 +7120,17 @@ describe('source-owned game-logic core save-state', () => {
       }),
     }];
 
+    const aligningDeployState = createEmptySourceMapEntitySaveState();
+    aligningDeployState.objectId = 122;
+    aligningDeployState.position = { x: 148, y: 0, z: 62 };
+    aligningDeployState.modules = [{
+      identifier: 'ModuleTag_Deploy',
+      blockData: buildSourceDeployStyleAIUpdateModuleData({
+        state: 4,
+        frameToWaitForDeploy: 0,
+      }),
+    }];
+
     const defaultExitState = createEmptySourceMapEntitySaveState();
     defaultExitState.objectId = 119;
     defaultExitState.position = { x: 150, y: 0, z: 60 };
@@ -7165,6 +7176,7 @@ describe('source-owned game-logic core save-state', () => {
       objectIdCounter: 190,
       objects: [
         { templateName: 'DeployStyleUnit', state: deployState },
+        { templateName: 'DeployStyleUnit', state: aligningDeployState },
         { templateName: 'DefaultExitStructure', state: defaultExitState },
         { templateName: 'QueueExitStructure', state: queueExitState },
         { templateName: 'SpawnPointExitStructure', state: spawnExitState },
@@ -7186,6 +7198,8 @@ describe('source-owned game-logic core save-state', () => {
 
     expect(privateLogic.spawnedEntities.get(118)!.deployState).toBe('UNDEPLOY');
     expect(privateLogic.spawnedEntities.get(118)!.deployFrameToWait).toBe(345);
+    expect(privateLogic.spawnedEntities.get(122)!.deployState).toBe('ALIGNING_TURRETS');
+    expect(privateLogic.spawnedEntities.get(122)!.deployFrameToWait).toBe(0);
 
     expect(privateLogic.spawnedEntities.get(119)!.rallyPoint).toEqual({ x: 51, z: 61 });
     expect(privateLogic.spawnedEntities.get(119)!.rallyPointY).toBe(6);

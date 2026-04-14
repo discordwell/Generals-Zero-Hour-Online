@@ -119,6 +119,20 @@ describe('IniDataRegistry', () => {
       expect(registry.getGameData()?.vertexWaterSettings?.[0]?.xGridCells).toBe(100);
     });
 
+    it('parses GameData partition cell size as a source real value', () => {
+      registry.loadBlocks([
+        makeBlock('GameData', 'Default', {
+          PartitionCellSize: 40.0,
+        }),
+      ]);
+
+      expect(registry.getGameData()?.partitionCellSize).toBe(40);
+
+      const restored = new IniDataRegistry();
+      restored.loadBundle(registry.toBundle());
+      expect(restored.getGameData()?.partitionCellSize).toBe(40);
+    });
+
     it('tracks KindOf arrays', () => {
       registry.loadBlocks([
         makeBlock('Object', 'Tank', { KindOf: ['VEHICLE', 'SELECTABLE', 'CAN_ATTACK'] }),

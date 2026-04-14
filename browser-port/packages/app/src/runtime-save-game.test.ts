@@ -6744,6 +6744,7 @@ function createSourceObjectBlockData(
     filledWeaponSlotMask: 0b111,
     totalAntiMask: 0,
     hasDamageWeapon: true,
+    legacyTotalDamageTypeMaskValue: null,
     totalDamageTypeMask: [],
   };
   state.constructionPercent = 100;
@@ -6851,6 +6852,7 @@ function createSourceGameLogicChunkData(
     xferSave.xferInt(0);
     xferSave.xferInt(1);
 
+    xferSave.xferVersion(1);
     xferSave.xferUnsignedShort(0);
     xferSave.xferBool(false);
     xferSave.xferUnsignedInt(0);
@@ -9870,13 +9872,13 @@ describe('runtime-save-game', () => {
           totalCellCount: 2,
           cells: [
             {
-              shroudLevels: Array.from({ length: 8 }, (_, index) => ({
+              shroudLevels: Array.from({ length: 16 }, (_, index) => ({
                 currentShroud: index === 0 ? 0 : 1,
                 activeShroudLevel: 0,
               })),
             },
             {
-              shroudLevels: Array.from({ length: 8 }, (_, index) => ({
+              shroudLevels: Array.from({ length: 16 }, (_, index) => ({
                 currentShroud: index === 0 ? -1 : 1,
                 activeShroudLevel: index === 1 ? 1 : 0,
               })),
@@ -10116,6 +10118,25 @@ describe('runtime-save-game', () => {
       'CHUNK_GhostObject',
       'CHUNK_TS_RuntimeState',
     ]);
+
+    const terrainLogicChunk = readSaveChunkData(saveFile.data, 'CHUNK_TerrainLogic');
+    expect(terrainLogicChunk).not.toBeNull();
+    const terrainLogicXfer = new XferLoad(terrainLogicChunk!.slice().buffer);
+    terrainLogicXfer.open('read-source-terrain-logic-chunk');
+    try {
+      expect(terrainLogicXfer.xferVersion(1)).toBe(1);
+      expect(terrainLogicXfer.xferVersion(2)).toBe(2);
+      expect(terrainLogicXfer.xferInt(0)).toBe(3);
+      expect(terrainLogicXfer.xferInt(0)).toBe(1);
+      expect(terrainLogicXfer.xferInt(0)).toBe(9);
+      expect(terrainLogicXfer.xferReal(0)).toBe(0.5);
+      expect(terrainLogicXfer.xferReal(0)).toBe(10);
+      expect(terrainLogicXfer.xferReal(0)).toBe(25);
+      expect(terrainLogicXfer.xferReal(0)).toBe(4);
+      expect(terrainLogicXfer.getRemaining()).toBe(0);
+    } finally {
+      terrainLogicXfer.close();
+    }
 
     const radarChunk = readSaveChunkData(saveFile.data, 'CHUNK_Radar');
     expect(radarChunk).not.toBeNull();
@@ -10373,13 +10394,13 @@ describe('runtime-save-game', () => {
       totalCellCount: 2,
       cells: [
         {
-          shroudLevels: Array.from({ length: 8 }, (_, index) => ({
+          shroudLevels: Array.from({ length: 16 }, (_, index) => ({
             currentShroud: index === 0 ? 0 : 1,
             activeShroudLevel: 0,
           })),
         },
         {
-          shroudLevels: Array.from({ length: 8 }, (_, index) => ({
+          shroudLevels: Array.from({ length: 16 }, (_, index) => ({
             currentShroud: index === 0 ? -1 : 1,
             activeShroudLevel: index === 1 ? 1 : 0,
           })),
@@ -10682,6 +10703,35 @@ describe('runtime-save-game', () => {
         objectId: 5,
       },
     ]);
+  });
+
+  it('loads vanilla Generals W3DTerrainVisual version 2 snapshots', () => {
+    const xferSave = new XferSave();
+    xferSave.open('vanilla-generals-terrain-visual');
+    try {
+      xferSave.xferVersion(2);
+      xferSave.xferVersion(1);
+      xferSave.xferBool(false);
+      xferSave.xferInt(4);
+      xferSave.xferUser(new Uint8Array([1, 2, 3, 4]));
+    } finally {
+      xferSave.close();
+    }
+
+    const snapshot = new TerrainVisualSnapshot();
+    const xferLoad = new XferLoad(xferSave.getBuffer());
+    xferLoad.open('load-vanilla-generals-terrain-visual');
+    try {
+      xferLoad.xferSnapshot(snapshot);
+      expect(xferLoad.getRemaining()).toBe(0);
+    } finally {
+      xferLoad.close();
+    }
+    expect(snapshot.payload).toEqual({
+      mode: 'parsed',
+      treeEntries: [],
+      waterGridSnapshot: null,
+    });
   });
 
   it('writes source-shaped TerrainVisual water-grid snapshots for WaveGuide maps', () => {
@@ -15627,6 +15677,13 @@ describe('runtime-save-game', () => {
       expect(xferLoad.xferAsciiString('')).toBe('Upgrade_A');
       expect(xferLoad.xferVersion(1)).toBe(1);
       expect(xferLoad.xferInt(0)).toBe(1);
+      expect(xferLoad.xferInt(0)).toBe(0);
+      expect(xferLoad.xferBool(false)).toBe(false);
+      expect(xferLoad.xferInt(0)).toBe(0);
+      expect(xferLoad.xferBool(false)).toBe(false);
+      expect(xferLoad.xferVersion(1)).toBe(1);
+      expect(xferLoad.xferUnsignedShort(0)).toBe(1);
+      expect(xferLoad.xferAsciiString('')).toBe('Upgrade_A');
     } finally {
       xferLoad.close();
     }
@@ -15754,6 +15811,13 @@ describe('runtime-save-game', () => {
             sideAttackedBy: new Map([
               ['America', new Set(['GLA'])],
             ]),
+            sourcePlayerIncludesGeneralsVisionSpyFields: true,
+            sideVisionSpiedBy: new Map([
+              ['America', [0, 2]],
+            ]),
+            sideVisionSpiedMask: new Map([
+              ['America', 0x0002],
+            ]),
             scriptSidesUnitsShouldHunt: new Set(['America']),
             sideBattlePlanBonuses: new Map([
               ['America', {
@@ -15777,6 +15841,10 @@ describe('runtime-save-game', () => {
     const parsedState = parseRuntimeSaveFile(saveFile.data).gameLogicPlayersState?.state;
     expect([...(parsedState?.sideAttackedBy as Map<string, Set<string>>).get('America')!])
       .toEqual(['GLA']);
+    expect(parsedState?.sourcePlayerIncludesGeneralsVisionSpyFields).toBe(true);
+    expect((parsedState?.sideVisionSpiedBy as Map<string, number[]>).get('America'))
+      .toEqual([0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect((parsedState?.sideVisionSpiedMask as Map<string, number>).get('America')).toBe(0x0002);
     expect((parsedState?.scriptSidesUnitsShouldHunt as Set<string>).has('America')).toBe(true);
     expect((parsedState?.sideBattlePlanBonuses as Map<string, Record<string, unknown>>).get('America'))
       .toEqual({

@@ -1,21 +1,9 @@
 {
-  "generatedAt": "2026-04-12T02:58:41.919Z",
-  "status": "blocked",
+  "generatedAt": "2026-04-12T22:24:20.012Z",
+  "status": "clear",
   "summary": {
-    "blockerGroups": 1,
-    "blockerItems": 1
+    "blockerGroups": 0,
+    "blockerItems": 0
   },
-  "blockers": [
-    {
-      "id": "save-core-no-wet-fixtures",
-      "area": "save-files",
-      "count": 1,
-      "details": [
-        "No C++ save fixtures were scanned for wet save/load parity.",
-        "Import real retail/source saves with: npm run fixtures:import-source-saves -- <save-file-or-directory>",
-        "Carve opaque disk captures with: npm run fixtures:carve-source-saves -- <capture-or-disk-image>",
-        "Current local VM overlay needs its missing backing qcow2 restored before it can boot and produce wet source saves."
-      ]
-    }
-  ]
+  "blockers": []
 }

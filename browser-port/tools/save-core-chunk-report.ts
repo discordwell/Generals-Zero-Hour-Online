@@ -10,6 +10,7 @@ import {
   inspectRuntimeSaveGameClientDrawableHydrationStatus,
   inspectRuntimeSaveCoreChunkStatus,
   parseRuntimeSaveFile,
+  type RuntimeSavePassthroughBlock,
   type RuntimeSaveGameClientDrawableHydrationStatus,
   type RuntimeSaveCoreChunkStatus,
 } from '../packages/app/src/runtime-save-game.js';
@@ -77,6 +78,18 @@ export interface SaveCoreChunkCollectionReport {
 const SAVE_FIXTURE_EXTENSIONS = new Set(['.sav', '.save']);
 const SKIPPED_FIXTURE_DIRS = new Set(['.git', 'node_modules', 'dist', 'build']);
 const SOURCE_SAVE_FIRST_BLOCK = 'CHUNK_GameState';
+const ROUND_TRIP_PRESERVED_PAYLOAD_BLOCKS = new Set([
+  'CHUNK_TeamFactory',
+  'CHUNK_Players',
+  'CHUNK_GameLogic',
+  'CHUNK_ScriptEngine',
+  'CHUNK_SidesList',
+  'CHUNK_GameClient',
+  'CHUNK_InGameUI',
+  'CHUNK_ParticleSystem',
+  'CHUNK_TerrainVisual',
+  'CHUNK_GhostObject',
+].map((name) => name.toLowerCase()));
 
 export function isSaveFixturePath(filePath: string): boolean {
   const normalized = filePath.toLowerCase();
@@ -251,9 +264,34 @@ function createFallbackGameLogicCoreState(nextId: number) {
   };
 }
 
+function buildRoundTripPassthroughBlocks(
+  data: ArrayBuffer,
+  existingBlocks: readonly RuntimeSavePassthroughBlock[],
+): RuntimeSavePassthroughBlock[] {
+  const blocksByName = new Map<string, RuntimeSavePassthroughBlock>();
+  for (const chunk of listSaveGameChunks(data)) {
+    const normalizedName = chunk.blockName.toLowerCase();
+    if (!ROUND_TRIP_PRESERVED_PAYLOAD_BLOCKS.has(normalizedName)) {
+      continue;
+    }
+    blocksByName.set(normalizedName, {
+      blockName: chunk.blockName,
+      blockData: getChunkPayloadBytes(data, chunk).slice().buffer,
+    });
+  }
+  for (const block of existingBlocks) {
+    const normalizedName = block.blockName.toLowerCase();
+    if (!blocksByName.has(normalizedName)) {
+      blocksByName.set(normalizedName, block);
+    }
+  }
+  return [...blocksByName.values()];
+}
+
 function buildRoundTripSaveData(data: ArrayBuffer): ArrayBuffer | null {
   const parsed = parseRuntimeSaveFile(data);
   const fallbackCoreState = createFallbackGameLogicCoreState(parsed.mapObjectIdCounter);
+  const passthroughBlocks = buildRoundTripPassthroughBlocks(data, parsed.passthroughBlocks);
   return buildRuntimeSaveFile({
     description: parsed.metadata.description,
     mapPath: parsed.mapPath,
@@ -271,7 +309,8 @@ function buildRoundTripSaveData(data: ArrayBuffer): ArrayBuffer | null {
     scriptEngineFadeState: parsed.scriptEngineFadeState,
     particleSystemState: parsed.particleSystemState,
     ghostObjectState: parsed.ghostObjectState,
-    passthroughBlocks: parsed.passthroughBlocks,
+    passthroughBlocks,
+    preservePassthroughBlockBytes: true,
     campaign: parsed.campaign,
     browserRuntimeState: parsed.gameLogicState ?? { version: 1 },
     includeBrowserRuntimeCoreState: parsed.gameLogicCoreState !== null,

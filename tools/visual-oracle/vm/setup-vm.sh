@@ -21,6 +21,7 @@ VNC_DISPLAY=":1"
 # Check if Emperor BFD project has a Win10 image we can clone
 EMPEROR_WIN10="$HOME/Projects/emperorbfdune/tools/visual-oracle/vm/emperor-win10.qcow2"
 EMPEROR_WIN7="$HOME/Projects/emperorbfdune/tools/visual-oracle/vm/emperor-win7.qcow2"
+CLONE_MODE="${GENERALS_VM_CLONE_MODE:-standalone}"
 
 check_prereqs() {
     echo "=== Checking prerequisites ==="
@@ -29,34 +30,100 @@ check_prereqs() {
     echo "[OK] QEMU found: $(qemu-system-i386 --version | head -1)"
 }
 
+validate_disk_image() {
+    if [ ! -f "$DISK_IMAGE" ]; then
+        echo "Error: Disk image not found: $DISK_IMAGE"
+        echo "Run: bash tools/visual-oracle/vm/setup-vm.sh create"
+        return 1
+    fi
+
+    if qemu-img info --backing-chain "$DISK_IMAGE" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    echo "Error: Disk image has a broken qcow2 backing chain:"
+    qemu-img info --backing-chain "$DISK_IMAGE" 2>&1 || true
+    echo ""
+    echo "This overlay cannot boot until the real backing image is restored."
+    echo "If you have the base image, run:"
+    echo "  GENERALS_VM_BASE_IMAGE=/path/to/base.qcow2 bash tools/visual-oracle/vm/setup-vm.sh repair"
+    return 1
+}
+
+clone_base_image() {
+    local base_image="$1"
+    local label="$2"
+
+    echo "Found $label image."
+    echo "  Source: $base_image"
+    echo "  Target: $DISK_IMAGE"
+
+    case "$CLONE_MODE" in
+        standalone)
+            qemu-img convert -O qcow2 "$base_image" "$DISK_IMAGE"
+            echo "Created standalone qcow2 clone."
+            ;;
+        overlay)
+            qemu-img create -f qcow2 -b "$base_image" -F qcow2 "$DISK_IMAGE"
+            echo "Created qcow2 overlay."
+            echo "Warning: this disk will not boot if the backing image is moved or deleted."
+            ;;
+        *)
+            echo "Error: GENERALS_VM_CLONE_MODE must be 'standalone' or 'overlay' (got '$CLONE_MODE')."
+            return 1
+            ;;
+    esac
+}
+
+repair_backing() {
+    echo "=== Repair VM backing chain ==="
+    if [ ! -f "$DISK_IMAGE" ]; then
+        echo "Error: Disk image not found: $DISK_IMAGE"
+        return 1
+    fi
+
+    if qemu-img info --backing-chain "$DISK_IMAGE" >/dev/null 2>&1; then
+        echo "Disk backing chain is already valid."
+        qemu-img info --backing-chain "$DISK_IMAGE"
+        return 0
+    fi
+
+    local base_image="${GENERALS_VM_BASE_IMAGE:-}"
+    if [ -z "$base_image" ]; then
+        echo "Error: GENERALS_VM_BASE_IMAGE is required to repair this overlay."
+        echo "The missing backing image recorded in the overlay is:"
+        qemu-img info "$DISK_IMAGE" 2>/dev/null | sed -n 's/^backing file: /  /p' || true
+        return 1
+    fi
+    if [ ! -f "$base_image" ]; then
+        echo "Error: GENERALS_VM_BASE_IMAGE does not exist: $base_image"
+        return 1
+    fi
+
+    qemu-img rebase -u -b "$base_image" -F qcow2 "$DISK_IMAGE"
+    validate_disk_image
+    echo "Rebased overlay onto: $base_image"
+}
+
 step1_create_vm() {
     echo "=== Step 1: Create Windows VM ==="
 
     if [ -f "$DISK_IMAGE" ]; then
         echo "Disk image already exists: $DISK_IMAGE"
-        echo "Delete it first to reinstall: rm $DISK_IMAGE"
+        validate_disk_image || true
+        echo "Move it aside first to reinstall; this script will not delete existing VM state."
         return 1
     fi
 
     # Option A: Clone from Emperor BFD project
-    if [ -f "$EMPEROR_WIN10" ]; then
-        echo "Found Emperor BFD Win10 image. Cloning..."
-        echo "  Source: $EMPEROR_WIN10"
-        echo "  Target: $DISK_IMAGE"
-        qemu-img create -f qcow2 -b "$EMPEROR_WIN10" -F qcow2 "$DISK_IMAGE"
-        echo "Created overlay image (uses Emperor Win10 as backing store)."
-        echo ""
-        echo "Note: This shares the base Windows install. Any changes go to the overlay."
-        echo "To create a standalone copy instead: qemu-img convert -O qcow2 $EMPEROR_WIN10 $DISK_IMAGE"
+    local base_win10="${GENERALS_VM_BASE_IMAGE:-$EMPEROR_WIN10}"
+    if [ -f "$base_win10" ]; then
+        clone_base_image "$base_win10" "Windows 10 base"
         return 0
     fi
 
     if [ -f "$EMPEROR_WIN7" ]; then
-        echo "Found Emperor BFD Win7 image. Cloning..."
-        echo "  Source: $EMPEROR_WIN7"
-        echo "  Target: $DISK_IMAGE"
-        qemu-img create -f qcow2 -b "$EMPEROR_WIN7" -F qcow2 "$DISK_IMAGE"
-        echo "Created overlay image."
+        clone_base_image "$EMPEROR_WIN7" "Windows 7 base"
         return 0
     fi
 
@@ -104,6 +171,7 @@ step1_create_vm() {
 
 step2_install_generals() {
     echo "=== Step 2: Install C&C Generals + Zero Hour ==="
+    validate_disk_image
     echo ""
     echo "You need Generals + Zero Hour installation media."
     echo "Options:"
@@ -162,6 +230,7 @@ step2_install_generals() {
 
 step3_configure() {
     echo "=== Step 3: Configure + Create Snapshot ==="
+    validate_disk_image
     echo ""
     echo "Starting VM. Once booted:"
     echo ""
@@ -197,6 +266,7 @@ step3_configure() {
 
 headless() {
     echo "=== Starting Headless VM ==="
+    validate_disk_image
     echo "QMP socket: $QMP_SOCK"
     echo "VNC: localhost:$(( ${VNC_DISPLAY#:} + 5900 ))"
     echo ""
@@ -224,6 +294,8 @@ case "$STEP" in
     1|create)    step1_create_vm ;;
     2|install)   step2_install_generals ;;
     3|configure) step3_configure ;;
+    check)       validate_disk_image && qemu-img info --backing-chain "$DISK_IMAGE" ;;
+    repair)      repair_backing ;;
     headless)    headless ;;
     help|*)
         echo "Visual Oracle — VM Setup for C&C Generals: Zero Hour"
@@ -234,6 +306,8 @@ case "$STEP" in
         echo "  1 (create)     Create Windows VM disk image"
         echo "  2 (install)    Install Generals + Zero Hour in VM"
         echo "  3 (configure)  Configure game settings + create snapshot"
+        echo "  check          Validate the qcow2 backing chain"
+        echo "  repair         Rebase a broken overlay using GENERALS_VM_BASE_IMAGE"
         echo "  headless       Start VM in headless mode for oracle use"
         echo ""
         echo "Disk image: $DISK_IMAGE"

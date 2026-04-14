@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { buildRuntimeSaveFile } from '../packages/app/src/runtime-save-game.js';
-import { importSourceSaveFixtures } from './import-source-save-fixtures.js';
+import { importSourceSaveFixtures, parseImportSourceSaveFixturesCliArgs } from './import-source-save-fixtures.js';
 import { carveSourceSaveFixtures, findSourceSaveCandidatesInFile } from './source-save-carver.js';
 
 function createEmptyRadarEventState() {
@@ -100,6 +100,24 @@ function buildSourceLikeSave(): Buffer {
 }
 
 describe('import source save fixtures', () => {
+  it('defaults the CLI output directory without consuming the first input path', () => {
+    expect(parseImportSourceSaveFixturesCliArgs(['/tmp/source-saves'])).toEqual({
+      inputPaths: ['/tmp/source-saves'],
+      outputDir: 'fixtures/source-saves',
+    });
+    expect(parseImportSourceSaveFixturesCliArgs([
+      '--out',
+      'fixtures/custom-source-saves',
+      '/tmp/source-saves',
+      '/tmp/another-save.sav',
+    ])).toEqual({
+      inputPaths: ['/tmp/source-saves', '/tmp/another-save.sav'],
+      outputDir: 'fixtures/custom-source-saves',
+    });
+    expect(parseImportSourceSaveFixturesCliArgs(['--out'])).toBeNull();
+    expect(parseImportSourceSaveFixturesCliArgs([])).toBeNull();
+  });
+
   it('copies only files with source save headers into the wet fixture directory', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'generals-source-save-import-'));
     try {

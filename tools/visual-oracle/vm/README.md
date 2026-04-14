@@ -26,7 +26,7 @@ brew install qemu    # Provides qemu-system-i386
 
 ## Quick Setup
 
-### Option A: Clone from Emperor BFD project (fastest)
+### Option A: Clone from an existing Windows qcow2 (fastest)
 
 If you have the Emperor BFD project with a Windows VM already set up:
 
@@ -34,11 +34,34 @@ If you have the Emperor BFD project with a Windows VM already set up:
 bash tools/visual-oracle/vm/setup-vm.sh 1   # Auto-detects and clones
 ```
 
+By default this creates a standalone qcow2 so the Generals VM does not depend on
+another checkout's backing file. To intentionally create an overlay instead:
+
+```bash
+GENERALS_VM_CLONE_MODE=overlay bash tools/visual-oracle/vm/setup-vm.sh 1
+```
+
+If the base qcow2 lives somewhere else:
+
+```bash
+GENERALS_VM_BASE_IMAGE=/path/to/base.qcow2 bash tools/visual-oracle/vm/setup-vm.sh 1
+```
+
 ### Option B: Fresh Windows install
 
 1. Place a Windows 10 or Win7 ISO at `tools/visual-oracle/vm/windows.iso`
 2. Run: `bash tools/visual-oracle/vm/setup-vm.sh 1`
 3. Install Windows interactively
+
+### Validate or Repair an Existing Disk
+
+```bash
+bash tools/visual-oracle/vm/setup-vm.sh check
+GENERALS_VM_BASE_IMAGE=/path/to/base.qcow2 bash tools/visual-oracle/vm/setup-vm.sh repair
+```
+
+`repair` only updates qcow2 metadata to point at a real backing image. It cannot
+recover a deleted backing image or flatten an overlay without the original base.
 
 ### Install Generals
 
@@ -108,3 +131,7 @@ there's no GPU acceleration. Options:
 - **Slow performance**: Expected — TCG on ARM Mac runs at ~3-5 FPS
   - This is fine for screenshot comparison (not trying to play in real-time)
 - **Snapshot won't load**: Display adapter (`-vga`) must match what was used during save
+- **Broken qcow2 backing chain**: Run `setup-vm.sh check`. If the backing file
+  was moved, provide its current path with `GENERALS_VM_BASE_IMAGE` and run
+  `setup-vm.sh repair`. If the backing file was deleted, rebuild from a real base
+  image or a fresh Windows install; the overlay alone is not bootable.

@@ -888,6 +888,10 @@ export function parseTsWeaponSetXferFields(source: string): string[] {
     }
     pushUniqueField(fields, seen, mapTsWeaponSetField(token));
   }
+  const zhDamageMaskIndex = fields.indexOf('totalDamageTypeMask');
+  if (zhDamageMaskIndex >= 0) {
+    return fields.slice(0, zhDamageMaskIndex + 1);
+  }
   return fields;
 }
 
@@ -928,7 +932,7 @@ export function parseTsDrawableXferFields(source: string): string[] {
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xfer\.xferVersion\s*\(\s*7\s*\)|xfer\.xferUnsignedInt\s*\(\s*this\.state\.drawableId\s*\)|xferModelConditionFlags\s*\(|xferSourceMatrix3DRawBytes\s*\(|xfer\.xferBool\s*\(\s*(?:selectionFlashEnvelopeBytes|colorTintEnvelopeBytes|locoInfoBytes)\s*!==\s*null\s*\)|xfer\.xferUser\s*\(\s*(?:selectionFlashEnvelopeBytes|colorTintEnvelopeBytes|locoInfoBytes|blockData|fallback\?\.instanceMatrixBytes|fallback\?\.iconBytes|fallback\?\.customAmbientSoundBytes)[^)]*?\)|xfer\.xferInt\s*\(\s*fallback\?\.(?:terrainDecalType|fadeMode|stealthLook)[^)]*?\)|xfer\.xferReal\s*\(\s*(?:this\.state|fallback\?)\.(?:explicitOpacity|stealthOpacity|effectiveStealthOpacity|decalOpacityFadeTarget|decalOpacityFadeRate|decalOpacity|secondMaterialPassOpacity|instanceScale)[^)]*?\)|xfer\.xferObjectID\s*\(\s*this\.state\.(?:objectId|shroudStatusObjectId)\s*\)|xfer\.xferUnsignedInt\s*\(\s*(?:statusBits|fallback\?\.(?:tintStatus|prevTintStatus|timeElapsedFade|timeToFade|expirationDate))[^)]*?\)|xfer\.xferUnsignedShort\s*\(\s*NUM_DRAWABLE_MODULE_TYPES\s*\)|xfer\.xferInt\s*\(\s*this\.state\.flashCount\s*\)|xfer\.xferColor\s*\(\s*this\.state\.flashColor\s*\)|xfer\.xferBool\s*\(\s*this\.state\.(?:hidden|hiddenByStealth|ambientSoundEnabled|ambientSoundEnabledFromScript)[^)]*?\)|xfer\.xferBool\s*\(\s*fallback\?\.instanceIsIdentity[^)]*?\)/g;
+    /xfer\.xferVersion\s*\(\s*targetVersion\s*\)|xfer\.xferUnsignedInt\s*\(\s*this\.state\.drawableId\s*\)|xferModelConditionFlags\s*\(|xferSourceMatrix3DRawBytes\s*\(|xfer\.xferBool\s*\(\s*(?:selectionFlashEnvelopeBytes|colorTintEnvelopeBytes|locoInfoBytes)\s*!==\s*null\s*\)|xfer\.xferUser\s*\(\s*(?:selectionFlashEnvelopeBytes|colorTintEnvelopeBytes|locoInfoBytes|blockData|fallback\?\.instanceMatrixBytes|fallback\?\.iconBytes|fallback\?\.customAmbientSoundBytes)[^)]*?\)|xfer\.xferInt\s*\(\s*fallback\?\.(?:terrainDecalType|fadeMode|stealthLook)[^)]*?\)|xfer\.xferReal\s*\(\s*(?:this\.state|fallback\?)\.(?:explicitOpacity|stealthOpacity|effectiveStealthOpacity|decalOpacityFadeTarget|decalOpacityFadeRate|decalOpacity|secondMaterialPassOpacity|instanceScale)[^)]*?\)|xfer\.xferObjectID\s*\(\s*this\.state\.(?:objectId|shroudStatusObjectId)\s*\)|xfer\.xferUnsignedInt\s*\(\s*(?:statusBits|fallback\?\.(?:tintStatus|prevTintStatus|timeElapsedFade|timeToFade|expirationDate))[^)]*?\)|xfer\.xferUnsignedShort\s*\(\s*NUM_DRAWABLE_MODULE_TYPES\s*\)|xfer\.xferInt\s*\(\s*this\.state\.flashCount\s*\)|xfer\.xferColor\s*\(\s*this\.state\.flashColor\s*\)|xfer\.xferBool\s*\(\s*this\.state\.(?:hidden|hiddenByStealth|ambientSoundEnabled|ambientSoundEnabledFromScript)[^)]*?\)|xfer\.xferBool\s*\(\s*fallback\?\.instanceIsIdentity[^)]*?\)/g;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     pushUniqueField(fields, seen, mapTsDrawableField(match[0]!));
@@ -1811,7 +1815,7 @@ export function parseCppGeneratedSourceAIStateMachineFields(source: string): str
 }
 
 export function parseTsSourceGeneratedAIStateMachineFields(source: string): string[] {
-  const body = extractFunctionBody(source, 'function buildGeneratedSourceAIStateMachineBlockData');
+  const body = extractFunctionBodyAfterParams(source, 'buildGeneratedSourceAIStateMachineBlockData');
   if (!body) return [];
   const idleBranchStart = body.indexOf("saver.open('build-generated-source-ai-state-machine')");
   const parseBody = idleBranchStart >= 0 ? body.slice(idleBranchStart) : body;
@@ -2262,7 +2266,7 @@ export function parseTsTeamFactoryXferFields(source: string): string[] {
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xfer\.xferVersion\s*\(\s*SOURCE_TEAM_FACTORY_SNAPSHOT_VERSION\s*\)|xfer\.xferUnsignedInt\s*\(\s*normalizePositiveInt\(this\.state\.state\.scriptNextSourceTeamId|xfer\.xferUnsignedShort\s*\(\s*prototypeOrder\.length\s*\)|xfer\.xferUnsignedInt\s*\(\s*normalizePositiveInt\(prototypeRecord\.sourcePrototypeId|xfer\.xferSnapshot\s*\(\s*new SourceTeamPrototypeSnapshot/g;
+    /xfer\.xferVersion\s*\(\s*SOURCE_TEAM_FACTORY_SNAPSHOT_VERSION\s*\)|xfer\.xferUnsignedInt\s*\(\s*normalizePositiveInt\(this\.state\.state\.scriptNextSourceTeamId|xfer\.xferUnsignedShort\s*\(\s*prototypeOrder\.length\s*\)|teamMap\.get\(prototypeOrder\[index\]!\)\?\.sourcePrototypeId|xfer\.xferUnsignedInt\s*\(\s*normalizePositiveInt\(prototypeRecord\.sourcePrototypeId|xfer\.xferSnapshot\s*\(\s*new SourceTeamPrototypeSnapshot/g;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     pushUniqueField(fields, seen, mapTsTeamFactoryField(match[0]!));
@@ -6313,7 +6317,7 @@ function mapCppDrawableField(method: string, argument: string): string | null {
 }
 
 function mapTsDrawableField(token: string): string | null {
-  if (token.includes('xferVersion(7')) return 'version';
+  if (token.includes('xferVersion(targetVersion')) return 'version';
   if (token.includes('this.state.drawableId')) return 'drawableId';
   if (token.includes('xferModelConditionFlags')) return 'conditionState';
   if (token.includes('xferSourceMatrix3DRawBytes')) return 'transformMatrix3D';
@@ -8390,7 +8394,9 @@ function mapTsTeamFactoryField(token: string): string | null {
   if (token.includes('SOURCE_TEAM_FACTORY_SNAPSHOT_VERSION')) return 'version';
   if (token.includes('scriptNextSourceTeamId')) return 'uniqueTeamId';
   if (token.includes('prototypeOrder.length')) return 'prototypeCount';
-  if (token.includes('prototypeRecord.sourcePrototypeId')) return 'prototype.id';
+  if (token.includes('prototypeRecord.sourcePrototypeId') || token.includes('sourcePrototypeId')) {
+    return 'prototype.id';
+  }
   if (token.includes('SourceTeamPrototypeSnapshot')) return 'prototype.snapshot';
   return null;
 }

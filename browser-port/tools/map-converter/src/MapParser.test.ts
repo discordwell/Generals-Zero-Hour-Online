@@ -823,6 +823,7 @@ describe('HeightmapExtractor', () => {
     expect(hm.width).toBe(4);
     expect(hm.height).toBe(4);
     expect(hm.borderSize).toBe(1);
+    expect(hm.boundaries).toEqual([{ x: 2, y: 2 }, { x: 3, y: 3 }]);
     expect(hm.data).toHaveLength(16);
   });
 
@@ -831,6 +832,7 @@ describe('HeightmapExtractor', () => {
       width: 2,
       height: 2,
       borderSize: 0,
+      boundaries: [],
       data: new Uint8Array([0, 128, 255, 64]),
     };
 

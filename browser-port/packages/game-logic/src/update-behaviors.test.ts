@@ -192,6 +192,179 @@ describe('mine detonation', () => {
     expect(enemyAfter!.health).toBeLessThan(200);
   });
 
+  it('detonates mine for neutral overlap by default', () => {
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    const { registry } = makeMineSetup();
+
+    const map = makeMap([
+      makeMapObject('TestMine', 10, 10),
+      makeMapObject('EnemyVehicle', 12, 10),
+    ]);
+
+    logic.loadMapObjects(map, registry, makeHeightmap());
+    logic.update(1 / 30);
+
+    expect(logic.getEntityState(1)).toBeNull();
+  });
+
+  it('does not splash side-less mines on the same source team when allies are excluded', () => {
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+
+    const mineDef = makeObjectDef('SourceTeamMine', '', ['MINE', 'IMMOBILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'MinefieldBehavior ModuleTag_Minefield', {
+        DetonationWeapon: 'SourceMineWeapon',
+        NumVirtualMines: 8,
+      }),
+    ], {
+      Geometry: 'CYLINDER',
+      GeometryMajorRadius: 1,
+      GeometryMinorRadius: 1,
+    });
+    const enemyDef = makeObjectDef('NeutralTriggerVehicle', 'China', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+    ], {
+      Geometry: 'CYLINDER',
+      GeometryMajorRadius: 1,
+      GeometryMinorRadius: 1,
+    });
+    const registry = makeRegistry(makeBundle({
+      objects: [mineDef, enemyDef],
+      weapons: [
+        makeWeaponDef('SourceMineWeapon', {
+          PrimaryDamage: 100,
+          PrimaryDamageRadius: 10,
+          RadiusDamageAffects: 'ENEMIES NEUTRALS',
+          DamageType: 'LAND_MINE',
+        }),
+      ],
+    }));
+
+    const map = makeMap([
+      makeMapObject('SourceTeamMine', 10, 10),
+      makeMapObject('NeutralTriggerVehicle', 10, 10),
+      makeMapObject('SourceTeamMine', 14, 10),
+    ]);
+
+    logic.loadMapObjects(map, registry, makeHeightmap());
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        sourceTeamNameUpper: string | null;
+        side: string;
+        controllingPlayerToken: string | null;
+        health: number;
+        mineVirtualMinesRemaining: number;
+      }>;
+    };
+    for (const id of [1, 3]) {
+      const mine = privateLogic.spawnedEntities.get(id)!;
+      mine.side = '';
+      mine.controllingPlayerToken = null;
+      mine.sourceTeamNameUpper = '__SOURCE_TEAM_PROTOTYPE_116';
+    }
+
+    logic.update(1 / 30);
+
+    const nearbyMine = privateLogic.spawnedEntities.get(3)!;
+    expect(nearbyMine.health).toBe(100);
+    expect(nearbyMine.mineVirtualMinesRemaining).toBe(8);
+  });
+
+  it('spawns projectile object for projectile-backed detonation weapon without self radius damage', () => {
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+
+    const mineDef = makeObjectDef('ChinaEMPMine', 'China', ['MINE', 'IMMOBILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'MinefieldBehavior ModuleTag_Minefield', {
+        DetonationWeapon: 'NeutronMineWeapon',
+        NumVirtualMines: 8,
+      }),
+    ], {
+      Geometry: 'CYLINDER',
+      GeometryMajorRadius: 1,
+      GeometryMinorRadius: 1,
+    });
+    const enemyDef = makeObjectDef('EnemyVehicle', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+    ], {
+      Geometry: 'CYLINDER',
+      GeometryMajorRadius: 1,
+      GeometryMinorRadius: 1,
+    });
+    const blastDef = makeObjectDef('NeutronBlastObject', 'China', ['UNATTACKABLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 99999999, InitialHealth: 99999999 }),
+    ]);
+    const registry = makeRegistry(makeBundle({
+      objects: [mineDef, enemyDef, blastDef],
+      weapons: [
+        makeWeaponDef('NeutronMineWeapon', {
+          PrimaryDamage: 1,
+          PrimaryDamageRadius: 10,
+          RadiusDamageAffects: 'SUICIDE SELF ENEMIES NEUTRALS NOT_SIMILAR NOT_AIRBORNE',
+          ProjectileObject: 'NeutronBlastObject',
+          DamageType: 'EXPLOSION',
+          DeathType: 'NORMAL',
+        }),
+      ],
+    }));
+
+    const map = makeMap([
+      makeMapObject('ChinaEMPMine', 10, 10),
+      makeMapObject('EnemyVehicle', 10, 10),
+    ]);
+
+    logic.loadMapObjects(map, registry, makeHeightmap());
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.setTeamRelationship('America', 'China', 0);
+
+    logic.update(1 / 30);
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        templateName: string;
+        health: number;
+        mineVirtualMinesRemaining: number;
+        producerEntityId: number | null;
+      }>;
+    };
+    const mine = privateLogic.spawnedEntities.get(1)!;
+    expect(mine.health).toBeCloseTo(87.5);
+    expect(mine.mineVirtualMinesRemaining).toBe(7);
+    expect([...privateLogic.spawnedEntities.values()].some(entity =>
+      entity.templateName === 'NeutronBlastObject'
+      && entity.producerEntityId === 1,
+    )).toBe(true);
+  });
+
+  it('checks mine-clearing anti-mask before granting collision immunity', () => {
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    const { registry } = makeMineSetup();
+
+    const map = makeMap([
+      makeMapObject('TestMine', 10, 10),
+      makeMapObject('EnemyVehicle', 12, 10),
+    ]);
+
+    logic.loadMapObjects(map, registry, makeHeightmap());
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        objectStatusFlags: Set<string>;
+        attackWeapon: { antiMask: number } | null;
+      }>;
+    };
+    const vehicle = privateLogic.spawnedEntities.get(2)!;
+    vehicle.objectStatusFlags.add('IS_ATTACKING');
+    vehicle.attackWeapon = { antiMask: 0 };
+
+    logic.update(1 / 30);
+
+    expect(logic.getEntityState(1)).toBeNull();
+  });
+
   it('does not detonate mine for allies (default detonatedBy = ENEMIES+NEUTRAL)', () => {
     const scene = new THREE.Scene();
     const logic = new GameLogicSubsystem(scene);
@@ -834,18 +1007,32 @@ describe('generate minefield behavior', () => {
 });
 
 describe('deploy style AI update', () => {
-  function makeDeploySetup(opts: { unpackTime?: number; packTime?: number } = {}) {
+  function makeDeploySetup(opts: {
+    unpackTime?: number;
+    packTime?: number;
+    turretsMustCenterBeforePacking?: boolean;
+  } = {}) {
+    const artilleryBlocks = [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+      makeBlock('Behavior', 'DeployStyleAIUpdate ModuleTag_Deploy', {
+        UnpackTime: opts.unpackTime ?? 300,
+        PackTime: opts.packTime ?? 300,
+        TurretsMustCenterBeforePacking: opts.turretsMustCenterBeforePacking === true,
+      }),
+      makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'ArtilleryGun'] }),
+      makeBlock('Locomotor', 'SET_NORMAL ArtilleryLocomotor', { Speed: 30 }),
+    ];
+    if (opts.turretsMustCenterBeforePacking) {
+      artilleryBlocks.push(makeBlock('Behavior', 'TurretAIUpdate ModuleTag_Turret', {
+        ControlledWeaponSlots: 'PRIMARY',
+        TurretTurnRate: 1800,
+        NaturalTurretAngle: 0,
+        NaturalTurretPitch: 0,
+      }));
+    }
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('Artillery', 'America', ['VEHICLE'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
-          makeBlock('Behavior', 'DeployStyleAIUpdate ModuleTag_Deploy', {
-            UnpackTime: opts.unpackTime ?? 300,
-            PackTime: opts.packTime ?? 300,
-          }),
-          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'ArtilleryGun'] }),
-          makeBlock('Locomotor', 'SET_NORMAL ArtilleryLocomotor', { Speed: 30 }),
-        ]),
+        makeObjectDef('Artillery', 'America', ['VEHICLE'], artilleryBlocks),
         makeObjectDef('Target', 'China', ['VEHICLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
           makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'SmallGun'] }),
@@ -969,6 +1156,39 @@ describe('deploy style AI update', () => {
     expect(afterReversal).not.toBeNull();
     // Even if not moved far, at least the entity should be alive and not stuck.
     expect(afterReversal!.health).toBe(200);
+  });
+
+  it('aligns turrets before packing when source requires natural turret position', () => {
+    const { logic } = makeDeploySetup({
+      unpackTime: 300,
+      packTime: 300,
+      turretsMustCenterBeforePacking: true,
+    });
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        deployState: string;
+        deployFrameToWait: number;
+        objectStatusFlags: Set<string>;
+        moveTarget: { x: number; z: number } | null;
+        turretStates: Array<{ currentAngle: number; currentPitch: number; state: string }>;
+      }>;
+    };
+    const artillery = privateLogic.spawnedEntities.get(1)!;
+    artillery.deployState = 'READY_TO_ATTACK';
+    artillery.deployFrameToWait = 0;
+    artillery.objectStatusFlags.add('DEPLOYED');
+    artillery.moveTarget = { x: 10, z: 50 };
+    artillery.turretStates[0]!.currentAngle = 0.5;
+    artillery.turretStates[0]!.currentPitch = 0;
+
+    logic.update(1 / 30);
+
+    expect(artillery.deployState).toBe('ALIGNING_TURRETS');
+    expect(artillery.objectStatusFlags.has('DEPLOYED')).toBe(true);
+    expect(artillery.turretStates[0]!.currentAngle).toBe(0);
+
+    logic.update(1 / 30);
+    expect(artillery.deployState).toBe('UNDEPLOY');
   });
 });
 

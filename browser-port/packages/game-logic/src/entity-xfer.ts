@@ -29,11 +29,16 @@ const SOURCE_BIT_FLAGS_XFER_VERSION = 1;
 const SOURCE_UPGRADE_MASK_XFER_VERSION = 1;
 const SOURCE_OBJECT_TRIGGER_INFO_LIMIT = 5;
 const SOURCE_MAX_PLAYER_COUNT = 16;
-const SOURCE_DISABLED_COUNT = 13;
+const SOURCE_DISABLED_COUNT_GENERALS = 10;
+const SOURCE_DISABLED_COUNT_ZERO_HOUR = 13;
 const SOURCE_WEAPON_SLOT_COUNT = 3;
 const SOURCE_MAX_BIT_FLAG_NAMES = 4096;
 const SOURCE_MAX_MODULE_COUNT = 512;
 const SOURCE_MAX_SCATTER_TARGETS = 4096;
+
+function sourceDisabledCountForObjectVersion(version: number): number {
+  return version >= 8 ? SOURCE_DISABLED_COUNT_ZERO_HOUR : SOURCE_DISABLED_COUNT_GENERALS;
+}
 
 export interface MapEntityChunkLayoutInspection {
   layout: 'source_partial' | 'legacy' | 'unknown';
@@ -103,6 +108,7 @@ export interface SourceWeaponSetSaveState {
   filledWeaponSlotMask: number;
   totalAntiMask: number;
   hasDamageWeapon: boolean;
+  legacyTotalDamageTypeMaskValue: number | null;
   totalDamageTypeMask: string[];
 }
 
@@ -242,6 +248,7 @@ function createEmptySourceWeaponSetSaveState(): SourceWeaponSetSaveState {
     filledWeaponSlotMask: 0,
     totalAntiMask: 0,
     hasDamageWeapon: false,
+    legacyTotalDamageTypeMaskValue: null,
     totalDamageTypeMask: [],
   };
 }
@@ -274,7 +281,7 @@ export function createEmptySourceMapEntitySaveState(): SourceMapEntitySaveState 
     shroudRange: 0,
     disabledMask: [],
     singleUseCommandUsed: false,
-    disabledTillFrame: Array.from({ length: SOURCE_DISABLED_COUNT }, () => 0),
+    disabledTillFrame: Array.from({ length: SOURCE_DISABLED_COUNT_ZERO_HOUR }, () => 0),
     specialModelConditionUntil: 0,
     experienceTracker: createEmptySourceExperienceTrackerSaveState(),
     containedById: null,
@@ -617,6 +624,7 @@ function xferSourceWeaponState(
 function xferSourceWeaponSetState(
   xfer: Xfer,
   value: SourceWeaponSetSaveState | null | undefined,
+  sourceObjectVersion: number,
 ): SourceWeaponSetSaveState {
   const version = xfer.xferVersion(resolveSourceVersion(
     value?.version ?? SOURCE_WEAPON_SET_XFER_VERSION,
@@ -641,13 +649,25 @@ function xferSourceWeaponSetState(
   const currentWeaponLockedStatus = xfer.xferInt(current.currentWeaponLockedStatus);
   const filledWeaponSlotMask = xfer.xferUnsignedInt(current.filledWeaponSlotMask);
   const totalAntiMask = xfer.xferInt(current.totalAntiMask);
-  const hasDamageWeapon = xfer.xferBool(current.hasDamageWeapon);
-  xfer.xferBool(current.hasDamageWeapon);
-  const totalDamageTypeMask = xferSourceStringBitFlagsState(
-    xfer,
-    current.totalDamageTypeMask,
-    'weapon-damage-type',
-  );
+  let hasDamageWeapon: boolean;
+  let legacyTotalDamageTypeMaskValue: number | null = null;
+  let totalDamageTypeMask: string[] = [];
+  if (sourceObjectVersion >= 8) {
+    hasDamageWeapon = xfer.xferBool(current.hasDamageWeapon);
+    xfer.xferBool(current.hasDamageWeapon);
+    totalDamageTypeMask = xferSourceStringBitFlagsState(
+      xfer,
+      current.totalDamageTypeMask,
+      'weapon-damage-type',
+    );
+  } else {
+    legacyTotalDamageTypeMaskValue = xfer.xferUnsignedInt(current.legacyTotalDamageTypeMaskValue ?? 0);
+    hasDamageWeapon = xfer.xferBool(current.hasDamageWeapon);
+    xfer.xferBool(current.hasDamageWeapon);
+    totalDamageTypeMask = Array.isArray(current.totalDamageTypeMask)
+      ? current.totalDamageTypeMask.slice()
+      : [];
+  }
   return {
     version,
     templateName,
@@ -658,6 +678,7 @@ function xferSourceWeaponSetState(
     filledWeaponSlotMask,
     totalAntiMask,
     hasDamageWeapon,
+    legacyTotalDamageTypeMaskValue,
     totalDamageTypeMask,
   };
 }
@@ -743,12 +764,18 @@ function xferSourceMapEntityChunkState(
       : 0,
   );
   const visionSpiedBy: number[] = [];
-  for (let index = 0; index < SOURCE_MAX_PLAYER_COUNT; index += 1) {
-    visionSpiedBy.push(xfer.xferInt(
-      xfer.getMode() === XferMode.XFER_LOAD ? 0 : visionSpiedByInput[index]!,
-    ));
+  if (version >= 8) {
+    for (let index = 0; index < SOURCE_MAX_PLAYER_COUNT; index += 1) {
+      visionSpiedBy.push(xfer.xferInt(
+        xfer.getMode() === XferMode.XFER_LOAD ? 0 : visionSpiedByInput[index]!,
+      ));
+    }
+  } else {
+    visionSpiedBy.push(...visionSpiedByInput);
   }
-  const visionSpiedMask = xfer.xferUnsignedShort(current.visionSpiedMask);
+  const visionSpiedMask = version >= 8
+    ? xfer.xferUnsignedShort(current.visionSpiedMask)
+    : current.visionSpiedMask;
   const visionRange = xfer.xferReal(current.visionRange);
   const shroudClearingRange = xfer.xferReal(current.shroudClearingRange);
   const shroudRange = xfer.xferReal(current.shroudRange);
@@ -756,13 +783,14 @@ function xferSourceMapEntityChunkState(
   const singleUseCommandUsed = version >= 2
     ? xfer.xferBool(current.singleUseCommandUsed)
     : false;
-  const disabledTillFrameInput = Array.from({ length: SOURCE_DISABLED_COUNT }, (_, index) =>
+  const disabledCount = sourceDisabledCountForObjectVersion(version);
+  const disabledTillFrameInput = Array.from({ length: disabledCount }, (_, index) =>
     Array.isArray(current.disabledTillFrame) && Number.isFinite(current.disabledTillFrame[index])
       ? Math.max(0, Math.trunc(current.disabledTillFrame[index]!))
       : 0,
   );
   const disabledTillFrame: number[] = [];
-  for (let index = 0; index < SOURCE_DISABLED_COUNT; index += 1) {
+  for (let index = 0; index < disabledCount; index += 1) {
     disabledTillFrame.push(xfer.xferUnsignedInt(
       xfer.getMode() === XferMode.XFER_LOAD ? 0 : disabledTillFrameInput[index]!,
     ));
@@ -831,7 +859,7 @@ function xferSourceMapEntityChunkState(
     ? xferSourceFixedBytes(xfer, current.lastWeaponCondition, SOURCE_WEAPON_SLOT_COUNT)
     : Array.from({ length: SOURCE_WEAPON_SLOT_COUNT }, () => 0);
   const weaponSet = version >= 4
-    ? xferSourceWeaponSetState(xfer, current.weaponSet)
+    ? xferSourceWeaponSetState(xfer, current.weaponSet, version)
     : null;
   const specialPowerBits = version >= 4
     ? xferSourceStringBitFlagsState(xfer, current.specialPowerBits, 'special-power-bits')
@@ -981,10 +1009,12 @@ function inspectSourceMapEntityChunk(
       xferSourceSightingInfoState(xfer, null);
     }
     xferSourceSightingInfoState(xfer, null);
-    for (let index = 0; index < SOURCE_MAX_PLAYER_COUNT; index += 1) {
-      xfer.xferInt(0);
+    if (version >= 8) {
+      for (let index = 0; index < SOURCE_MAX_PLAYER_COUNT; index += 1) {
+        xfer.xferInt(0);
+      }
+      xfer.xferUnsignedShort(0);
     }
-    xfer.xferUnsignedShort(0);
     xfer.xferReal(0);
     xfer.xferReal(0);
     xfer.xferReal(0);
@@ -992,7 +1022,7 @@ function inspectSourceMapEntityChunk(
     if (version >= 2) {
       xfer.xferBool(false);
     }
-    for (let index = 0; index < SOURCE_DISABLED_COUNT; index += 1) {
+    for (let index = 0; index < sourceDisabledCountForObjectVersion(version); index += 1) {
       xfer.xferUnsignedInt(0);
     }
     xfer.xferUnsignedInt(0);
@@ -1056,7 +1086,7 @@ function inspectSourceMapEntityChunk(
       xferSourceStringBitFlagsState(xfer, null, 'weapon-set-flags');
       xfer.xferUnsignedInt(0);
       xferSourceFixedBytes(xfer, null, SOURCE_WEAPON_SLOT_COUNT);
-      xferSourceWeaponSetState(xfer, null);
+      xferSourceWeaponSetState(xfer, null, version);
       xferSourceStringBitFlagsState(xfer, null, 'special-power-bits');
       xfer.xferAsciiString('');
       xfer.xferBool(false);

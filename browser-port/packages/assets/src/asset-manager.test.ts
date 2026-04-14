@@ -83,6 +83,7 @@ describe('AssetManager', () => {
     cacheEnabled?: boolean;
     integrityChecks?: boolean;
     requireManifest?: boolean;
+    cacheReadTimeoutMs?: number;
   } = {}) {
     const {
       manifestEntries = [],
@@ -90,6 +91,7 @@ describe('AssetManager', () => {
       cacheEnabled = false,
       integrityChecks = true,
       requireManifest = false,
+      cacheReadTimeoutMs = 1500,
     } = opts;
 
     const manifest = makeManifest(manifestEntries);
@@ -112,6 +114,7 @@ describe('AssetManager', () => {
       integrityChecks,
       requireManifest,
       dbName: 'test-am-' + Math.random(),
+      cacheReadTimeoutMs,
     });
   }
 
@@ -392,6 +395,38 @@ describe('AssetManager', () => {
       const h2 = await am.loadJSON<{ heightmap: { width: number } }>('maps/Alpine.json');
       expect(h2.cached).toBe(true);
       expect(h2.data.heightmap.width).toBe(64);
+
+      am.dispose();
+    });
+
+    it('falls back to network when an IndexedDB cache read stalls', async () => {
+      const am = createManager({
+        cacheEnabled: false,
+        manifestEntries: [makeMapEntry(mapHash)],
+        cacheReadTimeoutMs: 1,
+      });
+      await am.init();
+
+      (am as unknown as {
+        cache: {
+          get: () => Promise<null>;
+          put: () => Promise<void>;
+          close: () => void;
+        };
+      }).cache = {
+        get: () => new Promise<null>(() => {}),
+        put: () => Promise.resolve(),
+        close: () => {},
+      };
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const handle = await am.loadJSON<{ heightmap: { width: number } }>('maps/Alpine.json');
+
+      expect(handle.cached).toBe(false);
+      expect(handle.data.heightmap.width).toBe(64);
+      expect(warnSpy).toHaveBeenCalledWith(
+        'AssetManager: cache read timed out for "maps/Alpine.json", falling back to fetch.',
+      );
 
       am.dispose();
     });

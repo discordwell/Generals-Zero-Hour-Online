@@ -49,6 +49,8 @@ export interface AssetManagerConfig {
   maxCacheSize: number;
   /** IndexedDB database name. Default: 'generals-assets'. */
   dbName: string;
+  /** Maximum time to wait for an IndexedDB cache read before fetching. */
+  cacheReadTimeoutMs: number;
 }
 
 /** Default asset manager configuration. */
@@ -60,6 +62,7 @@ export const DEFAULT_CONFIG: AssetManagerConfig = {
   integrityChecks: true,
   maxCacheSize: 256 * 1024 * 1024,
   dbName: 'generals-assets',
+  cacheReadTimeoutMs: 1500,
 };
 
 /** An entry stored in the IndexedDB cache. */

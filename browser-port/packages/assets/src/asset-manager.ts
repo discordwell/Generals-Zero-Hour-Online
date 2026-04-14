@@ -169,7 +169,7 @@ export class AssetManager implements Subsystem {
 
     // 1. Check IndexedDB cache
     if (this.cache) {
-      const cached = await this.cache.get(normalizedPath, expectedHash ?? undefined);
+      const cached = await this.readCacheWithTimeout(normalizedPath, expectedHash ?? undefined);
       if (cached) {
         onProgress?.(cached.size, cached.size);
         return { path: normalizedPath, data: cached.data, hash: cached.hash, cached: true };
@@ -199,6 +199,35 @@ export class AssetManager implements Subsystem {
     }
 
     return { path: normalizedPath, data, hash: actualHash, cached: false };
+  }
+
+  private async readCacheWithTimeout(
+    normalizedPath: string,
+    expectedHash: string | undefined,
+  ): Promise<Awaited<ReturnType<CacheStore['get']>>> {
+    const cache = this.cache;
+    if (!cache) {
+      return null;
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        cache.get(normalizedPath, expectedHash),
+        new Promise<null>((resolve) => {
+          timeoutId = setTimeout(() => {
+            console.warn(
+              `AssetManager: cache read timed out for "${normalizedPath}", falling back to fetch.`,
+            );
+            resolve(null);
+          }, Math.max(0, this.config.cacheReadTimeoutMs));
+        }),
+      ]);
+    } finally {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    }
   }
 
   private fetchDeduped(path: string, onProgress?: ProgressCallback): Promise<ArrayBuffer> {

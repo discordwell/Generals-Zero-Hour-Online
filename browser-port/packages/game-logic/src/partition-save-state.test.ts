@@ -1,16 +1,28 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
+import type { GameDataConfig } from '@generals/ini-data';
+
 import { CELL_CLEAR, CELL_FOGGED, CELL_SHROUDED } from './fog-of-war.js';
 import { GameLogicSubsystem } from './index.js';
 import { makeBundle, makeHeightmap, makeMap, makeObjectDef, makeRegistry } from './test-helpers.js';
 
-function makePartitionRegistry() {
+function makePartitionRegistry(gameData?: GameDataConfig) {
   return makeRegistry(makeBundle({
     objects: [
       makeObjectDef('Ranger', 'America', ['INFANTRY'], []),
     ],
+    gameData,
   }));
+}
+
+function makeSourceGameData(partitionCellSize: number): GameDataConfig {
+  return {
+    weaponBonusEntries: [],
+    partitionCellSize,
+    healthBonuses: [1.0, 1.0, 1.0, 1.0],
+    soloPlayerHealthBonuses: [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
+  };
 }
 
 describe('source partition save-state', () => {
@@ -63,5 +75,21 @@ describe('source partition save-state', () => {
     expect(restoredGrid!.getCellVisibility(0, 25, 5)).toBe(CELL_SHROUDED);
     expect(restoredGrid!.getCellVisibility(0, 35, 5)).toBe(CELL_SHROUDED);
     expect(restoredGrid!.getCellVisibility(0, 35, 35)).toBe(CELL_FOGGED);
+  });
+
+  it('uses GameData PartitionCellSize when restoring source partition state', () => {
+    const map = makeMap([], 64, 64);
+    map.heightmap.boundaries = [{ x: 15, y: 7 }];
+    const gameData = makeSourceGameData(40);
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makePartitionRegistry(gameData), makeHeightmap(64, 64));
+
+    const partitionState = logic.captureSourcePartitionRuntimeSaveState();
+    expect(partitionState.cellSize).toBe(40);
+    expect(partitionState.totalCellCount).toBe(8);
+
+    const restored = new GameLogicSubsystem(new THREE.Scene());
+    restored.loadMapObjects(map, makePartitionRegistry(gameData), makeHeightmap(64, 64));
+    expect(() => restored.restoreSourcePartitionRuntimeSaveState(partitionState)).not.toThrow();
   });
 });

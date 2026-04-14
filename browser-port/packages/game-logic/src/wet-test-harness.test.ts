@@ -42,7 +42,7 @@ function makeSkirmishBundle() {
       ], { CommandSet: 'USACCCommandSet', EnergyProduction: 0, BuildCost: 2000 }),
 
       // USA Dozer
-      makeObjectDef('USADozer', 'America', ['VEHICLE', 'DOZER'], [
+      makeObjectDef('USADozer', 'America', ['VEHICLE', 'DOZER', 'SELECTABLE'], [
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
         makeBlock('LocomotorSet', 'SET_NORMAL LocomotorSlow', {}),
       ], { CommandSet: 'USADozerCommandSet', VisionRange: 150 }),
@@ -73,14 +73,14 @@ function makeSkirmishBundle() {
       ], { BuildCost: 2000, BuildTime: 5, CommandSet: 'USAWarFactoryCommandSet' }),
 
       // USA Ranger (infantry)
-      makeObjectDef('USARanger', 'America', ['INFANTRY'], [
+      makeObjectDef('USARanger', 'America', ['INFANTRY', 'SELECTABLE'], [
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'RangerRifle'] }),
         makeBlock('LocomotorSet', 'SET_NORMAL LocomotorFast', {}),
       ], { BuildCost: 225, BuildTime: 1, VisionRange: 150, ExperienceValue: [10, 20, 30, 40], ExperienceRequired: [0, 50, 100, 200] }),
 
       // USA Crusader Tank
-      makeObjectDef('USACrusader', 'America', ['VEHICLE'], [
+      makeObjectDef('USACrusader', 'America', ['VEHICLE', 'SELECTABLE'], [
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
         makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'CrusaderCannon'] }),
         makeBlock('LocomotorSet', 'SET_NORMAL LocomotorSlow', {}),

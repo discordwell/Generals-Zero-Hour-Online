@@ -27,6 +27,11 @@ export interface ImportSourceSaveFixturesReport {
   fixtures: ImportedSourceSaveFixture[];
 }
 
+export interface ImportSourceSaveFixturesCliArgs {
+  inputPaths: string[];
+  outputDir: string;
+}
+
 function sanitizeFixtureBaseName(filePath: string): string {
   const parsedExtension = extname(filePath);
   const rawBaseName = parsedExtension
@@ -127,20 +132,42 @@ function usage(): void {
   console.error('Usage: tsx tools/import-source-save-fixtures.ts [--out fixtures/source-saves] <save-file-or-directory> [...]');
 }
 
+export function parseImportSourceSaveFixturesCliArgs(args: readonly string[]): ImportSourceSaveFixturesCliArgs | null {
+  let outputDir = 'fixtures/source-saves';
+  const inputPaths: string[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--out') {
+      const nextArg = args[index + 1];
+      if (!nextArg || nextArg.startsWith('--')) {
+        return null;
+      }
+      outputDir = nextArg;
+      index += 1;
+      continue;
+    }
+    inputPaths.push(arg);
+  }
+
+  if (inputPaths.length === 0) {
+    return null;
+  }
+
+  return { inputPaths, outputDir };
+}
+
 function main(): void {
   const args = process.argv.slice(2);
-  const outIndex = args.indexOf('--out');
-  const outputDir = outIndex >= 0 ? args[outIndex + 1] : 'fixtures/source-saves';
-  const inputPaths = args.filter((arg, index) =>
-    arg !== '--out' && index !== outIndex + 1);
+  const cliArgs = parseImportSourceSaveFixturesCliArgs(args);
 
-  if (!outputDir || inputPaths.length === 0) {
+  if (!cliArgs) {
     usage();
     process.exitCode = 1;
     return;
   }
 
-  const report = importSourceSaveFixtures({ inputPaths, outputDir });
+  const report = importSourceSaveFixtures(cliArgs);
   process.stdout.write(JSON.stringify(report, null, 2));
   process.stdout.write('\n');
   if (report.summary.validSourceSaves === 0) {

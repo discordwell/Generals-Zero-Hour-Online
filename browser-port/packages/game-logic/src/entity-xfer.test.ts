@@ -1653,6 +1653,31 @@ describe('entity-xfer', () => {
     });
   });
 
+  it('loads base Generals source Object::xfer v7 without Zero Hour vision-spy fields', () => {
+    const original = createSourceObjectState();
+    original.version = 7;
+    original.statusBits = [];
+    original.legacyStatusMaskValue = 64;
+    original.partitionRevealAllLastLook = null;
+
+    const chunk = buildSourceMapEntityChunk(original);
+    const parsed = parseSourceMapEntityChunk(chunk);
+
+    expect(inspectMapEntityChunkLayout(chunk)).toEqual({
+      layout: 'source_partial',
+      version: 7,
+      objectId: 7,
+      parsedThrough: 'complete',
+      moduleCount: 0,
+      moduleIdentifiers: [],
+      remainingBytes: 0,
+    });
+    expect(parsed?.version).toBe(7);
+    expect(parsed?.legacyStatusMaskValue).toBe(64);
+    expect(parsed?.visionSpiedBy).toEqual(Array.from({ length: 16 }, () => 0));
+    expect(parsed?.disabledTillFrame).toEqual(Array.from({ length: 10 }, () => 0));
+  });
+
   it('inspects source object chunk framing through the tail fields', () => {
     expect(inspectMapEntityChunkLayout(createSourceObjectChunk())).toEqual({
       layout: 'source_partial',

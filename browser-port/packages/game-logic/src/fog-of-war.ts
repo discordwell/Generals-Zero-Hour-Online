@@ -30,6 +30,13 @@ export interface PartitionCellShroudLevelSnapshot {
   activeShroudLevel: number;
 }
 
+function sourcePartitionCellCount(worldExtent: number, cellSize: number): number {
+  // Source parity: PartitionManager stores m_cellSizeInv as Real (float) and
+  // computes REAL_TO_INT_CEIL(worldExtent * m_cellSizeInv), not width / size.
+  const scaled = Math.fround(worldExtent) * Math.fround(1 / cellSize);
+  return Math.max(1, Math.ceil(scaled));
+}
+
 // ──── Fog of War grid ──────────────────────────────────────────────────────
 export class FogOfWarGrid {
   readonly cellsWide: number;
@@ -45,8 +52,8 @@ export class FogOfWarGrid {
 
   constructor(worldWidth: number, worldDepth: number, cellSize: number) {
     this.cellSize = Math.max(1, cellSize);
-    this.cellsWide = Math.max(1, Math.ceil(worldWidth / this.cellSize));
-    this.cellsDeep = Math.max(1, Math.ceil(worldDepth / this.cellSize));
+    this.cellsWide = sourcePartitionCellCount(worldWidth, this.cellSize);
+    this.cellsDeep = sourcePartitionCellCount(worldDepth, this.cellSize);
 
     const totalCells = this.cellsWide * this.cellsDeep;
     this.lookerCounts = [];

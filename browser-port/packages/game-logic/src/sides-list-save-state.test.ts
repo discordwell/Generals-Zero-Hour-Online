@@ -29,6 +29,7 @@ describe('sides-list save-state', () => {
       }>;
       mapScriptsByNameUpper: Map<string, unknown>;
       mapScriptGroupsByNameUpper: Map<string, unknown>;
+      sourceSidesListScriptPresentByIndex: boolean[];
       scriptPlayerSideByName: Map<string, string>;
       scriptDefaultTeamNameBySide: Map<string, string>;
       mapScriptSideByIndex: string[];
@@ -130,5 +131,31 @@ describe('sides-list save-state', () => {
       automaticallyBuild: true,
       priorityBuild: false,
     }]]]));
+  });
+
+  it('accepts trailing source sides with no script list', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const privateLogic = logic as unknown as {
+      mapScriptLists: Array<{ scripts: unknown[]; groups: unknown[] }>;
+      sourceSidesListScriptPresentByIndex: boolean[];
+    };
+    privateLogic.mapScriptLists.push({ scripts: [], groups: [] });
+    privateLogic.sourceSidesListScriptPresentByIndex.push(true);
+
+    logic.restoreSourceSidesListRuntimeSaveState({
+      version: 2,
+      state: {},
+      scriptLists: [
+        { present: true, scripts: [], groups: [] },
+        { present: false, scripts: [], groups: [] },
+      ],
+    });
+
+    expect(privateLogic.mapScriptLists).toHaveLength(2);
+    expect(privateLogic.sourceSidesListScriptPresentByIndex).toEqual([true, false]);
+    expect(logic.captureSourceSidesListRuntimeSaveState().scriptLists).toEqual([
+      { present: true, scripts: [], groups: [] },
+      { present: false, scripts: [], groups: [] },
+    ]);
   });
 });

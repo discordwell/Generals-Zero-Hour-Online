@@ -1420,7 +1420,7 @@ async function startGame(
   const canvas = renderer.domElement as HTMLCanvasElement;
   const gameSubsystems = new SubsystemRegistry();
   const replayManager = new ReplayManager();
-  const activeMapPath = runtimeSaveLoadContext?.runtimeSave.mapPath ?? mapPath;
+  const activeMapPath = mapPath ?? runtimeSaveLoadContext?.runtimeSave.mapPath;
   const restoredInGameUiState = runtimeSaveLoadContext?.runtimeSave.inGameUiState ?? null;
   let replayRecordFrame = 0;
   let replayRecordingPersisted = false;
@@ -1457,6 +1457,8 @@ async function startGame(
   const iniDataStats = iniDataRegistry.getStats();
   const dataSuffix = ` | INI: ${iniDataStats.objects} objects, ${iniDataStats.weapons} weapons, ${iniDataStats.audioEvents} audio`;
   console.log(`Game data status: ${iniDataInfo}`);
+
+  setLoadingProgress(51, 'Initializing game logic...');
 
   // Game logic + object visuals
   const attackUsesLineOfSight = iniDataRegistry.getAiConfig()?.attackUsesLineOfSight ?? true;
@@ -1498,6 +1500,7 @@ async function startGame(
   }
   gameSubsystems.register(gameLogic);
   await gameLogic.init();
+  setLoadingProgress(52, 'Loading terrain metadata...');
   audioManager.setObjectPositionResolver((objectId) => gameLogic.getEntityWorldPosition(objectId));
   audioManager.setDrawablePositionResolver((drawableId) => gameLogic.getEntityWorldPosition(drawableId));
   audioManager.setPlayerPositionResolver((playerIndex) => {
@@ -1647,9 +1650,11 @@ async function startGame(
   // Load terrain (map JSON or procedural demo)
   // ========================================================================
 
+  setLoadingProgress(53, 'Loading terrain roads...');
   const terrainRoadEntries = await loadTerrainRoadEntries(assets);
   gameLogic.setRoadTemplateNames(collectTerrainRoadTemplateNames(terrainRoadEntries));
   gameLogic.setSupplementalMapObjectDefinitions(collectSourceMapObjectSupplements());
+  setLoadingProgress(54, 'Terrain roads loaded...');
 
   let mapData: MapDataJSON;
   let loadedFromJSON = false;
@@ -1660,6 +1665,7 @@ async function startGame(
     console.log('Map loaded from embedded runtime save data.');
   } else if (activeMapPath) {
     assertRequiredManifestEntries(assets.getManifest(), [activeMapPath]);
+    setLoadingProgress(55, 'Loading map asset...');
     try {
       const handle = await assets.loadJSON<MapDataJSON>(activeMapPath, (loaded, total) => {
         const pct = total > 0 ? Math.round(50 + (loaded / total) * 20) : 60;
@@ -1684,10 +1690,12 @@ async function startGame(
 
   // If loaded from JSON, build terrain (demo path already builds it)
   if (loadedFromJSON) {
+    setLoadingProgress(64, 'Building terrain...');
     terrainVisual.loadMap(mapData);
   }
 
   // Load water surfaces
+  setLoadingProgress(66, 'Building water...');
   waterVisual.loadFromMapData(mapData);
   const heightmap = terrainVisual.getHeightmap();
   if (!heightmap) {
@@ -1763,38 +1771,52 @@ async function startGame(
     collectTerrainBridgeDefinitions(terrainRoadEntries),
   );
 
+  setLoadingProgress(67, 'Loading map objects...');
   const objectPlacement = gameLogic.loadMapObjects(mapData, iniDataRegistry, heightmap);
   if (runtimeSaveLoadContext) {
+    setLoadingProgress(68, 'Restoring save state...');
     if (runtimeSaveLoadContext.runtimeSave.gameLogicTerrainLogicState) {
+      setLoadingProgress(68, 'Restoring terrain logic...');
       gameLogic.restoreSourceTerrainLogicRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicTerrainLogicState,
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState) {
+      setLoadingProgress(68, 'Restoring players...');
       gameLogic.restoreSourcePlayerRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState,
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicPartitionState) {
+      const currentPartitionState = gameLogic.captureSourcePartitionRuntimeSaveState();
+      setLoadingProgress(
+        68,
+        `Restoring partition... ${currentPartitionState.cellSize}/${runtimeSaveLoadContext.runtimeSave.gameLogicPartitionState.cellSize} ` +
+          `${currentPartitionState.totalCellCount}/${runtimeSaveLoadContext.runtimeSave.gameLogicPartitionState.totalCellCount}`,
+      );
       gameLogic.restoreSourcePartitionRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicPartitionState,
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicRadarState) {
+      setLoadingProgress(68, 'Restoring radar...');
       gameLogic.restoreSourceRadarRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicRadarState,
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicSidesListState) {
+      setLoadingProgress(68, 'Restoring sides...');
       gameLogic.restoreSourceSidesListRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicSidesListState,
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState) {
+      setLoadingProgress(68, 'Restoring teams...');
       gameLogic.restoreSourceTeamFactoryRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState,
       );
     } else if (runtimeSaveLoadContext.runtimeSave.sourceTeamFactoryChunkData) {
+      setLoadingProgress(68, 'Restoring teams from source chunk...');
       const currentTeamFactoryState = gameLogic.captureSourceTeamFactoryRuntimeSaveState();
       const currentPlayerState = gameLogic.captureSourcePlayerRuntimeSaveState();
       const currentSidesListState = gameLogic.captureSourceSidesListRuntimeSaveState();
@@ -1810,32 +1832,39 @@ async function startGame(
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicInGameUiState) {
+      setLoadingProgress(68, 'Restoring in-game UI...');
       gameLogic.restoreSourceInGameUiRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicInGameUiState,
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.sourceGameLogicImportState) {
+      setLoadingProgress(68, 'Importing source objects...');
       gameLogic.restoreSourceGameLogicImportSaveState(
         runtimeSaveLoadContext.runtimeSave.sourceGameLogicImportState,
       );
     } else if (runtimeSaveLoadContext.runtimeSave.gameLogicCoreState) {
+      setLoadingProgress(68, 'Restoring game logic core...');
       gameLogic.restoreSourceGameLogicRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicCoreState,
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicScriptEngineState) {
+      setLoadingProgress(68, 'Restoring script engine...');
       gameLogic.restoreSourceScriptEngineRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicScriptEngineState,
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicState !== null) {
+      setLoadingProgress(68, 'Restoring browser runtime state...');
       gameLogic.restoreBrowserRuntimeSaveState(runtimeSaveLoadContext.runtimeSave.gameLogicState);
     }
+    setLoadingProgress(68, 'Finalizing save state...');
     gameLogic.finalizeSourcePlayerRuntimeSaveState();
     gameLogic.finalizeSourceSpyVisionRuntimeSaveState();
     gameLogic.finalizeSourceSpecialPowerRuntimeSaveState();
     gameLogic.finalizeSourceContainmentRuntimeSaveState();
     gameLogic.finalizeSourceSupplyChainRuntimeSaveState();
+    setLoadingProgress(69, 'Save state restored...');
   }
   if (objectPlacement.unresolvedObjects > 0) {
     console.warn(

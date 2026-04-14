@@ -33,6 +33,7 @@ import {
   WEAPON_BONUS_FANATICISM,
   WEAPON_BONUS_NATIONALISM,
   WEAPON_BONUS_SEARCHANDDESTROY,
+  WEAPON_ANTI_MINE,
   WEAPON_SET_FLAG_MINE_CLEARING_DETAIL,
 } from './index.js';
 type GL = any;
@@ -2068,6 +2069,10 @@ export function updateDeployStyleEntities(self: GL): void {
               self.reverseDeployTransition(entity, 'DEPLOY', profile.unpackTimeFrames);
             }
             break;
+          case 'ALIGNING_TURRETS':
+            // Source DeployStyleAIUpdate::update(): attacking cancels turret-centering and resumes deployed state.
+            self.setDeployState(entity, 'READY_TO_ATTACK');
+            break;
         }
       } else if (isTryingToMove) {
         // Source parity: If trying to move, undeploy.
@@ -2076,6 +2081,13 @@ export function updateDeployStyleEntities(self: GL): void {
             // Already mobile — movement system handles it.
             break;
           case 'READY_TO_ATTACK':
+            if (profile.turretsMustCenterBeforePacking) {
+              const turretIndex = self.findTurretIndexForCurrentWeapon(entity);
+              if (turretIndex !== null) {
+                self.setDeployState(entity, 'ALIGNING_TURRETS');
+                break;
+              }
+            }
             self.setDeployState(entity, 'UNDEPLOY');
             break;
           case 'DEPLOY':
@@ -2088,6 +2100,13 @@ export function updateDeployStyleEntities(self: GL): void {
           case 'UNDEPLOY':
             // Still undeploying — wait for timer.
             break;
+          case 'ALIGNING_TURRETS': {
+            const turretIndex = self.findTurretIndexForCurrentWeapon(entity);
+            if (turretIndex !== null && self.isTurretInNaturalPosition(entity, turretIndex)) {
+              self.setDeployState(entity, 'UNDEPLOY');
+            }
+            break;
+          }
         }
       }
 
@@ -2116,6 +2135,14 @@ export function setDeployState(self: GL, entity: MapEntity, state: DeployState):
         entity.deployFrameToWait = 0;
         entity.objectStatusFlags.add('DEPLOYED');
         break;
+      case 'ALIGNING_TURRETS': {
+        entity.deployFrameToWait = 0;
+        const turretIndex = self.findTurretIndexForCurrentWeapon(entity);
+        if (turretIndex !== null) {
+          self.recenterTurret(entity, turretIndex);
+        }
+        break;
+      }
       case 'READY_TO_MOVE':
         entity.deployFrameToWait = 0;
         entity.objectStatusFlags.delete('DEPLOYED');
