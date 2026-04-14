@@ -12165,6 +12165,11 @@ describe('runtime-save-game', () => {
     expect(parsed.metadata.saveFileType).toBe(SaveFileType.SAVE_FILE_TYPE_MISSION);
     expect(parsed.metadata.missionMapName).toBe('Maps\\MD_USA01\\MD_USA01.map');
     expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json');
+    expect(parsed.mapPathCandidates).toEqual([
+      'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
+      'maps/_extracted/Maps/Maps/MD_USA01/MD_USA01.json',
+      'maps/MD_USA01/MD_USA01.json',
+    ]);
     expect(parsed.sourceSaveGameMapPath).toBe('');
     expect(parsed.sourcePristineMapPath).toBe('Maps\\MD_USA01\\MD_USA01.map');
     expect(parsed.embeddedMapBytes.byteLength).toBe(0);
@@ -12176,6 +12181,55 @@ describe('runtime-save-game', () => {
       difficulty: 'HARD',
       rankPoints: 7,
     });
+  });
+
+  it('resolves vanilla Generals mission saves to classic Maps.big asset candidates', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Classic Mission Save',
+      mapPath: null,
+      mapData: null,
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic(),
+      sourceMetadata: {
+        saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
+        missionMapName: 'Maps\\CHI02\\CHI02.map',
+        date: {
+          year: 2003,
+          month: 9,
+          day: 22,
+          dayOfWeek: 1,
+          hour: 13,
+          minute: 14,
+          second: 15,
+          milliseconds: 16,
+        },
+        mapLabel: 'CHI01.map',
+        campaignSide: 'china',
+        missionNumber: 1,
+      },
+      campaign: {
+        campaignName: 'china',
+        missionName: 'mission02',
+        missionNumber: 1,
+        difficulty: 'HARD',
+        rankPoints: 0,
+        isChallengeCampaign: false,
+        playerTemplateNum: -1,
+        sourceMapName: 'Maps\\CHI02\\CHI02.map',
+      },
+    });
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+
+    expect(parsed.metadata.saveFileType).toBe(SaveFileType.SAVE_FILE_TYPE_MISSION);
+    expect(parsed.metadata.missionMapName).toBe('Maps\\CHI02\\CHI02.map');
+    expect(parsed.mapPath).toBe('maps/_extracted/Maps/Maps/CHI02/CHI02.json');
+    expect(parsed.mapPathCandidates).toEqual([
+      'maps/_extracted/Maps/Maps/CHI02/CHI02.json',
+      'maps/CHI02/CHI02.json',
+    ]);
+    expect(parsed.sourcePristineMapPath).toBe('Maps\\CHI02\\CHI02.map');
+    expect(parsed.embeddedMapBytes.byteLength).toBe(0);
   });
 
   it('resolves lowercased C++ portable map paths to extracted runtime map candidates', () => {

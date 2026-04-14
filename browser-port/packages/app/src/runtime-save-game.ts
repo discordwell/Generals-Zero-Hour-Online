@@ -975,6 +975,7 @@ export interface RuntimeSaveBootstrap {
   embeddedMapBytes: ArrayBuffer;
   gameStateMapTrailingBytes: ArrayBuffer;
   mapPath: string | null;
+  mapPathCandidates: string[];
   sourceSaveGameMapPath: string;
   sourcePristineMapPath: string;
   sourceGameMode: number;
@@ -2129,44 +2130,61 @@ function derivePortableSaveMapPath(sourceMapPath: string | null | undefined): st
   return `save\\${replaceRuntimeMapExtensionWithSource(leafName).toLowerCase()}`;
 }
 
-function resolveRuntimeSaveMapAssetPath(path: string | null | undefined): string | null {
+function resolveRuntimeSaveMapAssetPathCandidates(path: string | null | undefined): string[] {
   const rawPath = normalizeRuntimeSaveSourceMapPath(path);
   if (!rawPath) {
-    return null;
+    return [];
   }
   const normalized = normalizeRuntimeSaveMapPathSlashes(rawPath);
   if (!normalized) {
-    return null;
+    return [];
   }
   const lower = normalized.toLowerCase();
   if (lower.endsWith('.json') || lower.startsWith('assets/')) {
-    return normalized;
+    return [normalized];
   }
   if (lower.startsWith('mapszh/maps/')) {
-    return `maps/_extracted/MapsZH/Maps/${replaceSourceMapExtension(normalized.slice('MapsZH/Maps/'.length))}`;
+    return [`maps/_extracted/MapsZH/Maps/${replaceSourceMapExtension(normalized.slice('MapsZH/Maps/'.length))}`];
   }
   if (lower.startsWith('mapszh/')) {
-    return `maps/_extracted/${replaceSourceMapExtension(normalized)}`;
+    return [`maps/_extracted/${replaceSourceMapExtension(normalized)}`];
   }
   if (lower.startsWith('maps/')) {
-    return `maps/_extracted/MapsZH/Maps/${replaceSourceMapExtension(normalized.slice('Maps/'.length))}`;
+    const relativeMapPath = replaceSourceMapExtension(normalized.slice('Maps/'.length));
+    const mapLeafName = relativeMapPath.split('/').pop()?.replace(/\.json$/i, '') ?? '';
+    const isClassicGeneralsCampaignMap = /^(?:CHI|GLA|USA)\d{2}$/i.test(mapLeafName)
+      || /^Training\d{2}$/i.test(mapLeafName);
+    const classicCandidates = [
+      `maps/_extracted/Maps/Maps/${relativeMapPath}`,
+      `maps/${relativeMapPath}`,
+    ];
+    const zeroHourCandidate = `maps/_extracted/MapsZH/Maps/${relativeMapPath}`;
+    return isClassicGeneralsCampaignMap
+      ? classicCandidates
+      : [zeroHourCandidate, ...classicCandidates];
   }
   if (lower.startsWith('save/')) {
-    return null;
+    return [];
   }
-  return normalized;
+  return [normalized];
 }
 
-function resolveRuntimeSaveMapAssetPathFromCandidates(
+function resolveRuntimeSaveMapAssetPathCandidatesFromCandidates(
   paths: readonly (string | null | undefined)[],
-): string | null {
+): string[] {
+  const candidates: string[] = [];
+  const seen = new Set<string>();
   for (const path of paths) {
-    const resolved = resolveRuntimeSaveMapAssetPath(path);
-    if (resolved !== null) {
-      return resolved;
+    for (const resolved of resolveRuntimeSaveMapAssetPathCandidates(path)) {
+      const key = resolved.toLowerCase();
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      candidates.push(resolved);
     }
   }
-  return null;
+  return candidates;
 }
 
 function applyCampaignMetadata(
@@ -29735,12 +29753,13 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     ? null
     : coerceBrowserRuntimeCameraSaveState(payload.cameraState);
 
-  const resolvedMapPath = resolveRuntimeSaveMapAssetPathFromCandidates([
+  const resolvedMapPathCandidates = resolveRuntimeSaveMapAssetPathCandidatesFromCandidates([
     typeof payload?.mapPath === 'string' ? payload.mapPath : null,
     mapInfo.pristineMapPath,
     mapInfo.saveGameMapPath,
     metadata.missionMapName,
   ]);
+  const resolvedMapPath = resolvedMapPathCandidates[0] ?? null;
   const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData)
     ?? tryDecodeSourceMapBytes(mapInfo.embeddedMapData);
   const teamFactoryChunk = extractSaveChunkData(data, SOURCE_TEAM_FACTORY_BLOCK);
@@ -29857,6 +29876,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     embeddedMapBytes: mapInfo.embeddedMapData,
     gameStateMapTrailingBytes: mapInfo.trailingBytes,
     mapPath: resolvedMapPath,
+    mapPathCandidates: resolvedMapPathCandidates,
     sourceSaveGameMapPath: mapInfo.saveGameMapPath,
     sourcePristineMapPath: mapInfo.pristineMapPath,
     sourceGameMode: mapInfo.gameMode,

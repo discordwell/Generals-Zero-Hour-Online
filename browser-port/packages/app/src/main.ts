@@ -354,15 +354,23 @@ function normalizeRuntimeAssetPath(pathValue: string | null): string | null {
   return normalized.replace(runtimeAssetPrefixPattern, '');
 }
 
-function resolveManifestOutputPathCase(
+function resolveFirstManifestOutputPathCase(
   manifest: RuntimeManifest | null,
-  outputPath: string | null,
+  outputPaths: readonly (string | null | undefined)[],
 ): string | null {
-  const normalized = normalizeRuntimeAssetPath(outputPath);
-  if (!normalized) {
-    return normalized;
+  let firstNormalized: string | null = null;
+  for (const outputPath of outputPaths) {
+    const normalized = normalizeRuntimeAssetPath(outputPath ?? null);
+    if (!normalized) {
+      continue;
+    }
+    firstNormalized ??= normalized;
+    const manifestEntry = manifest?.getByOutputPathIgnoreCase(normalized);
+    if (manifestEntry) {
+      return manifestEntry.outputPath;
+    }
   }
-  return manifest?.getByOutputPathIgnoreCase(normalized)?.outputPath ?? normalized;
+  return firstNormalized;
 }
 
 function encodeRuntimeSaveJsonFallback(value: unknown): Uint8Array {
@@ -5621,7 +5629,13 @@ async function startGameFromRuntimeSave(
 ): Promise<void> {
   const runtimeSave = parseRuntimeSaveFile(data);
   let restoredCampaignContext: Parameters<typeof startGame>[3];
-  let resolvedMapPath = resolveManifestOutputPathCase(ctx.assets.getManifest(), runtimeSave.mapPath);
+  const runtimeSaveMapPathCandidates = runtimeSave.mapPathCandidates.length > 0
+    ? runtimeSave.mapPathCandidates
+    : [runtimeSave.mapPath];
+  let resolvedMapPath = resolveFirstManifestOutputPathCase(
+    ctx.assets.getManifest(),
+    runtimeSaveMapPathCandidates,
+  );
 
   if (runtimeSave.campaign) {
     if (!campaignServices) {
