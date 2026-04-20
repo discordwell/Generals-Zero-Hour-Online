@@ -29,10 +29,15 @@ test('campaign save/load preserves mission context and can still advance to the 
       return null;
     }
 
+    const partition = typeof logic.captureSourcePartitionRuntimeSaveState === 'function'
+      ? logic.captureSourcePartitionRuntimeSaveState()
+      : null;
     await hook.saveGame(slotId, 'E2E Campaign Save');
     return {
       mapWidth: logic.loadedMapData?.heightmap?.width ?? null,
       playerSide0: typeof logic.getPlayerSide === 'function' ? logic.getPlayerSide(0) : null,
+      partitionTotalCellCount: partition?.totalCellCount ?? null,
+      partitionCellsLength: Array.isArray(partition?.cells) ? partition.cells.length : null,
       saves: await hook.listSaves(),
     };
   }, 'e2e-campaign-save');
@@ -40,6 +45,8 @@ test('campaign save/load preserves mission context and can still advance to the 
   expect(saveSnapshot).not.toBeNull();
   expect(saveSnapshot?.mapWidth ?? 0).toBeGreaterThan(0);
   expect(saveSnapshot?.playerSide0?.toLowerCase?.()).toBe('america');
+  expect(saveSnapshot?.partitionTotalCellCount ?? 0).toBeGreaterThan(0);
+  expect(saveSnapshot?.partitionCellsLength).toBe(saveSnapshot?.partitionTotalCellCount ?? null);
   expect(
     saveSnapshot?.saves?.some((save: { slotId: string }) => save.slotId === 'e2e-campaign-save'),
   ).toBe(true);
@@ -62,6 +69,9 @@ test('campaign save/load preserves mission context and can still advance to the 
     return {
       mapWidth: logic.loadedMapData?.heightmap?.width ?? null,
       playerSide0: typeof logic.getPlayerSide === 'function' ? logic.getPlayerSide(0) : null,
+      partitionTotalCellCount: typeof logic.captureSourcePartitionRuntimeSaveState === 'function'
+        ? logic.captureSourcePartitionRuntimeSaveState()?.totalCellCount ?? null
+        : null,
       endState: typeof hook.getGameEndState === 'function' ? hook.getGameEndState() : null,
     };
   });
@@ -69,6 +79,7 @@ test('campaign save/load preserves mission context and can still advance to the 
   expect(loadedSnapshot).not.toBeNull();
   expect(loadedSnapshot?.mapWidth).toBe(saveSnapshot?.mapWidth ?? null);
   expect(loadedSnapshot?.playerSide0?.toLowerCase?.()).toBe('america');
+  expect(loadedSnapshot?.partitionTotalCellCount).toBe(saveSnapshot?.partitionTotalCellCount ?? null);
   expect(loadedSnapshot?.endState).toBeNull();
 
   await page.evaluate(() => {

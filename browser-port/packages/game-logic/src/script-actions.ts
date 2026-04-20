@@ -5302,9 +5302,16 @@ export function executeScriptMapSwitchBorder(self: GL, borderIndex: number): boo
     self.fogOfWarGrid.undoRevealMapForPlayerPermanently(observerPlayerIndex);
   }
 
-  self.scriptActiveBoundaryIndex = Math.trunc(borderIndex);
-  if (self.scriptActiveBoundaryIndex < 0) {
-    self.scriptActiveBoundaryIndex = 0;
+  const normalizedBorderIndex = Math.trunc(borderIndex);
+  if (normalizedBorderIndex < 0) {
+    return false;
+  }
+  if (typeof self.setScriptActiveBoundaryIndex === 'function') {
+    if (!self.setScriptActiveBoundaryIndex(normalizedBorderIndex)) {
+      return false;
+    }
+  } else {
+    self.scriptActiveBoundaryIndex = normalizedBorderIndex;
   }
 
   if (observerPlayerIndex >= 0 && self.fogOfWarGrid) {
@@ -11778,7 +11785,10 @@ export function resolveScriptRelationshipInput(self: GL, input: ScriptRelationsh
 }
 
 export function isScriptEntityEffectivelyDead(self: GL, entity: MapEntity): boolean {
-  return entity.destroyed || entity.slowDeathState !== null || entity.structureCollapseState !== null;
+  return entity.destroyed
+    || entity.sourceAIUpdateIsDead === true
+    || entity.slowDeathState !== null
+    || entity.structureCollapseState !== null;
 }
 
 export function findScriptRepairDozerForBuilding(self: GL, side: string, building: MapEntity): MapEntity | null {

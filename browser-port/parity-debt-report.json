@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-04-01T23:25:34.571Z",
+  "generatedAt": "2026-04-16T18:28:37.559Z",
   "rootDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port",
   "packagesDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages",
   "packages": [
     {
       "packageName": "app",
-      "sourceFileCount": 43,
+      "sourceFileCount": 50,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
@@ -33,14 +33,14 @@
     },
     {
       "packageName": "engine",
-      "sourceFileCount": 27,
+      "sourceFileCount": 29,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     },
     {
       "packageName": "game-logic",
-      "sourceFileCount": 56,
+      "sourceFileCount": 57,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
@@ -68,7 +68,7 @@
     },
     {
       "packageName": "renderer",
-      "sourceFileCount": 20,
+      "sourceFileCount": 21,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
@@ -89,7 +89,7 @@
     }
   ],
   "totals": {
-    "sourceFileCount": 198,
+    "sourceFileCount": 209,
     "todoMarkers": 0,
     "subsetMarkers": 0,
     "totalMarkers": 0

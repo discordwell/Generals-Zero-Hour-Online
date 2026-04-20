@@ -1,0 +1,1570 @@
+{
+  "generatedAt": "2026-04-16T07:44:12.915Z",
+  "fixturesDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves",
+  "assetsDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/dist/assets",
+  "manifestPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/dist/assets/manifest.json",
+  "summary": {
+    "totalSaveFiles": 208,
+    "parsedSaveFiles": 208,
+    "parseFailedSaveFiles": 0,
+    "embeddedMapSaveFiles": 36,
+    "externalMapSaveFiles": 172,
+    "requiredMapAssets": 38,
+    "availableMapAssets": 20,
+    "missingMapAssets": 18,
+    "blockedSaveFiles": 36
+  },
+  "requiredMaps": [
+    {
+      "sourceMapPath": "Maps/CHI02/CHI02.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/CHI02/CHI02.json",
+        "maps/CHI02/CHI02.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_002.sav",
+        "zipeater_GN_024.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/CHI02/CHI02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/CHI02/CHI02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/CHI03/CHI03.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/CHI03/CHI03.json",
+        "maps/CHI03/CHI03.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_003.sav",
+        "zipeater_GN_025.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/CHI03/CHI03.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/CHI03/CHI03.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/CHI04/CHI04.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/CHI04/CHI04.json",
+        "maps/CHI04/CHI04.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_004.sav",
+        "zipeater_GN_026.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/CHI04/CHI04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/CHI04/CHI04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/CHI05/CHI05.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/CHI05/CHI05.json",
+        "maps/CHI05/CHI05.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_005.sav",
+        "zipeater_GN_027.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/CHI05/CHI05.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/CHI05/CHI05.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/CHI06/CHI06.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/CHI06/CHI06.json",
+        "maps/CHI06/CHI06.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_006.sav",
+        "zipeater_GN_028.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/CHI06/CHI06.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/CHI06/CHI06.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/CHI07/CHI07.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/CHI07/CHI07.json",
+        "maps/CHI07/CHI07.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_007.sav",
+        "zipeater_GN_029.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/CHI07/CHI07.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/CHI07/CHI07.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GC_AirGeneral/GC_AirGeneral.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GC_AirGeneral/GC_AirGeneral.json",
+        "maps/_extracted/MapsZH/Maps/GC_AirGeneral/GC_AirGeneral.json",
+        "maps/GC_AirGeneral/GC_AirGeneral.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_045.sav",
+        "zipeater_ZH_063.sav",
+        "zipeater_ZH_068.sav",
+        "zipeater_ZH_075.sav",
+        "zipeater_ZH_081.sav",
+        "zipeater_ZH_110.sav",
+        "zipeater_ZH_128.sav",
+        "zipeater_ZH_133.sav",
+        "zipeater_ZH_140.sav",
+        "zipeater_ZH_146.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/GC_AirGeneral/GC_AirGeneral.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GC_AirGeneral/GC_AirGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/GC_AirGeneral/GC_AirGeneral.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/GC_AirGeneral/GC_AirGeneral.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/GC_AirGeneral/GC_AirGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GC_ChemGeneral/GC_ChemGeneral.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GC_ChemGeneral/GC_ChemGeneral.json",
+        "maps/_extracted/MapsZH/Maps/GC_ChemGeneral/GC_ChemGeneral.json",
+        "maps/GC_ChemGeneral/GC_ChemGeneral.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_032.sav",
+        "zipeater_ZH_046.sav",
+        "zipeater_ZH_054.sav",
+        "zipeater_ZH_066.sav",
+        "zipeater_ZH_074.sav",
+        "zipeater_ZH_093.sav",
+        "zipeater_ZH_097.sav",
+        "zipeater_ZH_111.sav",
+        "zipeater_ZH_119.sav",
+        "zipeater_ZH_131.sav",
+        "zipeater_ZH_139.sav",
+        "zipeater_ZH_158.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/GC_ChemGeneral/GC_ChemGeneral.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GC_ChemGeneral/GC_ChemGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/GC_ChemGeneral/GC_ChemGeneral.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/GC_ChemGeneral/GC_ChemGeneral.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/GC_ChemGeneral/GC_ChemGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GC_ChinaBoss/GC_ChinaBoss.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GC_ChinaBoss/GC_ChinaBoss.json",
+        "maps/_extracted/MapsZH/Maps/GC_ChinaBoss/GC_ChinaBoss.json",
+        "maps/GC_ChinaBoss/GC_ChinaBoss.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_036.sav",
+        "zipeater_ZH_043.sav",
+        "zipeater_ZH_050.sav",
+        "zipeater_ZH_057.sav",
+        "zipeater_ZH_064.sav",
+        "zipeater_ZH_072.sav",
+        "zipeater_ZH_079.sav",
+        "zipeater_ZH_086.sav",
+        "zipeater_ZH_094.sav",
+        "zipeater_ZH_101.sav",
+        "zipeater_ZH_108.sav",
+        "zipeater_ZH_115.sav",
+        "zipeater_ZH_122.sav",
+        "zipeater_ZH_129.sav",
+        "zipeater_ZH_137.sav",
+        "zipeater_ZH_144.sav",
+        "zipeater_ZH_151.sav",
+        "zipeater_ZH_159.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/GC_ChinaBoss/GC_ChinaBoss.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GC_ChinaBoss/GC_ChinaBoss.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/GC_ChinaBoss/GC_ChinaBoss.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/GC_ChinaBoss/GC_ChinaBoss.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/GC_ChinaBoss/GC_ChinaBoss.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GC_LaserGeneral/GC_LaserGeneral.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GC_LaserGeneral/GC_LaserGeneral.json",
+        "maps/_extracted/MapsZH/Maps/GC_LaserGeneral/GC_LaserGeneral.json",
+        "maps/GC_LaserGeneral/GC_LaserGeneral.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_042.sav",
+        "zipeater_ZH_047.sav",
+        "zipeater_ZH_055.sav",
+        "zipeater_ZH_059.sav",
+        "zipeater_ZH_071.sav",
+        "zipeater_ZH_085.sav",
+        "zipeater_ZH_092.sav",
+        "zipeater_ZH_107.sav",
+        "zipeater_ZH_112.sav",
+        "zipeater_ZH_120.sav",
+        "zipeater_ZH_124.sav",
+        "zipeater_ZH_136.sav",
+        "zipeater_ZH_150.sav",
+        "zipeater_ZH_157.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/GC_LaserGeneral/GC_LaserGeneral.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GC_LaserGeneral/GC_LaserGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/GC_LaserGeneral/GC_LaserGeneral.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/GC_LaserGeneral/GC_LaserGeneral.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/GC_LaserGeneral/GC_LaserGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GC_NukeGeneral/GC_NukeGeneral.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GC_NukeGeneral/GC_NukeGeneral.json",
+        "maps/_extracted/MapsZH/Maps/GC_NukeGeneral/GC_NukeGeneral.json",
+        "maps/GC_NukeGeneral/GC_NukeGeneral.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_033.sav",
+        "zipeater_ZH_038.sav",
+        "zipeater_ZH_049.sav",
+        "zipeater_ZH_056.sav",
+        "zipeater_ZH_062.sav",
+        "zipeater_ZH_069.sav",
+        "zipeater_ZH_082.sav",
+        "zipeater_ZH_091.sav",
+        "zipeater_ZH_098.sav",
+        "zipeater_ZH_103.sav",
+        "zipeater_ZH_114.sav",
+        "zipeater_ZH_121.sav",
+        "zipeater_ZH_127.sav",
+        "zipeater_ZH_134.sav",
+        "zipeater_ZH_147.sav",
+        "zipeater_ZH_156.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/GC_NukeGeneral/GC_NukeGeneral.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GC_NukeGeneral/GC_NukeGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/GC_NukeGeneral/GC_NukeGeneral.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/GC_NukeGeneral/GC_NukeGeneral.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/GC_NukeGeneral/GC_NukeGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GC_Stealth/GC_Stealth.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GC_Stealth/GC_Stealth.json",
+        "maps/_extracted/MapsZH/Maps/GC_Stealth/GC_Stealth.json",
+        "maps/GC_Stealth/GC_Stealth.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_035.sav",
+        "zipeater_ZH_041.sav",
+        "zipeater_ZH_048.sav",
+        "zipeater_ZH_060.sav",
+        "zipeater_ZH_070.sav",
+        "zipeater_ZH_076.sav",
+        "zipeater_ZH_084.sav",
+        "zipeater_ZH_088.sav",
+        "zipeater_ZH_100.sav",
+        "zipeater_ZH_106.sav",
+        "zipeater_ZH_113.sav",
+        "zipeater_ZH_125.sav",
+        "zipeater_ZH_135.sav",
+        "zipeater_ZH_141.sav",
+        "zipeater_ZH_149.sav",
+        "zipeater_ZH_153.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/GC_Stealth/GC_Stealth.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GC_Stealth/GC_Stealth.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/GC_Stealth/GC_Stealth.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/GC_Stealth/GC_Stealth.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/GC_Stealth/GC_Stealth.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.json",
+        "maps/_extracted/MapsZH/Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.json",
+        "maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_034.sav",
+        "zipeater_ZH_039.sav",
+        "zipeater_ZH_053.sav",
+        "zipeater_ZH_061.sav",
+        "zipeater_ZH_078.sav",
+        "zipeater_ZH_083.sav",
+        "zipeater_ZH_090.sav",
+        "zipeater_ZH_099.sav",
+        "zipeater_ZH_104.sav",
+        "zipeater_ZH_118.sav",
+        "zipeater_ZH_126.sav",
+        "zipeater_ZH_143.sav",
+        "zipeater_ZH_148.sav",
+        "zipeater_ZH_155.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GC_TankGeneral/GC_TankGeneral.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GC_TankGeneral/GC_TankGeneral.json",
+        "maps/_extracted/MapsZH/Maps/GC_TankGeneral/GC_TankGeneral.json",
+        "maps/GC_TankGeneral/GC_TankGeneral.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_031.sav",
+        "zipeater_ZH_040.sav",
+        "zipeater_ZH_052.sav",
+        "zipeater_ZH_067.sav",
+        "zipeater_ZH_077.sav",
+        "zipeater_ZH_089.sav",
+        "zipeater_ZH_096.sav",
+        "zipeater_ZH_105.sav",
+        "zipeater_ZH_117.sav",
+        "zipeater_ZH_132.sav",
+        "zipeater_ZH_142.sav",
+        "zipeater_ZH_154.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/GC_TankGeneral/GC_TankGeneral.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GC_TankGeneral/GC_TankGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/GC_TankGeneral/GC_TankGeneral.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/GC_TankGeneral/GC_TankGeneral.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/GC_TankGeneral/GC_TankGeneral.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GLA02/GLA02.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GLA02/GLA02.json",
+        "maps/GLA02/GLA02.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_009.sav",
+        "zipeater_GN_031.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GLA02/GLA02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/GLA02/GLA02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GLA04/GLA04.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GLA04/GLA04.json",
+        "maps/GLA04/GLA04.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_010.sav",
+        "zipeater_GN_032.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GLA04/GLA04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/GLA04/GLA04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GLA05/GLA05.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GLA05/GLA05.json",
+        "maps/GLA05/GLA05.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_011.sav",
+        "zipeater_GN_033.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GLA05/GLA05.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/GLA05/GLA05.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GLA06/GLA06.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GLA06/GLA06.json",
+        "maps/GLA06/GLA06.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_012.sav",
+        "zipeater_GN_034.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GLA06/GLA06.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/GLA06/GLA06.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GLA07/GLA07.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GLA07/GLA07.json",
+        "maps/GLA07/GLA07.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_013.sav",
+        "zipeater_GN_035.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GLA07/GLA07.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/GLA07/GLA07.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/GLA08/GLA08.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/GLA08/GLA08.json",
+        "maps/GLA08/GLA08.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_014.sav",
+        "zipeater_GN_036.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/GLA08/GLA08.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/GLA08/GLA08.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_CHI02/MD_CHI02.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_CHI02/MD_CHI02.json",
+        "maps/_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.json",
+        "maps/MD_CHI02/MD_CHI02.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_011.sav",
+        "zipeater_ZH_026.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_CHI02/MD_CHI02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_CHI02/MD_CHI02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_CHI03/MD_CHI03.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_CHI03/MD_CHI03.json",
+        "maps/_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.json",
+        "maps/MD_CHI03/MD_CHI03.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_012.sav",
+        "zipeater_ZH_027.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_CHI03/MD_CHI03.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_CHI03/MD_CHI03.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_CHI04/MD_CHI04.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_CHI04/MD_CHI04.json",
+        "maps/_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.json",
+        "maps/MD_CHI04/MD_CHI04.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_013.sav",
+        "zipeater_ZH_028.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_CHI04/MD_CHI04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_CHI04/MD_CHI04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_CHI05/MD_CHI05.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_CHI05/MD_CHI05.json",
+        "maps/_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.json",
+        "maps/MD_CHI05/MD_CHI05.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_014.sav",
+        "zipeater_ZH_029.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_CHI05/MD_CHI05.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_CHI05/MD_CHI05.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_GLA02/MD_GLA02.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_GLA02/MD_GLA02.json",
+        "maps/_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.json",
+        "maps/MD_GLA02/MD_GLA02.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_006.sav",
+        "zipeater_ZH_021.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_GLA02/MD_GLA02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_GLA02/MD_GLA02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_GLA03/MD_GLA03.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_GLA03/MD_GLA03.json",
+        "maps/_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.json",
+        "maps/MD_GLA03/MD_GLA03.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_007.sav",
+        "zipeater_ZH_022.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_GLA03/MD_GLA03.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_GLA03/MD_GLA03.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_GLA04/MD_GLA04.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_GLA04/MD_GLA04.json",
+        "maps/_extracted/MapsZH/Maps/MD_GLA04/MD_GLA04.json",
+        "maps/MD_GLA04/MD_GLA04.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_008.sav",
+        "zipeater_ZH_023.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_GLA04/MD_GLA04.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_GLA04/MD_GLA04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA04/MD_GLA04.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_GLA04/MD_GLA04.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_GLA04/MD_GLA04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_GLA05/MD_GLA05.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_GLA05/MD_GLA05.json",
+        "maps/_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.json",
+        "maps/MD_GLA05/MD_GLA05.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_009.sav",
+        "zipeater_ZH_024.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_GLA05/MD_GLA05.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_GLA05/MD_GLA05.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_USA02/MD_USA02.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_USA02/MD_USA02.json",
+        "maps/_extracted/MapsZH/Maps/MD_USA02/MD_USA02.json",
+        "maps/MD_USA02/MD_USA02.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_001.sav",
+        "zipeater_ZH_016.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_USA02/MD_USA02.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_USA02/MD_USA02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA02/MD_USA02.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_USA02/MD_USA02.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_USA02/MD_USA02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_USA03/MD_USA03.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_USA03/MD_USA03.json",
+        "maps/_extracted/MapsZH/Maps/MD_USA03/MD_USA03.json",
+        "maps/MD_USA03/MD_USA03.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_002.sav",
+        "zipeater_ZH_017.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_USA03/MD_USA03.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_USA03/MD_USA03.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA03/MD_USA03.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_USA03/MD_USA03.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_USA03/MD_USA03.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_USA04/MD_USA04.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_USA04/MD_USA04.json",
+        "maps/_extracted/MapsZH/Maps/MD_USA04/MD_USA04.json",
+        "maps/MD_USA04/MD_USA04.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_003.sav",
+        "zipeater_ZH_018.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_USA04/MD_USA04.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_USA04/MD_USA04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA04/MD_USA04.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_USA04/MD_USA04.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_USA04/MD_USA04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/MD_USA05/MD_USA05.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/MD_USA05/MD_USA05.json",
+        "maps/_extracted/MapsZH/Maps/MD_USA05/MD_USA05.json",
+        "maps/MD_USA05/MD_USA05.json"
+      ],
+      "saveFiles": [
+        "zipeater_ZH_004.sav",
+        "zipeater_ZH_019.sav"
+      ],
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/MapsZH/Maps/MD_USA05/MD_USA05.json",
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/MD_USA05/MD_USA05.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA05/MD_USA05.json",
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/MapsZH/Maps/MD_USA05/MD_USA05.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
+        },
+        {
+          "outputPath": "maps/MD_USA05/MD_USA05.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/USA02/USA02.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/USA02/USA02.json",
+        "maps/USA02/USA02.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_016.sav",
+        "zipeater_GN_038.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/USA02/USA02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/USA02/USA02.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/USA03/USA03.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/USA03/USA03.json",
+        "maps/USA03/USA03.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_017.sav",
+        "zipeater_GN_039.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/USA03/USA03.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/USA03/USA03.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/USA04/USA04.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/USA04/USA04.json",
+        "maps/USA04/USA04.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_018.sav",
+        "zipeater_GN_040.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/USA04/USA04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/USA04/USA04.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/USA06/USA06.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/USA06/USA06.json",
+        "maps/USA06/USA06.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_019.sav",
+        "zipeater_GN_041.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/USA06/USA06.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/USA06/USA06.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/USA07/USA07.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/USA07/USA07.json",
+        "maps/USA07/USA07.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_020.sav",
+        "zipeater_GN_042.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/USA07/USA07.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/USA07/USA07.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    },
+    {
+      "sourceMapPath": "Maps/USA08/USA08.map",
+      "candidateOutputPaths": [
+        "maps/_extracted/Maps/Maps/USA08/USA08.json",
+        "maps/USA08/USA08.json"
+      ],
+      "saveFiles": [
+        "zipeater_GN_021.sav",
+        "zipeater_GN_043.sav"
+      ],
+      "status": "missing",
+      "availableOutputPath": null,
+      "candidates": [
+        {
+          "outputPath": "maps/_extracted/Maps/Maps/USA08/USA08.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        },
+        {
+          "outputPath": "maps/USA08/USA08.json",
+          "manifestEntry": false,
+          "outputFileExists": false,
+          "sourceFileExists": false,
+          "sourcePath": null,
+          "sourceIsMap": false,
+          "sourceCompatible": false
+        }
+      ]
+    }
+  ],
+  "parseFailures": []
+}

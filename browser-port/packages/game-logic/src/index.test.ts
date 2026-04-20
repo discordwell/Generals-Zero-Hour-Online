@@ -19234,7 +19234,9 @@ describe('Script condition groundwork', () => {
       objects: [
         makeObjectDef('Ranger', 'America', ['INFANTRY'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
-        ]),
+        ], {
+          ShroudClearingRange: 120,
+        }),
       ],
     });
 
@@ -27478,7 +27480,12 @@ describe('Script condition groundwork', () => {
       ],
     });
 
-    const map = makeMap([makeMapObject('Ranger', 10, 10)], 64, 64);
+    const map = makeMap([makeMapObject('Ranger', 40, 40)], 128, 64);
+    map.heightmap.boundaries = [
+      { x: 64, y: 64 },
+      { x: 128, y: 64 },
+      { x: 96, y: 64 },
+    ];
     map.sidesList = {
       sides: [
         {
@@ -27493,21 +27500,53 @@ describe('Script condition groundwork', () => {
     logic.loadMapObjects(
       map,
       makeRegistry(bundle),
-      makeHeightmap(64, 64),
+      makeHeightmap(128, 64),
     );
-
+    logic.update(1 / 30);
     const privateApi = logic as unknown as {
+      applyNamedScriptMapReveal: (name: string) => boolean;
       scriptActiveBoundaryIndex: number | null;
+      scriptNamedMapRevealByName: Map<string, {
+        playerIndex: number;
+        worldX: number;
+        worldZ: number;
+        radius: number;
+        applied: boolean;
+      }>;
+      setMapRevealAtWaypointForSide: (side: string, x: number, z: number, radius: number) => void;
       setMapRevealEntirePermanentlyForSide: (side: string, reveal: boolean) => void;
     };
+    const americaPlayerIndex = (logic as unknown as {
+      resolvePlayerIndexForSide: (side: string) => number;
+    }).resolvePlayerIndexForSide('America');
+    privateApi.scriptNamedMapRevealByName.set('SwitchReveal', {
+      playerIndex: americaPlayerIndex,
+      worldX: 40,
+      worldZ: 40,
+      radius: 120,
+      applied: false,
+    });
+    expect(privateApi.applyNamedScriptMapReveal('SwitchReveal')).toBe(true);
+    expect(logic.getCellVisibility('America', 40, 40)).toBe(CELL_CLEAR);
+    privateApi.setMapRevealAtWaypointForSide('America', 520, 520, 80);
+    expect(logic.getCellVisibility('America', 520, 520)).toBe(CELL_FOGGED);
+
+    const partitionBefore = logic.captureSourcePartitionRuntimeSaveState();
+    expect(partitionBefore.totalCellCount).toBeGreaterThan(0);
+
     privateApi.setMapRevealEntirePermanentlyForSide('observer', true);
     expect(logic.getCellVisibility('observer', 40, 40)).toBe(CELL_CLEAR);
 
     expect(logic.executeScriptAction({
       actionType: 406, // MAP_SWITCH_BORDER
-      params: [2],
+      params: [1],
     })).toBe(true);
-    expect(privateApi.scriptActiveBoundaryIndex).toBe(2);
+
+    const partitionAfter = logic.captureSourcePartitionRuntimeSaveState();
+    expect(privateApi.scriptActiveBoundaryIndex).toBe(1);
+    expect(partitionAfter.totalCellCount).toBeGreaterThan(partitionBefore.totalCellCount);
+    expect(logic.getCellVisibility('America', 40, 40)).toBe(CELL_CLEAR);
+    expect(logic.getCellVisibility('America', 520, 520)).toBe(CELL_FOGGED);
     expect(logic.getCellVisibility('observer', 60, 60)).toBe(CELL_CLEAR);
   });
 

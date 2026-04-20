@@ -167,6 +167,7 @@ import {
   createEntityVisionState as createEntityVisionStateImpl,
   type CellVisibility,
   type EntityVisionState,
+  type ShroudStatusStoreRestoreState,
   type SourcePartitionCellCountMode,
 } from './fog-of-war.js';
 import {
@@ -3462,10 +3463,28 @@ interface SourceAIPickUpCrateStateMachineState {
   crateGoalPosition: { x: number; y: number; z: number };
 }
 
+interface SourceAIAttackMoveSubMachineState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  pickUpCrateState: SourceAIPickUpCrateStateMachineState | null;
+}
+
+interface SourceAIAttackMoveStateMachineState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  moveState: SourceAIInternalMoveToStateSnapshot;
+  frameToSleepUntil: number;
+  retryCount: number;
+  attackMoveMachine: SourceAIAttackMoveSubMachineState;
+}
+
 interface SourceAISimpleMoveStateMachineState {
   currentStateId: number;
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
+  goalPath: Array<{ x: number; y: number; z: number }>;
   moveState: SourceAIInternalMoveToStateSnapshot;
   pathIndex: number | null;
   adjustFinal: boolean | null;
@@ -3476,6 +3495,16 @@ interface SourceAISimpleMoveStateMachineState {
   appendGoalPosition: boolean | null;
   waitFrames: number | null;
   timer: number | null;
+}
+
+interface SourceAITemporaryStateMachineState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  goalPath: Array<{ x: number; y: number; z: number }>;
+  moveState: SourceAIInternalMoveToStateSnapshot | null;
+  simpleMoveState: SourceAISimpleMoveStateMachineState | null;
+  frameEnd: number;
 }
 
 interface PendingRepairDockActionState {
@@ -3744,6 +3773,7 @@ export interface MapEntity {
   attackTargetPosition: VectorXZ | null;
   attackOriginalVictimPosition: VectorXZ | null;
   attackCommandSource: AttackCommandSource;
+  sourceAIAttackStateId: number | null;
   /** Source parity (ZH): AIUpdateInterface::getLastCommandSource — tracks the most recent command source.
    *  Used by StealthUpdate to cancel temporary stealth grants on player commands. */
   lastCommandSource: 'PLAYER' | 'AI' | 'SCRIPT';
@@ -3974,8 +4004,14 @@ export interface MapEntity {
   sourceAIFaceState: SourceAIFaceStateMachineState | null;
   /** Source parity: AI_PICK_UP_CRATE state. */
   sourceAIPickUpCrateState: SourceAIPickUpCrateStateMachineState | null;
+  /** Source parity: AI_ATTACK_MOVE_TO state plus nested AIAttackMoveStateMachine. */
+  sourceAIAttackMoveState: SourceAIAttackMoveStateMachineState | null;
   /** Source parity: simple AIInternalMoveToState-derived top states. */
   sourceAISimpleMoveState: SourceAISimpleMoveStateMachineState | null;
+  /** Source parity: AIStateMachine temporary-state override with shared goal/path tail. */
+  sourceAITemporaryState: SourceAITemporaryStateMachineState | null;
+  /** Source parity: AIStateMachine::m_goalSquad ObjectID list snapshot. */
+  sourceAIGoalSquadObjectIds: number[] | null;
   /** Source parity: ChinookCombatDropState runtime owned by the Chinook AI update. */
   chinookCombatDropState: PendingCombatDropActionState | null;
   /** Source parity: active rappeller runtime owned by the passenger AI/state machine. */
@@ -4153,6 +4189,8 @@ export interface MapEntity {
   guardObjectId: number;
   /** Trigger-area index being guarded (for GUARDTARGET_AREA). -1 = no area guard. */
   guardAreaTriggerIndex: number;
+  /** Source parity: raw PolygonTrigger name used by GUARDTARGET_AREA serialization. */
+  sourceGuardAreaName: string | null;
   /** Source parity (ZH): AIGuardMachine retaliation flag — true when pursuing an attacker. */
   guardRetaliating: boolean;
   /** Guard behavior variant (NORMAL / GUARD_WITHOUT_PURSUIT / GUARD_FLYING_UNITS_ONLY). */
@@ -9582,6 +9620,31 @@ interface SourceAIPickUpCrateStateImportState {
   crateGoalPosition: { x: number; y: number; z: number };
 }
 
+interface SourceAIAttackMoveMachineImportState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  attackState: SourceAIAttackStateImportState | null;
+  pickUpCrateState: SourceAIPickUpCrateStateImportState | null;
+}
+
+interface SourceAIAttackMoveStateImportState {
+  moveState: SourceAIInternalMoveToStateImportState;
+  frameToSleepUntil: number;
+  retryCount: number;
+  attackMoveMachine: SourceAIAttackMoveMachineImportState;
+}
+
+interface SourceAITemporaryStateImportState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  goalPath: Array<{ x: number; y: number; z: number }>;
+  moveState: SourceAIInternalMoveToStateImportState | null;
+  simpleMoveState: SourceAISimpleMoveStateImportState | null;
+  frameEnd: number;
+}
+
 interface SourceAISimpleMoveStateImportState {
   moveState: SourceAIInternalMoveToStateImportState;
   pathIndex: number | null;
@@ -9632,15 +9695,19 @@ interface SourceAIStateMachineImportState {
   currentStateId: number;
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
+  goalPath: Array<{ x: number; y: number; z: number }>;
+  goalSquadObjectIds: number[];
   moveState: SourceAIInternalMoveToStateImportState | null;
   dockState: SourceAIDockStateImportState | null;
   enterState: SourceAIEnterStateImportState | null;
   exitState: SourceAIExitStateImportState | null;
   faceState: SourceAIFaceStateImportState | null;
   pickUpCrateState: SourceAIPickUpCrateStateImportState | null;
+  attackMoveState: SourceAIAttackMoveStateImportState | null;
   simpleMoveState: SourceAISimpleMoveStateImportState | null;
   attackState: SourceAIAttackStateImportState | null;
   guardState: SourceAIGuardStateImportState | null;
+  temporaryState: SourceAITemporaryStateImportState | null;
 }
 
 interface SourceAIUpdateInterfaceImportState {
@@ -10505,6 +10572,7 @@ const SOURCE_AI_STATE_WAIT = 8;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
 const SOURCE_AI_STATE_FORCE_ATTACK_OBJECT = 11;
+const SOURCE_AI_STATE_ATTACK_AND_FOLLOW_OBJECT = 12;
 const SOURCE_AI_STATE_DEAD = 13;
 const SOURCE_AI_STATE_DOCK = 14;
 const SOURCE_AI_STATE_ENTER = 15;
@@ -10514,6 +10582,7 @@ const SOURCE_AI_STATE_MOVE_AND_TIGHTEN = 24;
 const SOURCE_AI_STATE_MOVE_AND_EVACUATE = 25;
 const SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT = 26;
 const SOURCE_AI_STATE_MOVE_AND_DELETE = 27;
+const SOURCE_AI_STATE_ATTACK_MOVE_TO = 30;
 const SOURCE_AI_STATE_EXIT = 37;
 const SOURCE_AI_STATE_PICK_UP_CRATE = 38;
 const SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS = 39;
@@ -10525,6 +10594,28 @@ const SOURCE_AI_STATE_FACE_POSITION = 34;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
 const SOURCE_AI_MAX_WAYPOINTS = 16;
 const SOURCE_AI_MAX_TURRETS = 2;
+const SOURCE_AI_FACE_SUCCESS_ANGLE_THRESHOLD = 0.035;
+const SOURCE_AI_ATTACK_MOVE_CLOSE_ENOUGH_CELLS = 8;
+const SOURCE_AI_ATTACK_MOVE_RETRY_SLEEP_FRAMES = 3 * LOGIC_FRAME_RATE;
+const SOURCE_AI_DEAD_MODEL_CONDITIONS_TO_CLEAR = [
+  'USING_WEAPON_A',
+  'USING_WEAPON_B',
+  'USING_WEAPON_C',
+  'FIRING_A',
+  'FIRING_B',
+  'FIRING_C',
+  'BETWEEN_FIRING_SHOTS_A',
+  'BETWEEN_FIRING_SHOTS_B',
+  'BETWEEN_FIRING_SHOTS_C',
+  'RELOADING_A',
+  'RELOADING_B',
+  'RELOADING_C',
+  'PREATTACK_A',
+  'PREATTACK_B',
+  'PREATTACK_C',
+  'SURRENDER',
+  'MOVING',
+] as const;
 const SOURCE_PATH_SNAPSHOT_MAX_NODES = 4096;
 const SOURCE_ATTACK_STATE_CHASE_TARGET = 0;
 const SOURCE_ATTACK_STATE_APPROACH_TARGET = 1;
@@ -11670,6 +11761,121 @@ export class GameLogicSubsystem implements Subsystem {
       : 'zero-hour-float-inverse-ceil';
   }
 
+  private clearBoundaryAdjustVisionStateLooker(
+    grid: FogOfWarGrid,
+    visionState: EntityVisionState,
+    playerIndex: number,
+  ): void {
+    if (visionState.isLooking && playerIndex >= 0) {
+      grid.removeLooker(playerIndex, visionState.lastLookX, visionState.lastLookZ, visionState.lastLookRadius);
+    }
+    visionState.isLooking = false;
+  }
+
+  private removeSourceBoundaryAdjustDynamicLookers(): ShroudStatusStoreRestoreState | null {
+    const grid = this.fogOfWarGrid;
+    if (!grid) {
+      return null;
+    }
+
+    const foggedStore = grid.captureShroudStatusStoreRestore(true);
+
+    for (const entity of this.spawnedEntities.values()) {
+      this.clearBoundaryAdjustVisionStateLooker(
+        grid,
+        entity.visionState,
+        this.resolvePlayerIndexForSide(entity.side),
+      );
+    }
+
+    for (const [key, visionState] of this.revealToAllVisionStates) {
+      const playerIndex = Number(key.split(':').at(-1) ?? -1);
+      this.clearBoundaryAdjustVisionStateLooker(
+        grid,
+        visionState,
+        Number.isFinite(playerIndex) ? playerIndex : -1,
+      );
+    }
+
+    for (const [key, visionState] of this.spyVisionEntityStates) {
+      const playerIndex = Number(key.split(':').at(-1) ?? -1);
+      this.clearBoundaryAdjustVisionStateLooker(
+        grid,
+        visionState,
+        Number.isFinite(playerIndex) ? playerIndex : -1,
+      );
+    }
+
+    for (const reveal of this.scriptNamedMapRevealByName.values()) {
+      if (reveal.applied) {
+        grid.removeLooker(reveal.playerIndex, reveal.worldX, reveal.worldZ, reveal.radius);
+      }
+    }
+
+    for (const reveal of this.temporaryVisionReveals) {
+      grid.removeLooker(reveal.playerIndex, reveal.worldX, reveal.worldZ, reveal.radius);
+    }
+
+    return foggedStore;
+  }
+
+  private reapplySourceBoundaryAdjustDynamicLookers(): void {
+    const grid = this.fogOfWarGrid;
+    if (!grid) {
+      return;
+    }
+
+    this.updateFogOfWar();
+    this.updateSpyVisionFog();
+
+    for (const reveal of this.scriptNamedMapRevealByName.values()) {
+      if (reveal.applied) {
+        grid.addLooker(reveal.playerIndex, reveal.worldX, reveal.worldZ, reveal.radius);
+      }
+    }
+
+    for (const reveal of this.temporaryVisionReveals) {
+      grid.addLooker(reveal.playerIndex, reveal.worldX, reveal.worldZ, reveal.radius);
+    }
+  }
+
+  /* @internal */ setScriptActiveBoundaryIndex(newActiveBoundary: number): boolean {
+    const normalizedBoundary = Math.trunc(newActiveBoundary);
+    const boundaries = Array.isArray(this.loadedMapData?.heightmap.boundaries)
+      ? this.loadedMapData!.heightmap.boundaries
+      : [];
+    if (normalizedBoundary < 0 || normalizedBoundary >= boundaries.length) {
+      return false;
+    }
+    if (normalizedBoundary === (this.scriptActiveBoundaryIndex ?? 0)) {
+      return true;
+    }
+
+    const boundary = boundaries[normalizedBoundary];
+    if (!boundary || boundary.x === 0 || boundary.y === 0) {
+      return false;
+    }
+
+    const foggedStore = this.removeSourceBoundaryAdjustDynamicLookers();
+    const permanentlyRevealedStore = this.fogOfWarGrid?.captureShroudStatusStoreRestore(false) ?? null;
+
+    this.scriptActiveBoundaryIndex = normalizedBoundary;
+    this.rebuildFogOfWarGridForCurrentSourceTerrainExtent();
+
+    if (!this.fogOfWarGrid) {
+      return true;
+    }
+
+    if (permanentlyRevealedStore) {
+      this.fogOfWarGrid.restoreShroudStatusStoreRestore(permanentlyRevealedStore, false);
+    }
+    this.reapplySourceBoundaryAdjustDynamicLookers();
+    if (foggedStore) {
+      this.fogOfWarGrid.restoreShroudStatusStoreRestore(foggedStore, true);
+    }
+    return true;
+  }
+
   private rebuildFogOfWarGridForCurrentSourceTerrainExtent(): void {
     if (!this.loadedMapData || !this.mapHeightmap) {
       return;
@@ -12450,7 +12656,10 @@ export class GameLogicSubsystem implements Subsystem {
       if (this.scriptActiveBoundaryIndex !== null || !Number.isFinite(value)) {
         return false;
       }
-      this.scriptActiveBoundaryIndex = Math.max(0, Math.trunc(value as number));
+      const boundaryIndex = Math.max(0, Math.trunc(value as number));
+      if (!this.setScriptActiveBoundaryIndex(boundaryIndex)) {
+        this.scriptActiveBoundaryIndex = boundaryIndex;
+      }
       return true;
     }
     if (key === 'dynamicWaterUpdates') {
@@ -16030,6 +16239,14 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
+  private runtimeCoordToSourceCoord3D(x: number, z: number, y = 0): { x: number; y: number; z: number } {
+    return {
+      x: Number.isFinite(x) ? x : 0,
+      y: Number.isFinite(z) ? z : 0,
+      z: Number.isFinite(y) ? y : 0,
+    };
+  }
+
   private sourceCommandSourceToRuntime(value: number): AttackCommandSource {
     switch (Math.trunc(value)) {
       case 0: return 'PLAYER';
@@ -16188,7 +16405,8 @@ export class GameLogicSubsystem implements Subsystem {
   private isSourceAITopAttackStateId(stateId: number): boolean {
     return stateId === SOURCE_AI_STATE_ATTACK_POSITION
       || stateId === SOURCE_AI_STATE_ATTACK_OBJECT
-      || stateId === SOURCE_AI_STATE_FORCE_ATTACK_OBJECT;
+      || stateId === SOURCE_AI_STATE_FORCE_ATTACK_OBJECT
+      || stateId === SOURCE_AI_STATE_ATTACK_AND_FOLLOW_OBJECT;
   }
 
   private isSourceAIStatelessTopStateId(stateId: number): boolean {
@@ -16547,6 +16765,84 @@ export class GameLogicSubsystem implements Subsystem {
     return { originalVictimPosition, attackMachine };
   }
 
+  private parseSourceAIAttackMoveMachineCurrentStateSnapshot(
+    xfer: XferLoad,
+    currentStateId: number,
+  ): {
+    attackState: SourceAIAttackStateImportState | null;
+    pickUpCrateState: SourceAIPickUpCrateStateImportState | null;
+  } | null {
+    switch (Math.trunc(currentStateId)) {
+      case SOURCE_AI_STATE_IDLE:
+        return this.skipSourceAIIdleStateSnapshot(xfer)
+          ? { attackState: null, pickUpCrateState: null }
+          : null;
+      case SOURCE_AI_STATE_ATTACK_OBJECT: {
+        const attackState = this.parseSourceAIAttackStateImportState(xfer);
+        return attackState ? { attackState, pickUpCrateState: null } : null;
+      }
+      case SOURCE_AI_STATE_PICK_UP_CRATE: {
+        const pickUpCrateState = this.parseSourceAIPickUpCrateStateSnapshot(xfer);
+        return pickUpCrateState ? { attackState: null, pickUpCrateState } : null;
+      }
+      default:
+        return null;
+    }
+  }
+
+  private parseSourceAIAttackMoveMachineImportState(
+    xfer: XferLoad,
+  ): SourceAIAttackMoveMachineImportState | null {
+    const version = xfer.xferVersion(1);
+    const stateMachineVersion = xfer.xferVersion(1);
+    if (version !== 1 || stateMachineVersion !== 1) {
+      return null;
+    }
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+    const currentStateId = xfer.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+    if (xfer.xferBool(false)) {
+      return null;
+    }
+    const currentStateSnapshot = this.parseSourceAIAttackMoveMachineCurrentStateSnapshot(
+      xfer,
+      currentStateId,
+    );
+    if (!currentStateSnapshot) {
+      return null;
+    }
+    const goalObjectId = xfer.xferObjectID(0);
+    const goalPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    return {
+      currentStateId,
+      goalObjectId,
+      goalPosition,
+      attackState: currentStateSnapshot.attackState,
+      pickUpCrateState: currentStateSnapshot.pickUpCrateState,
+    };
+  }
+
+  private parseSourceAIAttackMoveStateImportState(
+    xfer: XferLoad,
+  ): SourceAIAttackMoveStateImportState | null {
+    const version = xfer.xferVersion(2);
+    if (version !== 2) {
+      return null;
+    }
+    const moveState = this.parseSourceAIInternalMoveToStateSnapshot(xfer);
+    if (!moveState) {
+      return null;
+    }
+    const frameToSleepUntil = xfer.xferUnsignedInt(0);
+    const retryCount = xfer.xferInt(0);
+    const attackMoveMachine = this.parseSourceAIAttackMoveMachineImportState(xfer);
+    return attackMoveMachine
+      ? { moveState, frameToSleepUntil, retryCount, attackMoveMachine }
+      : null;
+  }
+
   private parseSourceAIGuardMachineCurrentStateSnapshot(
     xfer: XferLoad,
     currentStateId: number,
@@ -16650,6 +16946,59 @@ export class GameLogicSubsystem implements Subsystem {
     return guardMachine ? { guardMachine } : null;
   }
 
+  private parseSourceAITemporaryStateImportState(
+    xfer: XferLoad,
+    currentStateId: number,
+    goalObjectId: number,
+    goalPosition: { x: number; y: number; z: number },
+    goalPath: Array<{ x: number; y: number; z: number }>,
+  ): SourceAITemporaryStateImportState | null {
+    let moveState: SourceAIInternalMoveToStateImportState | null = null;
+    let simpleMoveState: SourceAISimpleMoveStateImportState | null = null;
+    if (this.isSourceAIStatelessTopStateId(currentStateId)) {
+      if (!this.skipSourceAIStatelessStateSnapshot(xfer)) {
+        return null;
+      }
+    } else if (currentStateId === SOURCE_AI_STATE_MOVE_TO) {
+      moveState = this.parseSourceAIInternalMoveToStateSnapshot(xfer);
+      if (!moveState) {
+        return null;
+      }
+    } else if (this.isSourceAISimpleMoveTopStateId(currentStateId)) {
+      simpleMoveState = this.parseSourceAISimpleMoveStateSnapshot(xfer, currentStateId);
+      if (!simpleMoveState) {
+        return null;
+      }
+    } else {
+      return null;
+    }
+    return {
+      currentStateId,
+      goalObjectId,
+      goalPosition,
+      goalPath,
+      moveState,
+      simpleMoveState,
+      frameEnd: 0,
+    };
+  }
+
+  private parseSourceSquadSnapshot(xfer: XferLoad): number[] | null {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const objectCount = xfer.xferUnsignedShort(0);
+    const objectIds: number[] = [];
+    for (let index = 0; index < objectCount; index += 1) {
+      const objectId = xfer.xferObjectID(0);
+      if (Number.isFinite(objectId) && objectId > 0) {
+        objectIds.push(Math.trunc(objectId));
+      }
+    }
+    return objectIds;
+  }
+
   private parseSourceAIStateMachineImportState(
     xfer: XferLoad,
   ): SourceAIStateMachineImportState | null {
@@ -16671,6 +17020,7 @@ export class GameLogicSubsystem implements Subsystem {
     let exitState: SourceAIExitStateImportState | null = null;
     let faceState: SourceAIFaceStateImportState | null = null;
     let pickUpCrateState: SourceAIPickUpCrateStateImportState | null = null;
+    let attackMoveState: SourceAIAttackMoveStateImportState | null = null;
     let simpleMoveState: SourceAISimpleMoveStateImportState | null = null;
     let attackState: SourceAIAttackStateImportState | null = null;
     let guardState: SourceAIGuardStateImportState | null = null;
@@ -16690,6 +17040,11 @@ export class GameLogicSubsystem implements Subsystem {
     } else if (currentStateId === SOURCE_AI_STATE_PICK_UP_CRATE) {
       pickUpCrateState = this.parseSourceAIPickUpCrateStateSnapshot(xfer);
       if (!pickUpCrateState) {
+        return null;
+      }
+    } else if (currentStateId === SOURCE_AI_STATE_ATTACK_MOVE_TO) {
+      attackMoveState = this.parseSourceAIAttackMoveStateImportState(xfer);
+      if (!attackMoveState) {
         return null;
       }
     } else if (this.isSourceAISimpleMoveTopStateId(currentStateId)) {
@@ -16739,32 +17094,52 @@ export class GameLogicSubsystem implements Subsystem {
     if (goalPathCount < 0 || goalPathCount > 256) {
       return null;
     }
+    const goalPath: Array<{ x: number; y: number; z: number }> = [];
     for (let index = 0; index < goalPathCount; index += 1) {
-      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      goalPath.push(xfer.xferCoord3D({ x: 0, y: 0, z: 0 }));
     }
     xfer.xferAsciiString('');
-    if (xfer.xferBool(false)) {
+    const hasGoalSquad = xfer.xferBool(false);
+    const goalSquadObjectIds = hasGoalSquad ? this.parseSourceSquadSnapshot(xfer) : [];
+    if (goalSquadObjectIds === null) {
       return null;
     }
     const temporaryStateId = xfer.xferUnsignedInt(0);
+    let temporaryState: SourceAITemporaryStateImportState | null = null;
     if (temporaryStateId !== SOURCE_AI_INVALID_STATE_ID) {
-      return null;
+      temporaryState = this.parseSourceAITemporaryStateImportState(
+        xfer,
+        temporaryStateId,
+        goalObjectId,
+        { ...goalPosition },
+        goalPath.map((point) => ({ ...point })),
+      );
+      if (!temporaryState) {
+        return null;
+      }
     }
-    xfer.xferUnsignedInt(0);
+    const temporaryStateFrameEnd = xfer.xferUnsignedInt(0);
+    if (temporaryState) {
+      temporaryState.frameEnd = Math.max(0, Math.trunc(temporaryStateFrameEnd));
+    }
 
     return {
       currentStateId,
       goalObjectId,
       goalPosition,
+      goalPath,
+      goalSquadObjectIds,
       moveState,
       dockState,
       enterState,
       exitState,
       faceState,
       pickUpCrateState,
+      attackMoveState,
       simpleMoveState,
       attackState,
       guardState,
+      temporaryState,
     };
   }
 
@@ -19610,6 +19985,161 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private cloneSourceCoord3D(
+    coord: { x: number; y: number; z: number },
+  ): { x: number; y: number; z: number } {
+    return {
+      x: Number.isFinite(coord.x) ? coord.x : 0,
+      y: Number.isFinite(coord.y) ? coord.y : 0,
+      z: Number.isFinite(coord.z) ? coord.z : 0,
+    };
+  }
+
+  private materializeSourceAISimpleMoveState(
+    currentStateId: number,
+    goalObjectId: number,
+    goalPosition: { x: number; y: number; z: number },
+    goalPath: readonly { x: number; y: number; z: number }[],
+    state: SourceAISimpleMoveStateImportState,
+  ): SourceAISimpleMoveStateMachineState {
+    return {
+      currentStateId,
+      goalObjectId: Math.max(0, Math.trunc(goalObjectId)),
+      goalPosition: this.cloneSourceCoord3D(goalPosition),
+      goalPath: goalPath.map((point) => this.cloneSourceCoord3D(point)),
+      moveState: {
+        goalPosition: this.cloneSourceCoord3D(state.moveState.goalPosition),
+        goalLayer: state.moveState.goalLayer,
+        waitingForPath: state.moveState.waitingForPath,
+        pathGoalPosition: this.cloneSourceCoord3D(state.moveState.pathGoalPosition),
+        pathTimestamp: state.moveState.pathTimestamp,
+        blockedRepathTimestamp: state.moveState.blockedRepathTimestamp,
+        adjustDestinations: state.moveState.adjustDestinations,
+      },
+      pathIndex: state.pathIndex,
+      adjustFinal: state.adjustFinal,
+      adjustFinalOverride: state.adjustFinalOverride,
+      okToRepathTimes: state.okToRepathTimes,
+      checkForPath: state.checkForPath,
+      origin: state.origin ? this.cloneSourceCoord3D(state.origin) : null,
+      appendGoalPosition: state.appendGoalPosition,
+      waitFrames: state.waitFrames,
+      timer: state.timer,
+    };
+  }
+
+  private materializeSourceAIAttackMoveState(
+    goalObjectId: number,
+    goalPosition: { x: number; y: number; z: number },
+    state: SourceAIAttackMoveStateImportState,
+  ): SourceAIAttackMoveStateMachineState {
+    const pickUpCrateState = state.attackMoveMachine.pickUpCrateState;
+    return {
+      currentStateId: SOURCE_AI_STATE_ATTACK_MOVE_TO,
+      goalObjectId: Math.max(0, Math.trunc(goalObjectId)),
+      goalPosition: this.cloneSourceCoord3D(goalPosition),
+      moveState: {
+        goalPosition: this.cloneSourceCoord3D(state.moveState.goalPosition),
+        goalLayer: state.moveState.goalLayer,
+        waitingForPath: state.moveState.waitingForPath,
+        pathGoalPosition: this.cloneSourceCoord3D(state.moveState.pathGoalPosition),
+        pathTimestamp: state.moveState.pathTimestamp,
+        blockedRepathTimestamp: state.moveState.blockedRepathTimestamp,
+        adjustDestinations: state.moveState.adjustDestinations,
+      },
+      frameToSleepUntil: Math.max(0, Math.trunc(state.frameToSleepUntil)),
+      retryCount: Math.trunc(state.retryCount),
+      attackMoveMachine: {
+        currentStateId: Math.trunc(state.attackMoveMachine.currentStateId),
+        goalObjectId: Math.max(0, Math.trunc(state.attackMoveMachine.goalObjectId)),
+        goalPosition: this.cloneSourceCoord3D(state.attackMoveMachine.goalPosition),
+        pickUpCrateState: pickUpCrateState
+          ? {
+              currentStateId: SOURCE_AI_STATE_PICK_UP_CRATE,
+              goalObjectId: Math.max(0, Math.trunc(state.attackMoveMachine.goalObjectId)),
+              goalPosition: this.cloneSourceCoord3D(state.attackMoveMachine.goalPosition),
+              moveState: {
+                goalPosition: this.cloneSourceCoord3D(pickUpCrateState.moveState.goalPosition),
+                goalLayer: pickUpCrateState.moveState.goalLayer,
+                waitingForPath: pickUpCrateState.moveState.waitingForPath,
+                pathGoalPosition: this.cloneSourceCoord3D(pickUpCrateState.moveState.pathGoalPosition),
+                pathTimestamp: pickUpCrateState.moveState.pathTimestamp,
+                blockedRepathTimestamp: pickUpCrateState.moveState.blockedRepathTimestamp,
+                adjustDestinations: pickUpCrateState.moveState.adjustDestinations,
+              },
+              delayCounter: Math.trunc(pickUpCrateState.delayCounter),
+              crateGoalPosition: this.cloneSourceCoord3D(pickUpCrateState.crateGoalPosition),
+            }
+          : null,
+      },
+    };
+  }
+
+  private materializeSourceAITemporaryState(
+    state: SourceAITemporaryStateImportState,
+  ): SourceAITemporaryStateMachineState {
+    return {
+      currentStateId: state.currentStateId,
+      goalObjectId: Math.max(0, Math.trunc(state.goalObjectId)),
+      goalPosition: this.cloneSourceCoord3D(state.goalPosition),
+      goalPath: state.goalPath.map((point) => this.cloneSourceCoord3D(point)),
+      moveState: state.moveState
+        ? {
+            goalPosition: this.cloneSourceCoord3D(state.moveState.goalPosition),
+            goalLayer: state.moveState.goalLayer,
+            waitingForPath: state.moveState.waitingForPath,
+            pathGoalPosition: this.cloneSourceCoord3D(state.moveState.pathGoalPosition),
+            pathTimestamp: state.moveState.pathTimestamp,
+            blockedRepathTimestamp: state.moveState.blockedRepathTimestamp,
+            adjustDestinations: state.moveState.adjustDestinations,
+          }
+        : null,
+      simpleMoveState: state.simpleMoveState
+        ? this.materializeSourceAISimpleMoveState(
+            state.currentStateId,
+            state.goalObjectId,
+            state.goalPosition,
+            state.goalPath,
+            state.simpleMoveState,
+          )
+        : null,
+      frameEnd: Math.max(0, Math.trunc(state.frameEnd)),
+    };
+  }
+
+  private applyImportedSourceAITemporaryMovementState(
+    entity: MapEntity,
+    temporaryState: SourceAITemporaryStateMachineState,
+    aiUpdateState: SourceAIUpdateInterfaceImportState,
+  ): void {
+    if (this.isSourceAIStatelessTopStateId(temporaryState.currentStateId)) {
+      entity.movePath = [];
+      entity.pathIndex = 0;
+      entity.moveTarget = null;
+      entity.moving = false;
+      entity.temporaryMoveExpireFrame = 0;
+      return;
+    }
+
+    const moveState = temporaryState.simpleMoveState?.moveState ?? temporaryState.moveState;
+    if (!moveState) {
+      return;
+    }
+
+    const moveTarget = this.sourceCoord3DToRuntimeXZ(moveState.goalPosition);
+    entity.movePath = [moveTarget];
+    entity.pathIndex = 0;
+    entity.moveTarget = moveTarget;
+    entity.moving = true;
+    entity.temporaryMoveExpireFrame = 0;
+    if (aiUpdateState.pathfindGoalCell === null) {
+      entity.pathfindGoalCell = {
+        x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
+        z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
+      };
+    }
+  }
+
   private applySourceAIUpdateInterfaceModulesToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -19664,8 +20194,10 @@ export class GameLogicSubsystem implements Subsystem {
       const stateMachine = aiUpdateState.stateMachine;
       const commandSource = this.sourceCommandSourceToRuntime(aiUpdateState.lastCommandSource);
       const enterCommandSource = this.sourceLastCommandSourceToRuntime(aiUpdateState.lastCommandSource);
+      entity.sourceAIGoalSquadObjectIds = stateMachine.goalSquadObjectIds.length > 0
+        ? [...stateMachine.goalSquadObjectIds]
+        : null;
       if (this.isSourceAIStatelessTopStateId(stateMachine.currentStateId)) {
-        // TODO(source parity): AI_DEAD also reapplies DYING/effectively-dead flags each update.
         entity.attackTargetEntityId = null;
         entity.attackTargetPosition = null;
         entity.attackOriginalVictimPosition = null;
@@ -19687,7 +20219,6 @@ export class GameLogicSubsystem implements Subsystem {
       }
 
       if (this.isSourceAIFaceTopStateId(stateMachine.currentStateId) && stateMachine.faceState) {
-        // TODO(source parity): AIFaceState::update drives locomotor orientation until within source threshold.
         entity.attackTargetEntityId = null;
         entity.attackTargetPosition = null;
         entity.attackOriginalVictimPosition = null;
@@ -19711,7 +20242,6 @@ export class GameLogicSubsystem implements Subsystem {
 
       if (stateMachine.currentStateId === SOURCE_AI_STATE_PICK_UP_CRATE && stateMachine.pickUpCrateState) {
         const moveTarget = this.sourceCoord3DToRuntimeXZ(stateMachine.pickUpCrateState.moveState.goalPosition);
-        // TODO(source parity): AIPickUpCrateState::update delays, then runs AIInternalMoveToState and crate pickup.
         entity.attackTargetEntityId = null;
         entity.attackTargetPosition = null;
         entity.attackOriginalVictimPosition = null;
@@ -19759,9 +20289,79 @@ export class GameLogicSubsystem implements Subsystem {
         };
       }
 
+      if (stateMachine.currentStateId === SOURCE_AI_STATE_ATTACK_MOVE_TO && stateMachine.attackMoveState) {
+        const attackMoveState = this.materializeSourceAIAttackMoveState(
+          stateMachine.goalObjectId,
+          stateMachine.goalPosition,
+          stateMachine.attackMoveState,
+        );
+        const attackMoveMachine = stateMachine.attackMoveState.attackMoveMachine;
+        const nestedPickUpCrateState = attackMoveMachine.pickUpCrateState;
+        const nestedAttackMachine = attackMoveMachine.attackState?.attackMachine ?? null;
+        const nestedAttackSubState = nestedAttackMachine
+          ? this.sourceAttackStateToRuntimeSubState(nestedAttackMachine.currentStateId)
+          : null;
+
+        entity.sourceAIAttackMoveState = attackMoveState;
+        entity.sourceAIAttackStateId = null;
+        entity.attackTargetEntityId = null;
+        entity.attackTargetPosition = null;
+        entity.attackOriginalVictimPosition = null;
+        entity.attackSubState = 'IDLE';
+        entity.movePath = [];
+        entity.pathIndex = 0;
+        entity.moveTarget = null;
+        entity.moving = false;
+        entity.temporaryMoveExpireFrame = 0;
+
+        if (attackMoveMachine.currentStateId === SOURCE_AI_STATE_PICK_UP_CRATE && nestedPickUpCrateState) {
+          if (nestedPickUpCrateState.delayCounter <= 0) {
+            const moveTarget = this.sourceCoord3DToRuntimeXZ(nestedPickUpCrateState.moveState.goalPosition);
+            entity.movePath = [moveTarget];
+            entity.pathIndex = 0;
+            entity.moveTarget = moveTarget;
+            entity.moving = true;
+            if (aiUpdateState.pathfindGoalCell === null) {
+              entity.pathfindGoalCell = {
+                x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
+                z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
+              };
+            }
+          }
+        } else if (attackMoveMachine.currentStateId === SOURCE_AI_STATE_ATTACK_OBJECT
+          && nestedAttackMachine
+          && nestedAttackSubState) {
+          const targetEntityId = Math.trunc(
+            attackMoveMachine.goalObjectId > 0
+              ? attackMoveMachine.goalObjectId
+              : nestedAttackMachine.goalObjectId,
+          );
+          if (targetEntityId > 0) {
+            entity.attackTargetEntityId = targetEntityId;
+            entity.attackOriginalVictimPosition = this.sourceCoord3DToRuntimeXZ(
+              attackMoveMachine.attackState?.originalVictimPosition ?? nestedAttackMachine.goalPosition,
+            );
+            entity.attackCommandSource = commandSource;
+            entity.lastCommandSource = commandSource === 'DOZER' ? 'AI' : commandSource;
+            entity.attackSubState = nestedAttackSubState;
+          }
+        } else if (this.frameCounter >= attackMoveState.frameToSleepUntil) {
+          const moveTarget = this.sourceCoord3DToRuntimeXZ(attackMoveState.moveState.goalPosition);
+          entity.movePath = [moveTarget];
+          entity.pathIndex = 0;
+          entity.moveTarget = moveTarget;
+          entity.moving = true;
+          if (aiUpdateState.pathfindGoalCell === null) {
+            entity.pathfindGoalCell = {
+              x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
+              z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
+            };
+          }
+        }
+      }
+
       if (this.isSourceAISimpleMoveTopStateId(stateMachine.currentStateId) && stateMachine.simpleMoveState) {
         const moveTarget = this.sourceCoord3DToRuntimeXZ(stateMachine.simpleMoveState.moveState.goalPosition);
-        // TODO(source parity): implement each simple AIInternalMoveToState-derived state's update side effects.
         entity.attackTargetEntityId = null;
         entity.attackTargetPosition = null;
         entity.attackOriginalVictimPosition = null;
@@ -19777,33 +20377,13 @@ export class GameLogicSubsystem implements Subsystem {
           };
         }
         entity.temporaryMoveExpireFrame = 0;
-        entity.sourceAISimpleMoveState = {
-          currentStateId: stateMachine.currentStateId,
-          goalObjectId: Math.max(0, Math.trunc(stateMachine.goalObjectId)),
-          goalPosition: {
-            x: Number.isFinite(stateMachine.goalPosition.x) ? stateMachine.goalPosition.x : 0,
-            y: Number.isFinite(stateMachine.goalPosition.y) ? stateMachine.goalPosition.y : 0,
-            z: Number.isFinite(stateMachine.goalPosition.z) ? stateMachine.goalPosition.z : 0,
-          },
-          moveState: {
-            goalPosition: { ...stateMachine.simpleMoveState.moveState.goalPosition },
-            goalLayer: stateMachine.simpleMoveState.moveState.goalLayer,
-            waitingForPath: stateMachine.simpleMoveState.moveState.waitingForPath,
-            pathGoalPosition: { ...stateMachine.simpleMoveState.moveState.pathGoalPosition },
-            pathTimestamp: stateMachine.simpleMoveState.moveState.pathTimestamp,
-            blockedRepathTimestamp: stateMachine.simpleMoveState.moveState.blockedRepathTimestamp,
-            adjustDestinations: stateMachine.simpleMoveState.moveState.adjustDestinations,
-          },
-          pathIndex: stateMachine.simpleMoveState.pathIndex,
-          adjustFinal: stateMachine.simpleMoveState.adjustFinal,
-          adjustFinalOverride: stateMachine.simpleMoveState.adjustFinalOverride,
-          okToRepathTimes: stateMachine.simpleMoveState.okToRepathTimes,
-          checkForPath: stateMachine.simpleMoveState.checkForPath,
-          origin: stateMachine.simpleMoveState.origin ? { ...stateMachine.simpleMoveState.origin } : null,
-          appendGoalPosition: stateMachine.simpleMoveState.appendGoalPosition,
-          waitFrames: stateMachine.simpleMoveState.waitFrames,
-          timer: stateMachine.simpleMoveState.timer,
-        };
+        entity.sourceAISimpleMoveState = this.materializeSourceAISimpleMoveState(
+          stateMachine.currentStateId,
+          stateMachine.goalObjectId,
+          stateMachine.goalPosition,
+          stateMachine.goalPath,
+          stateMachine.simpleMoveState,
+        );
       }
 
       if (stateMachine.currentStateId === SOURCE_AI_STATE_MOVE_TO && stateMachine.moveState) {
@@ -19938,9 +20518,12 @@ export class GameLogicSubsystem implements Subsystem {
         entity.guardPositionX = guardPosition.x;
         entity.guardPositionZ = guardPosition.z;
         entity.guardObjectId = guardMachine.targetToGuardId > 0 ? Math.trunc(guardMachine.targetToGuardId) : 0;
-        // TODO(source parity): resolve guardMachine.areaToGuardName to a runtime trigger index once
-        // source trigger names are retained on mapTriggerRegions.
-        entity.guardAreaTriggerIndex = -1;
+        entity.sourceGuardAreaName = guardMachine.areaToGuardName.trim().length > 0
+          ? guardMachine.areaToGuardName.trim()
+          : null;
+        entity.guardAreaTriggerIndex = guardMachine.areaToGuardName.trim().length > 0
+          ? this.resolveScriptTeamTriggerIndex(guardMachine.areaToGuardName)
+          : -1;
         entity.guardInnerRange = Math.max(0, entity.visionRange * innerMod);
         entity.guardOuterRange = Math.max(0, entity.visionRange * outerMod);
         const guardNextScanFrame = guardMachine.nextEnemyScanTime ?? guardMachine.nextReturnScanTime;
@@ -19980,6 +20563,7 @@ export class GameLogicSubsystem implements Subsystem {
             : aiUpdateState.currentVictimId);
 
         if (isAttackingPosition || (targetEntityId !== null && targetEntityId > 0)) {
+          entity.sourceAIAttackStateId = stateMachine.currentStateId;
           entity.attackTargetEntityId = targetEntityId;
           entity.attackTargetPosition = isAttackingPosition
             ? this.sourceCoord3DToRuntimeXZ(stateMachine.goalPosition)
@@ -19989,6 +20573,13 @@ export class GameLogicSubsystem implements Subsystem {
           entity.lastCommandSource = commandSource === 'DOZER' ? 'AI' : commandSource;
           entity.attackSubState = attackSubState;
         }
+      }
+
+      entity.sourceAITemporaryState = stateMachine.temporaryState
+        ? this.materializeSourceAITemporaryState(stateMachine.temporaryState)
+        : null;
+      if (entity.sourceAITemporaryState) {
+        this.applyImportedSourceAITemporaryMovementState(entity, entity.sourceAITemporaryState, aiUpdateState);
       }
 
       return;
@@ -27249,7 +27840,10 @@ export class GameLogicSubsystem implements Subsystem {
     entity.sourceAIStatelessState = null;
     entity.sourceAIFaceState = null;
     entity.sourceAIPickUpCrateState = null;
+    entity.sourceAIAttackMoveState = null;
     entity.sourceAISimpleMoveState = null;
+    entity.sourceAITemporaryState = null;
+    entity.sourceAIAttackStateId = null;
     entity.sourceAIUpdateIsDead = false;
   }
 
@@ -27756,7 +28350,9 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateGuardBehavior();
     this.updateJetAI();
     this.updateChinookAI();
+    this.updateSourceOwnedAIStatesPreMovement(effectiveDt);
     this.updateEntityMovement(effectiveDt);
+    this.updateSourceOwnedAIStatesPostMovement();
     this.updateAnimationSteering();
     this.updateUnitCollisionSeparation();
     this.updateCrushCollisions();
@@ -27881,6 +28477,641 @@ export class GameLogicSubsystem implements Subsystem {
     this.finalizeDestroyedEntities();
     this.cleanupDyingRenderableStates();
     this.checkVictoryConditions();
+  }
+
+  private stopSourceOwnedEntityMovement(entity: MapEntity): void {
+    entity.movePath = [];
+    entity.pathIndex = 0;
+    entity.moveTarget = null;
+    entity.moving = false;
+    entity.currentSpeed = 0;
+    entity.pathfindGoalCell = null;
+    entity.temporaryMoveExpireFrame = 0;
+  }
+
+  private setSourceOwnedEntityMoveTarget(entity: MapEntity, targetX: number, targetZ: number): void {
+    const target = { x: targetX, z: targetZ };
+    entity.movePath = [target];
+    entity.pathIndex = 0;
+    entity.moveTarget = target;
+    entity.moving = true;
+    entity.temporaryMoveExpireFrame = 0;
+    entity.pathfindGoalCell = {
+      x: Math.floor(targetX / PATHFIND_CELL_SIZE),
+      z: Math.floor(targetZ / PATHFIND_CELL_SIZE),
+    };
+  }
+
+  private findSourceOwnedAttackMoveTarget(
+    entity: MapEntity,
+    calledByAI: boolean,
+  ): MapEntity | null {
+    const weapon = entity.attackWeapon;
+    if (!weapon || weapon.primaryDamage <= 0) {
+      return null;
+    }
+
+    // Source parity: AIAttackMoveToState calls getNextMoodTarget(..., false), so the
+    // attack-move scan may run while moving and while not in the normal idle state.
+    const autoTargetJs = entity.jetAIState;
+    if (autoTargetJs && (autoTargetJs.state === 'PARKED' || autoTargetJs.state === 'RELOAD_AMMO'
+      || autoTargetJs.state === 'TAKING_OFF' || autoTargetJs.state === 'LANDING')) {
+      return null;
+    }
+
+    if (calledByAI && this.frameCounter < entity.autoTargetScanNextFrame) {
+      return null;
+    }
+    if (calledByAI) {
+      const scanRate = entity.moodAttackCheckRate > 0
+        ? entity.moodAttackCheckRate
+        : AUTO_TARGET_SCAN_RATE_FRAMES;
+      entity.autoTargetScanNextFrame = this.frameCounter + scanRate;
+    }
+
+    const entitySidePlayerType = this.getControllingPlayerTypeForEntity(entity);
+    if (calledByAI
+      && entitySidePlayerType !== 'HUMAN'
+      && entity.scriptAttitude === SCRIPT_AI_ATTITUDE_PASSIVE) {
+      const lastAttacker = entity.lastAttackerEntityId !== null
+        ? this.spawnedEntities.get(entity.lastAttackerEntityId) ?? null
+        : null;
+      if (lastAttacker
+        && !lastAttacker.destroyed
+        && this.getTeamRelationship(entity, lastAttacker) === RELATIONSHIP_ENEMIES
+        && this.canAttackerTargetEntity(entity, lastAttacker, 'AI')) {
+        return lastAttacker;
+      }
+      return null;
+    }
+
+    const entityKindOf = this.resolveEntityKindOfSet(entity);
+    const entityIsAircraft = entityKindOf.has('AIRCRAFT');
+    const scanRange = calledByAI && entitySidePlayerType === 'HUMAN'
+      ? weapon.attackRange
+      : Math.max(weapon.attackRange, entity.visionRange);
+    const scanRangeSqr = scanRange * scanRange;
+
+    let bestTarget: MapEntity | null = null;
+    let bestDistanceSqr = Number.POSITIVE_INFINITY;
+
+    for (const candidate of this.spawnedEntities.values()) {
+      if (candidate.destroyed || !candidate.canTakeDamage) {
+        continue;
+      }
+      if (candidate.id === entity.id) {
+        continue;
+      }
+      if (this.getTeamRelationship(entity, candidate) !== RELATIONSHIP_ENEMIES) {
+        continue;
+      }
+      if (
+        candidate.objectStatusFlags.has('STEALTHED')
+        && !candidate.objectStatusFlags.has('DETECTED')
+      ) {
+        continue;
+      }
+      if (entitySidePlayerType === 'COMPUTER' && !entityIsAircraft) {
+        const isHunting = this.scriptHuntStateByEntityId.has(entity.id);
+        if (!isHunting) {
+          const candidateKindOf = this.resolveEntityKindOfSet(candidate);
+          if (candidateKindOf.has('AIRCRAFT') && (
+            this.entityHasObjectStatus(candidate, 'AIRBORNE_TARGET') || candidate.category === 'air'
+          )) {
+            continue;
+          }
+        }
+      }
+      if (!this.canAttackerTargetEntity(entity, candidate, 'AI')) {
+        continue;
+      }
+      if (weapon.antiMask !== 0) {
+        const candidateKindOf = this.resolveEntityKindOfSet(candidate);
+        const targetAntiMask = this.resolveTargetAntiMask(candidate, candidateKindOf);
+        if (targetAntiMask !== 0 && (weapon.antiMask & targetAntiMask) === 0) {
+          continue;
+        }
+      }
+      const dx = candidate.x - entity.x;
+      const dz = candidate.z - entity.z;
+      const distanceSqr = dx * dx + dz * dz;
+      if (distanceSqr > scanRangeSqr) {
+        continue;
+      }
+      if (distanceSqr < bestDistanceSqr) {
+        bestTarget = candidate;
+        bestDistanceSqr = distanceSqr;
+      }
+    }
+
+    return bestTarget;
+  }
+
+  private updateSourceOwnedAttackMoveStatePreMovement(entity: MapEntity): boolean {
+    const attackMoveState = entity.sourceAIAttackMoveState;
+    if (!attackMoveState) {
+      return false;
+    }
+
+    const attackMoveMachine = attackMoveState.attackMoveMachine;
+    if (attackMoveMachine.currentStateId === SOURCE_AI_STATE_PICK_UP_CRATE
+      && attackMoveMachine.pickUpCrateState) {
+      const pickUpCrateState = attackMoveMachine.pickUpCrateState;
+      if (pickUpCrateState.delayCounter > 0) {
+        pickUpCrateState.delayCounter -= 1;
+        this.stopSourceOwnedEntityMovement(entity);
+      }
+      if (pickUpCrateState.delayCounter <= 0) {
+        const moveTarget = this.sourceCoord3DToRuntimeXZ(pickUpCrateState.moveState.goalPosition);
+        this.setSourceOwnedEntityMoveTarget(entity, moveTarget.x, moveTarget.z);
+      }
+      return true;
+    }
+
+    let forceRetargetThisFrame = false;
+    let shouldRepathThisFrame = false;
+    if (attackMoveMachine.currentStateId === SOURCE_AI_STATE_ATTACK_OBJECT) {
+      if (entity.attackTargetEntityId !== null || entity.attackTargetPosition !== null) {
+        return true;
+      }
+      attackMoveMachine.currentStateId = SOURCE_AI_STATE_IDLE;
+      attackMoveMachine.goalObjectId = 0;
+      attackMoveMachine.goalPosition = this.cloneSourceCoord3D(attackMoveState.goalPosition);
+      forceRetargetThisFrame = true;
+      shouldRepathThisFrame = true;
+      this.stopSourceOwnedEntityMovement(entity);
+    }
+
+    if (attackMoveMachine.currentStateId === SOURCE_AI_STATE_IDLE) {
+      const nextObjectToAttack = this.findSourceOwnedAttackMoveTarget(
+        entity,
+        !forceRetargetThisFrame,
+      );
+      if (nextObjectToAttack) {
+        this.stopSourceOwnedEntityMovement(entity);
+        this.issueAttackEntity(entity.id, nextObjectToAttack.id, 'AI');
+        if (entity.attackTargetEntityId === nextObjectToAttack.id) {
+          this.setEntityAttackStatus(entity, true);
+          attackMoveMachine.currentStateId = SOURCE_AI_STATE_ATTACK_OBJECT;
+          attackMoveMachine.goalObjectId = nextObjectToAttack.id;
+          attackMoveMachine.goalPosition = this.runtimeCoordToSourceCoord3D(
+            nextObjectToAttack.x,
+            nextObjectToAttack.z,
+            nextObjectToAttack.y,
+          );
+        }
+        return true;
+      }
+    }
+
+    if (this.frameCounter < attackMoveState.frameToSleepUntil) {
+      this.stopSourceOwnedEntityMovement(entity);
+      return true;
+    }
+    if (this.frameCounter === attackMoveState.frameToSleepUntil) {
+      shouldRepathThisFrame = true;
+    }
+
+    if (shouldRepathThisFrame || !entity.moving) {
+      const moveTarget = this.sourceCoord3DToRuntimeXZ(attackMoveState.moveState.goalPosition);
+      this.setSourceOwnedEntityMoveTarget(entity, moveTarget.x, moveTarget.z);
+    }
+    return true;
+  }
+
+  private updateSourceOwnedAttackMoveStatePostMovement(entity: MapEntity): boolean {
+    const attackMoveState = entity.sourceAIAttackMoveState;
+    if (!attackMoveState) {
+      return false;
+    }
+
+    const attackMoveMachine = attackMoveState.attackMoveMachine;
+    if (attackMoveMachine.currentStateId === SOURCE_AI_STATE_PICK_UP_CRATE) {
+      if (attackMoveMachine.pickUpCrateState
+        && attackMoveMachine.pickUpCrateState.delayCounter <= 0
+        && !entity.moving) {
+        attackMoveMachine.currentStateId = SOURCE_AI_STATE_IDLE;
+        attackMoveMachine.goalObjectId = 0;
+        attackMoveMachine.goalPosition = this.cloneSourceCoord3D(attackMoveState.goalPosition);
+        attackMoveMachine.pickUpCrateState = null;
+      }
+      return true;
+    }
+
+    if (attackMoveMachine.currentStateId === SOURCE_AI_STATE_ATTACK_OBJECT) {
+      return true;
+    }
+
+    if (this.frameCounter < attackMoveState.frameToSleepUntil) {
+      return true;
+    }
+
+    if (entity.moving) {
+      return true;
+    }
+
+    const goalPosition = attackMoveState.moveState.pathGoalPosition;
+    const dx = entity.x - goalPosition.x;
+    const dz = entity.z - goalPosition.y;
+    const closeEnoughDist = SOURCE_AI_ATTACK_MOVE_CLOSE_ENOUGH_CELLS * PATHFIND_CELL_SIZE;
+    if ((dx * dx) + (dz * dz) < (closeEnoughDist * closeEnoughDist)
+      || attackMoveState.retryCount < 1) {
+      entity.sourceAIAttackMoveState = null;
+      return true;
+    }
+
+    attackMoveState.retryCount -= 1;
+    attackMoveState.frameToSleepUntil = this.frameCounter + SOURCE_AI_ATTACK_MOVE_RETRY_SLEEP_FRAMES;
+    this.stopSourceOwnedEntityMovement(entity);
+    return true;
+  }
+
+  private resolveSourceOwnedAIFaceGoal(
+    entity: MapEntity,
+    state: SourceAIFaceStateMachineState,
+  ): { x: number; z: number } | null {
+    if (state.currentStateId === SOURCE_AI_STATE_FACE_OBJECT && state.goalObjectId > 0) {
+      const target = this.spawnedEntities.get(state.goalObjectId) ?? null;
+      if (!target || target.destroyed || target.sourceAIUpdateIsDead) {
+        return null;
+      }
+      return { x: target.x, z: target.z };
+    }
+    return {
+      x: Number.isFinite(state.goalPosition.x) ? state.goalPosition.x : entity.x,
+      z: Number.isFinite(state.goalPosition.y) ? state.goalPosition.y : entity.z,
+    };
+  }
+
+  private resolveSourceOwnedAIFaceHeading(entity: MapEntity, targetX: number, targetZ: number): number {
+    const dx = targetX - entity.x;
+    const dz = targetZ - entity.z;
+    if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) {
+      return entity.rotationY;
+    }
+    return Math.atan2(dz, dx) + Math.PI / 2;
+  }
+
+  private applySourceAIDeadState(entity: MapEntity): void {
+    entity.sourceAIUpdateIsDead = true;
+    entity.attackTargetEntityId = null;
+    entity.attackTargetPosition = null;
+    entity.attackOriginalVictimPosition = null;
+    entity.attackSubState = 'IDLE';
+    this.stopSourceOwnedEntityMovement(entity);
+    for (const flag of SOURCE_AI_DEAD_MODEL_CONDITIONS_TO_CLEAR) {
+      entity.modelConditionFlags.delete(flag);
+    }
+    entity.modelConditionFlags.add('DYING');
+    if (entity.kindOf.has('INFANTRY') && entity.physicsBehaviorState) {
+      entity.physicsBehaviorState.velX *= 0.8;
+      entity.physicsBehaviorState.velY *= 0.8;
+      entity.physicsBehaviorState.velZ *= 0.8;
+    }
+  }
+
+  private applySourceOwnedSimpleMoveLocomotorState(
+    entity: MapEntity,
+    simpleMoveState: SourceAISimpleMoveStateMachineState,
+  ): void {
+    if (simpleMoveState.currentStateId === SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS) {
+      if (entity.locomotorSets.has(LOCOMOTORSET_PANIC)) {
+        this.setEntityLocomotorSet(entity.id, LOCOMOTORSET_PANIC);
+      }
+      entity.modelConditionFlags.add('PANICKING');
+    } else if (simpleMoveState.currentStateId === SOURCE_AI_STATE_WANDER_IN_PLACE) {
+      if (entity.locomotorSets.has(LOCOMOTORSET_WANDER)) {
+        this.setEntityLocomotorSet(entity.id, LOCOMOTORSET_WANDER);
+      }
+    }
+  }
+
+  private cleanupSourceOwnedSimpleMoveStateExit(
+    entity: MapEntity,
+    simpleMoveState: SourceAISimpleMoveStateMachineState,
+  ): void {
+    if (simpleMoveState.currentStateId === SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS) {
+      entity.modelConditionFlags.delete('PANICKING');
+    }
+    if (simpleMoveState.currentStateId === SOURCE_AI_STATE_FOLLOW_EXITPRODUCTION_PATH) {
+      entity.ignoredMovementObstacleId = null;
+    }
+  }
+
+  private advanceSourceOwnedFollowPathState(
+    entity: MapEntity,
+    simpleMoveState: SourceAISimpleMoveStateMachineState,
+  ): boolean {
+    const goalPath = simpleMoveState.goalPath;
+    if (goalPath.length === 0) {
+      this.cleanupSourceOwnedSimpleMoveStateExit(entity, simpleMoveState);
+      return true;
+    }
+
+    let nextIndex = Number.isFinite(simpleMoveState.pathIndex)
+      ? Math.trunc(simpleMoveState.pathIndex as number) + 1
+      : 1;
+    this.cleanupSourceOwnedSimpleMoveStateExit(entity, simpleMoveState);
+    while (nextIndex < goalPath.length) {
+      const nextGoal = goalPath[nextIndex]!;
+      const dx = nextGoal.x - entity.x;
+      const dz = nextGoal.y - entity.z;
+      if ((dx * dx) + (dz * dz) < (PATHFIND_CELL_SIZE * PATHFIND_CELL_SIZE)) {
+        nextIndex += 1;
+        continue;
+      }
+      simpleMoveState.pathIndex = nextIndex;
+      simpleMoveState.goalPosition = this.cloneSourceCoord3D(nextGoal);
+      simpleMoveState.moveState.goalPosition = this.cloneSourceCoord3D(nextGoal);
+      simpleMoveState.moveState.pathGoalPosition = this.cloneSourceCoord3D(nextGoal);
+      const nextTarget = this.sourceCoord3DToRuntimeXZ(nextGoal);
+      this.setSourceOwnedEntityMoveTarget(entity, nextTarget.x, nextTarget.z);
+      return false;
+    }
+    simpleMoveState.pathIndex = nextIndex;
+    return true;
+  }
+
+  private advanceSourceOwnedSimpleMoveCompletion(
+    entity: MapEntity,
+    simpleMoveState: SourceAISimpleMoveStateMachineState,
+    clearState: () => void,
+  ): void {
+    switch (simpleMoveState.currentStateId) {
+      case SOURCE_AI_STATE_FOLLOW_PATH:
+      case SOURCE_AI_STATE_FOLLOW_EXITPRODUCTION_PATH:
+        if (this.advanceSourceOwnedFollowPathState(entity, simpleMoveState)) {
+          clearState();
+        }
+        break;
+      case SOURCE_AI_STATE_MOVE_AND_EVACUATE:
+        this.evacuateContainedEntities(entity, entity.x, entity.z, null);
+        clearState();
+        break;
+      case SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT:
+        this.evacuateContainedEntities(entity, entity.x, entity.z, null);
+        this.transitionSourceMoveAndEvacuateAndExitToDelete(entity, simpleMoveState);
+        break;
+      case SOURCE_AI_STATE_MOVE_AND_DELETE:
+        clearState();
+        this.silentDestroyEntity(entity.id);
+        break;
+      case SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS:
+        this.cleanupSourceOwnedSimpleMoveStateExit(entity, simpleMoveState);
+        clearState();
+        break;
+      case SOURCE_AI_STATE_WANDER_IN_PLACE: {
+        const origin = simpleMoveState.origin ?? simpleMoveState.goalPosition;
+        if (!origin) {
+          clearState();
+          break;
+        }
+        const locoProfile = entity.locomotorSets.get(entity.activeLocomotorSet);
+        const radiusCells = locoProfile?.wanderAboutPointRadius && locoProfile.wanderAboutPointRadius > 0
+          ? Math.max(1, Math.floor((locoProfile.wanderAboutPointRadius / PATHFIND_CELL_SIZE) + 0.5))
+          : 3;
+        const offsetX = this.gameRandom.nextRange(-radiusCells, radiusCells) * PATHFIND_CELL_SIZE;
+        const offsetZ = this.gameRandom.nextRange(-radiusCells, radiusCells) * PATHFIND_CELL_SIZE;
+        const targetX = origin.x + offsetX;
+        const targetZ = origin.y + offsetZ;
+        simpleMoveState.goalPosition = {
+          x: targetX,
+          y: targetZ,
+          z: this.resolveGroundHeight(targetX, targetZ),
+        };
+        simpleMoveState.moveState.goalPosition = { ...simpleMoveState.goalPosition };
+        simpleMoveState.moveState.pathGoalPosition = { ...simpleMoveState.goalPosition };
+        this.setSourceOwnedEntityMoveTarget(entity, targetX, targetZ);
+        break;
+      }
+      default:
+        clearState();
+        break;
+    }
+  }
+
+  private clearSourceOwnedTemporaryAIState(entity: MapEntity): void {
+    const temporaryState = entity.sourceAITemporaryState;
+    if (!temporaryState) {
+      return;
+    }
+    if (temporaryState.simpleMoveState) {
+      this.cleanupSourceOwnedSimpleMoveStateExit(entity, temporaryState.simpleMoveState);
+    }
+    entity.sourceAITemporaryState = null;
+  }
+
+  private updateSourceOwnedTemporaryAIStatePreMovement(entity: MapEntity): boolean {
+    const temporaryState = entity.sourceAITemporaryState;
+    if (!temporaryState) {
+      return false;
+    }
+    if (this.frameCounter > temporaryState.frameEnd) {
+      this.clearSourceOwnedTemporaryAIState(entity);
+      return false;
+    }
+
+    if (this.isSourceAIStatelessTopStateId(temporaryState.currentStateId)) {
+      this.stopSourceOwnedEntityMovement(entity);
+      return true;
+    }
+
+    if (temporaryState.simpleMoveState) {
+      this.applySourceOwnedSimpleMoveLocomotorState(entity, temporaryState.simpleMoveState);
+      if (entity.moveTarget === null && temporaryState.simpleMoveState.moveState.goalPosition) {
+        const moveTarget = this.sourceCoord3DToRuntimeXZ(temporaryState.simpleMoveState.moveState.goalPosition);
+        this.setSourceOwnedEntityMoveTarget(entity, moveTarget.x, moveTarget.z);
+      }
+      return true;
+    }
+
+    if (temporaryState.currentStateId === SOURCE_AI_STATE_MOVE_TO && temporaryState.moveState) {
+      if (entity.moveTarget === null) {
+        const moveTarget = this.sourceCoord3DToRuntimeXZ(temporaryState.moveState.goalPosition);
+        this.setSourceOwnedEntityMoveTarget(entity, moveTarget.x, moveTarget.z);
+      }
+      return true;
+    }
+
+    this.clearSourceOwnedTemporaryAIState(entity);
+    return false;
+  }
+
+  private updateSourceOwnedTemporaryAIStatePostMovement(entity: MapEntity): boolean {
+    const temporaryState = entity.sourceAITemporaryState;
+    if (!temporaryState) {
+      return false;
+    }
+    if (this.frameCounter > temporaryState.frameEnd) {
+      this.clearSourceOwnedTemporaryAIState(entity);
+      return false;
+    }
+
+    if (this.isSourceAIStatelessTopStateId(temporaryState.currentStateId)) {
+      return true;
+    }
+
+    if (temporaryState.simpleMoveState) {
+      if (!entity.moving) {
+        this.advanceSourceOwnedSimpleMoveCompletion(
+          entity,
+          temporaryState.simpleMoveState,
+          () => this.clearSourceOwnedTemporaryAIState(entity),
+        );
+      }
+      return true;
+    }
+
+    if (temporaryState.currentStateId === SOURCE_AI_STATE_MOVE_TO) {
+      if (!entity.moving) {
+        this.clearSourceOwnedTemporaryAIState(entity);
+      }
+      return true;
+    }
+
+    this.clearSourceOwnedTemporaryAIState(entity);
+    return false;
+  }
+
+  private updateSourceOwnedAIStatesPreMovement(dt: number): void {
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) {
+        continue;
+      }
+
+      if (entity.sourceAIStatelessState?.currentStateId === SOURCE_AI_STATE_DEAD) {
+        this.applySourceAIDeadState(entity);
+      }
+
+      if (this.updateSourceOwnedTemporaryAIStatePreMovement(entity)) {
+        continue;
+      }
+
+      if (this.updateSourceOwnedAttackMoveStatePreMovement(entity)) {
+        continue;
+      }
+
+      const faceState = entity.sourceAIFaceState;
+      if (faceState) {
+        const faceGoal = this.resolveSourceOwnedAIFaceGoal(entity, faceState);
+        if (!faceGoal) {
+          entity.sourceAIFaceState = null;
+          this.stopSourceOwnedEntityMovement(entity);
+        } else {
+          const desiredHeading = this.resolveSourceOwnedAIFaceHeading(entity, faceGoal.x, faceGoal.z);
+          const angleDiff = this.normalizeAngle(desiredHeading - entity.rotationY);
+          if (Math.abs(angleDiff) <= SOURCE_AI_FACE_SUCCESS_ANGLE_THRESHOLD) {
+            entity.sourceAIFaceState = null;
+            this.stopSourceOwnedEntityMovement(entity);
+          } else if (faceState.canTurnInPlace) {
+            this.stopSourceOwnedEntityMovement(entity);
+            const locoProfile = entity.locomotorSets.get(entity.activeLocomotorSet);
+            const turnRate = locoProfile?.turnRate ?? 0;
+            if (turnRate > 0 && dt > 0) {
+              const maxTurn = turnRate * dt;
+              if (Math.abs(angleDiff) <= maxTurn) {
+                entity.rotationY = desiredHeading;
+              } else {
+                entity.rotationY = this.normalizeAngle(
+                  entity.rotationY + Math.sign(angleDiff) * maxTurn,
+                );
+              }
+            } else {
+              entity.rotationY = desiredHeading;
+            }
+          } else {
+            this.setSourceOwnedEntityMoveTarget(entity, faceGoal.x, faceGoal.z);
+          }
+        }
+      }
+
+      const pickUpCrateState = entity.sourceAIPickUpCrateState;
+      if (pickUpCrateState) {
+        if (pickUpCrateState.delayCounter > 0) {
+          pickUpCrateState.delayCounter -= 1;
+          this.stopSourceOwnedEntityMovement(entity);
+        }
+        if (pickUpCrateState.delayCounter <= 0) {
+          const moveTarget = this.sourceCoord3DToRuntimeXZ(pickUpCrateState.moveState.goalPosition);
+          this.setSourceOwnedEntityMoveTarget(entity, moveTarget.x, moveTarget.z);
+        }
+      }
+
+      const simpleMoveState = entity.sourceAISimpleMoveState;
+      if (!simpleMoveState) {
+        continue;
+      }
+      this.applySourceOwnedSimpleMoveLocomotorState(entity, simpleMoveState);
+    }
+  }
+
+  private transitionSourceMoveAndEvacuateAndExitToDelete(
+    entity: MapEntity,
+    state: SourceAISimpleMoveStateMachineState,
+  ): void {
+    const origin = state.origin ?? state.goalPosition;
+    if (!origin) {
+      this.silentDestroyEntity(entity.id);
+      entity.sourceAISimpleMoveState = null;
+      return;
+    }
+    const originTarget = this.sourceCoord3DToRuntimeXZ(origin);
+    state.currentStateId = SOURCE_AI_STATE_MOVE_AND_DELETE;
+    state.goalPosition = { ...origin };
+    state.moveState.goalPosition = { ...origin };
+    state.moveState.pathGoalPosition = { ...origin };
+    state.appendGoalPosition = true;
+    this.setSourceOwnedEntityMoveTarget(entity, originTarget.x, originTarget.z);
+  }
+
+  private updateSourceOwnedAIStatesPostMovement(): void {
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) {
+        continue;
+      }
+
+      if (this.updateSourceOwnedTemporaryAIStatePostMovement(entity)) {
+        continue;
+      }
+
+      if (this.updateSourceOwnedAttackMoveStatePostMovement(entity)) {
+        continue;
+      }
+
+      const faceState = entity.sourceAIFaceState;
+      if (faceState) {
+        const faceGoal = this.resolveSourceOwnedAIFaceGoal(entity, faceState);
+        if (!faceGoal) {
+          entity.sourceAIFaceState = null;
+          this.stopSourceOwnedEntityMovement(entity);
+        } else {
+          const desiredHeading = this.resolveSourceOwnedAIFaceHeading(entity, faceGoal.x, faceGoal.z);
+          const angleDiff = this.normalizeAngle(desiredHeading - entity.rotationY);
+          if (Math.abs(angleDiff) <= SOURCE_AI_FACE_SUCCESS_ANGLE_THRESHOLD) {
+            entity.sourceAIFaceState = null;
+            this.stopSourceOwnedEntityMovement(entity);
+          }
+        }
+      }
+
+      const pickUpCrateState = entity.sourceAIPickUpCrateState;
+      if (pickUpCrateState && pickUpCrateState.delayCounter <= 0 && !entity.moving) {
+        entity.sourceAIPickUpCrateState = null;
+      }
+
+      const simpleMoveState = entity.sourceAISimpleMoveState;
+      if (!simpleMoveState || entity.moving) {
+        continue;
+      }
+      this.advanceSourceOwnedSimpleMoveCompletion(
+        entity,
+        simpleMoveState,
+        () => {
+          this.cleanupSourceOwnedSimpleMoveStateExit(entity, simpleMoveState);
+          entity.sourceAISimpleMoveState = null;
+        },
+      );
+    }
   }
 
   private isSimulationTimeFrozen(): boolean {
@@ -47724,6 +48955,7 @@ export class GameLogicSubsystem implements Subsystem {
       entity.guardPositionX = 0;
       entity.guardPositionZ = 0;
       entity.guardObjectId = 0;
+      entity.sourceGuardAreaName = null;
       entity.guardAreaTriggerIndex = -1;
     }
   }
@@ -47744,6 +48976,7 @@ export class GameLogicSubsystem implements Subsystem {
     entity.guardPositionX = targetX;
     entity.guardPositionZ = targetZ;
     entity.guardObjectId = 0;
+    entity.sourceGuardAreaName = null;
     entity.guardAreaTriggerIndex = -1;
     entity.guardMode = guardMode;
     entity.guardNextScanFrame = this.frameCounter + this.getGuardEnemyReturnScanRateFrames();
@@ -47778,6 +49011,7 @@ export class GameLogicSubsystem implements Subsystem {
     entity.guardPositionX = target.x;
     entity.guardPositionZ = target.z;
     entity.guardObjectId = targetObjectId;
+    entity.sourceGuardAreaName = null;
     entity.guardAreaTriggerIndex = -1;
     entity.guardMode = guardMode;
     entity.guardNextScanFrame = this.frameCounter + this.getGuardEnemyReturnScanRateFrames();
@@ -47815,6 +49049,7 @@ export class GameLogicSubsystem implements Subsystem {
     entity.guardPositionX = centerX;
     entity.guardPositionZ = centerZ;
     entity.guardObjectId = 0;
+    entity.sourceGuardAreaName = this.mapTriggerRegions[triggerIndex]?.name ?? null;
     entity.guardAreaTriggerIndex = triggerIndex;
     entity.guardMode = guardMode;
     entity.guardNextScanFrame = this.frameCounter + this.getGuardEnemyReturnScanRateFrames();
@@ -54847,7 +56082,10 @@ export class GameLogicSubsystem implements Subsystem {
       entity.sourceAIStatelessState = null;
       entity.sourceAIFaceState = null;
       entity.sourceAIPickUpCrateState = null;
+      entity.sourceAIAttackMoveState = null;
       entity.sourceAISimpleMoveState = null;
+      entity.sourceAITemporaryState = null;
+      entity.sourceAIAttackStateId = null;
       entity.chinookCombatDropState = null;
       entity.chinookRappelState = null;
       entity.repairDockState = null;

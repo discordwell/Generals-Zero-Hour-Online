@@ -134,6 +134,9 @@ function makeSourceOwnedCoreBundle() {
           UnpackTime: 1000,
         }),
       ]),
+      makeObjectDef('AttackMoveTargetUnit', 'America', ['INFANTRY'], [
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      ]),
       makeObjectDef('StrategyCenter', 'America', ['STRUCTURE'], [
         makeBlock('Behavior', 'BattlePlanUpdate ModuleTag_BattlePlan', {
           SpecialPowerTemplate: 'BattlePlanPower',
@@ -251,6 +254,13 @@ function makeSourceOwnedCoreBundle() {
       ]),
       makeObjectDef('AttackImportUnit', 'GLA', ['VEHICLE'], [
         makeBlock('LocomotorSet', 'SET_NORMAL AttackImportLoco', {}),
+        makeBlock('Behavior', 'AIUpdateInterface ModuleTag_AI', {}),
+      ]),
+      makeObjectDef('AttackMoveImportUnit', 'GLA', ['VEHICLE'], [
+        makeBlock('LocomotorSet', 'SET_NORMAL AttackImportLoco', {}),
+        makeBlock('WeaponSet', 'WeaponSet', {
+          Weapon: ['PRIMARY', 'AttackMoveWeapon'],
+        }),
         makeBlock('Behavior', 'AIUpdateInterface ModuleTag_AI', {}),
       ]),
       makeObjectDef('AssaultTransportObject', 'China', ['VEHICLE'], [
@@ -836,6 +846,12 @@ function makeSourceOwnedCoreBundle() {
     ],
     weapons: [
       makeWeaponDef('AutoFireWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000 }),
+      makeWeaponDef('AttackMoveWeapon', {
+        PrimaryDamage: 10,
+        DelayBetweenShots: 1000,
+        AttackRange: 100,
+        DamageType: 'SMALL_ARMS',
+      }),
       makeWeaponDef('CollideFireWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000 }),
       makeWeaponDef('PDLWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000, AttackRange: 100 }),
     ],
@@ -2199,6 +2215,13 @@ function writeSourceMoveToAIStateMachineForTest(
   saver: XferSave,
   options: {
     goalPosition: { x: number; y: number; z: number };
+    goalPath?: Array<{ x: number; y: number; z: number }>;
+    goalSquadObjectIds?: number[];
+    temporaryState?: {
+      currentStateId: number;
+      moveGoalPosition?: { x: number; y: number; z: number };
+    };
+    temporaryStateFrameEnd?: number;
   },
 ): void {
   saver.xferVersion(1);
@@ -2212,11 +2235,29 @@ function writeSourceMoveToAIStateMachineForTest(
   saver.xferCoord3D(options.goalPosition);
   saver.xferBool(false);
   saver.xferBool(true);
-  saver.xferInt(0);
+  const goalPath = options.goalPath ?? [];
+  saver.xferInt(goalPath.length);
+  for (const point of goalPath) {
+    saver.xferCoord3D(point);
+  }
   saver.xferAsciiString('');
-  saver.xferBool(false);
-  saver.xferUnsignedInt(999999);
-  saver.xferUnsignedInt(0);
+  const goalSquadObjectIds = options.goalSquadObjectIds ?? [];
+  saver.xferBool(goalSquadObjectIds.length > 0);
+  if (goalSquadObjectIds.length > 0) {
+    saver.xferVersion(1);
+    saver.xferUnsignedShort(goalSquadObjectIds.length);
+    for (const objectId of goalSquadObjectIds) {
+      saver.xferObjectID(objectId);
+    }
+  }
+  const temporaryState = options.temporaryState ?? null;
+  saver.xferUnsignedInt(temporaryState?.currentStateId ?? 999999);
+  if (temporaryState?.currentStateId === 1 && temporaryState.moveGoalPosition) {
+    writeSourceAIInternalMoveToStateForTest(saver, temporaryState.moveGoalPosition);
+  } else if (temporaryState) {
+    saver.xferVersion(1);
+  }
+  saver.xferUnsignedInt(options.temporaryStateFrameEnd ?? 0);
 }
 
 function writeSourceEnterAIStateMachineForTest(
@@ -2279,6 +2320,12 @@ function writeSourceStatelessAIStateMachineForTest(
     currentStateId: number;
     goalObjectId: number;
     goalPosition: { x: number; y: number; z: number };
+    goalPath?: Array<{ x: number; y: number; z: number }>;
+    temporaryState?: {
+      currentStateId: number;
+      moveGoalPosition?: { x: number; y: number; z: number };
+    };
+    temporaryStateFrameEnd?: number;
   },
 ): void {
   saver.xferVersion(1);
@@ -2292,11 +2339,21 @@ function writeSourceStatelessAIStateMachineForTest(
   saver.xferCoord3D(options.goalPosition);
   saver.xferBool(false);
   saver.xferBool(true);
-  saver.xferInt(0);
+  const goalPath = options.goalPath ?? [];
+  saver.xferInt(goalPath.length);
+  for (const point of goalPath) {
+    saver.xferCoord3D(point);
+  }
   saver.xferAsciiString('');
   saver.xferBool(false);
-  saver.xferUnsignedInt(999999);
-  saver.xferUnsignedInt(0);
+  const temporaryState = options.temporaryState ?? null;
+  saver.xferUnsignedInt(temporaryState?.currentStateId ?? 999999);
+  if (temporaryState?.currentStateId === 1 && temporaryState.moveGoalPosition) {
+    writeSourceAIInternalMoveToStateForTest(saver, temporaryState.moveGoalPosition);
+  } else if (temporaryState) {
+    saver.xferVersion(1);
+  }
+  saver.xferUnsignedInt(options.temporaryStateFrameEnd ?? 0);
 }
 
 function writeSourceFaceAIStateMachineForTest(
@@ -2358,6 +2415,81 @@ function writeSourcePickUpCrateAIStateMachineForTest(
   saver.xferUnsignedInt(0);
 }
 
+function writeSourceAIAttackMoveMachineForTest(
+  saver: XferSave,
+  options: {
+    currentStateId: number;
+    goalObjectId: number;
+    goalPosition: { x: number; y: number; z: number };
+    attackMachineStateId?: number;
+  },
+): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(options.currentStateId);
+  saver.xferBool(false);
+  if (options.currentStateId === 10) {
+    writeSourceAIAttackStateForTest(saver, {
+      targetObjectId: options.goalObjectId,
+      originalVictimPosition: options.goalPosition,
+      attackMachineStateId: options.attackMachineStateId ?? 2,
+      isAttackingObject: true,
+    });
+  } else {
+    saver.xferVersion(1);
+    saver.xferUnsignedShort(0);
+    saver.xferBool(false);
+    saver.xferBool(true);
+  }
+  saver.xferObjectID(options.goalObjectId);
+  saver.xferCoord3D(options.goalPosition);
+  saver.xferBool(false);
+  saver.xferBool(true);
+}
+
+function writeSourceAttackMoveAIStateMachineForTest(
+  saver: XferSave,
+  options: {
+    goalObjectId: number;
+    goalPosition: { x: number; y: number; z: number };
+    moveGoalPosition: { x: number; y: number; z: number };
+    frameToSleepUntil: number;
+    retryCount: number;
+    nestedStateId: number;
+    nestedGoalObjectId: number;
+    nestedGoalPosition: { x: number; y: number; z: number };
+    attackMachineStateId?: number;
+  },
+): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(30);
+  saver.xferBool(false);
+  saver.xferVersion(2);
+  writeSourceAIInternalMoveToStateForTest(saver, options.moveGoalPosition);
+  saver.xferUnsignedInt(options.frameToSleepUntil);
+  saver.xferInt(options.retryCount);
+  writeSourceAIAttackMoveMachineForTest(saver, {
+    currentStateId: options.nestedStateId,
+    goalObjectId: options.nestedGoalObjectId,
+    goalPosition: options.nestedGoalPosition,
+    attackMachineStateId: options.attackMachineStateId,
+  });
+  saver.xferObjectID(options.goalObjectId);
+  saver.xferCoord3D(options.goalPosition);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferInt(0);
+  saver.xferAsciiString('');
+  saver.xferBool(false);
+  saver.xferUnsignedInt(999999);
+  saver.xferUnsignedInt(0);
+}
+
 function writeSourceSimpleMoveAIStateMachineForTest(
   saver: XferSave,
   options: {
@@ -2365,6 +2497,7 @@ function writeSourceSimpleMoveAIStateMachineForTest(
     goalObjectId: number;
     goalPosition: { x: number; y: number; z: number };
     moveGoalPosition: { x: number; y: number; z: number };
+    goalPath?: Array<{ x: number; y: number; z: number }>;
     pathIndex?: number;
     adjustFinal?: boolean;
     adjustFinalOverride?: boolean;
@@ -2406,7 +2539,11 @@ function writeSourceSimpleMoveAIStateMachineForTest(
   saver.xferCoord3D(options.goalPosition);
   saver.xferBool(false);
   saver.xferBool(true);
-  saver.xferInt(0);
+  const goalPath = options.goalPath ?? [];
+  saver.xferInt(goalPath.length);
+  for (const point of goalPath) {
+    saver.xferCoord3D(point);
+  }
   saver.xferAsciiString('');
   saver.xferBool(false);
   saver.xferUnsignedInt(999999);
@@ -2460,6 +2597,7 @@ function writeSourceAIGuardMachineForTest(
     nemesisToAttackId: number;
     positionToGuard: { x: number; y: number; z: number };
     nextScanFrame: number;
+    areaToGuardName?: string;
   },
 ): void {
   saver.xferVersion(2);
@@ -2479,7 +2617,7 @@ function writeSourceAIGuardMachineForTest(
   saver.xferObjectID(options.targetToGuardId);
   saver.xferObjectID(options.nemesisToAttackId);
   saver.xferCoord3D(options.positionToGuard);
-  saver.xferAsciiString('');
+  saver.xferAsciiString(options.areaToGuardName ?? '');
 }
 
 function writeSourceAIGuardStateForTest(
@@ -2490,6 +2628,7 @@ function writeSourceAIGuardStateForTest(
     nemesisToAttackId: number;
     positionToGuard: { x: number; y: number; z: number };
     nextScanFrame: number;
+    areaToGuardName?: string;
   },
 ): void {
   saver.xferVersion(1);
@@ -2505,6 +2644,7 @@ function writeSourceGuardAIStateMachineForTest(
     nemesisToAttackId: number;
     positionToGuard: { x: number; y: number; z: number };
     nextScanFrame: number;
+    areaToGuardName?: string;
   },
 ): void {
   saver.xferVersion(1);
@@ -2619,6 +2759,7 @@ function buildSourceAIUpdateInterfaceAttackObjectModuleData(options: {
   nextEnemyScanFrame: number;
   currentVictimId: number;
   lastCommandSource: number;
+  topStateId?: number;
 }): Uint8Array {
   const saver = new XferSave();
   saver.open('test-source-ai-update-interface-attack-object');
@@ -2628,7 +2769,7 @@ function buildSourceAIUpdateInterfaceAttackObjectModuleData(options: {
     saver.xferUnsignedInt(0xfacade);
     saver.xferUnsignedInt(0xfacade);
     writeSourceAttackAIStateMachineForTest(saver, {
-      topStateId: 10,
+      topStateId: options.topStateId ?? 10,
       targetObjectId: options.targetObjectId,
       goalPosition: options.goalPosition,
       attackMachineStateId: 2,
@@ -2648,6 +2789,7 @@ function buildSourceAIUpdateInterfaceAttackObjectModuleData(options: {
 
 function buildSourceAIUpdateInterfaceMoveToModuleData(options: {
   goalPosition: { x: number; y: number; z: number };
+  goalSquadObjectIds?: number[];
   nextEnemyScanFrame: number;
   lastCommandSource: number;
   tail?: SourceAIUpdateInterfaceTailForTestOptions;
@@ -2661,6 +2803,7 @@ function buildSourceAIUpdateInterfaceMoveToModuleData(options: {
     saver.xferUnsignedInt(0xfacade);
     writeSourceMoveToAIStateMachineForTest(saver, {
       goalPosition: options.goalPosition,
+      goalSquadObjectIds: options.goalSquadObjectIds,
     });
     saver.xferBool(false);
     saver.xferBool(true);
@@ -2671,6 +2814,40 @@ function buildSourceAIUpdateInterfaceMoveToModuleData(options: {
     if (options.tail) {
       writeSourceAIUpdateInterfaceTailForTest(saver, options.tail);
     }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAIUpdateInterfaceAttackMoveModuleData(options: {
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  moveGoalPosition: { x: number; y: number; z: number };
+  frameToSleepUntil: number;
+  retryCount: number;
+  nestedStateId: number;
+  nestedGoalObjectId: number;
+  nestedGoalPosition: { x: number; y: number; z: number };
+  nextEnemyScanFrame: number;
+  currentVictimId: number;
+  lastCommandSource: number;
+  attackMachineStateId?: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-ai-update-interface-attack-move');
+  try {
+    saver.xferVersion(4);
+    writeTestSourceUpdateModuleBase(saver, 81, 1);
+    saver.xferUnsignedInt(0xfacade);
+    saver.xferUnsignedInt(0xfacade);
+    writeSourceAttackMoveAIStateMachineForTest(saver, options);
+    saver.xferBool(false);
+    saver.xferBool(true);
+    saver.xferUnsignedInt(options.nextEnemyScanFrame);
+    saver.xferObjectID(options.currentVictimId);
+    saver.xferReal(999999);
+    saver.xferUser(sourceRawInt32(options.lastCommandSource));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2741,6 +2918,12 @@ function buildSourceAIUpdateInterfaceStatelessModuleData(options: {
   currentStateId: number;
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
+  goalPath?: Array<{ x: number; y: number; z: number }>;
+  temporaryState?: {
+    currentStateId: number;
+    moveGoalPosition?: { x: number; y: number; z: number };
+  };
+  temporaryStateFrameEnd?: number;
   nextEnemyScanFrame: number;
   lastCommandSource: number;
   isAiDead: boolean;
@@ -2756,6 +2939,9 @@ function buildSourceAIUpdateInterfaceStatelessModuleData(options: {
       currentStateId: options.currentStateId,
       goalObjectId: options.goalObjectId,
       goalPosition: options.goalPosition,
+      goalPath: options.goalPath,
+      temporaryState: options.temporaryState,
+      temporaryStateFrameEnd: options.temporaryStateFrameEnd,
     });
     saver.xferBool(options.isAiDead);
     saver.xferBool(true);
@@ -2842,6 +3028,7 @@ function buildSourceAIUpdateInterfaceSimpleMoveModuleData(options: {
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
   moveGoalPosition: { x: number; y: number; z: number };
+  goalPath?: Array<{ x: number; y: number; z: number }>;
   pathIndex?: number;
   adjustFinal?: boolean;
   adjustFinalOverride?: boolean;
@@ -2911,6 +3098,7 @@ function buildSourceAIUpdateInterfaceGuardModuleData(options: {
   nextEnemyScanFrame: number;
   guardNextScanFrame: number;
   lastCommandSource: number;
+  areaToGuardName?: string;
 }): Uint8Array {
   const saver = new XferSave();
   saver.open('test-source-ai-update-interface-guard');
@@ -2925,6 +3113,7 @@ function buildSourceAIUpdateInterfaceGuardModuleData(options: {
       nemesisToAttackId: options.nemesisToAttackId,
       positionToGuard: options.positionToGuard,
       nextScanFrame: options.guardNextScanFrame,
+      areaToGuardName: options.areaToGuardName,
     });
     saver.xferBool(false);
     saver.xferBool(true);
@@ -7271,6 +7460,53 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedAttacker.scriptAiRecruitable).toBe(true);
   });
 
+  it('preserves source AI attack-and-follow-object state ids on import', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const attackState = createEmptySourceMapEntitySaveState();
+    attackState.objectId = 222;
+    attackState.position = { x: 156, y: 0, z: 60 };
+    attackState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceAttackObjectModuleData({
+        topStateId: 12,
+        targetObjectId: 91,
+        goalPosition: { x: 70, y: 80, z: 3 },
+        nextEnemyScanFrame: 321,
+        currentVictimId: 91,
+        lastCommandSource: 0,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: attackState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        sourceAIAttackStateId: number | null;
+        attackTargetEntityId: number | null;
+        attackOriginalVictimPosition: { x: number; z: number } | null;
+      }>;
+    };
+
+    const importedAttacker = privateLogic.spawnedEntities.get(222)!;
+    expect(importedAttacker.sourceAIAttackStateId).toBe(12);
+    expect(importedAttacker.attackTargetEntityId).toBe(91);
+    expect(importedAttacker.attackOriginalVictimPosition).toEqual({ x: 70, z: 80 });
+  });
+
   it('imports source AIUpdateInterface attack-position move state', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
@@ -7375,6 +7611,219 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedMover.attackSubState).toBe('IDLE');
     expect(importedMover.lastCommandSource).toBe('SCRIPT');
     expect(importedMover.autoTargetScanNextFrame).toBe(456);
+  });
+
+  it('imports source AIUpdateInterface attack-move state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const moveState = createEmptySourceMapEntitySaveState();
+    moveState.objectId = 226;
+    moveState.position = { x: 158, y: 0, z: 60 };
+    moveState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceAttackMoveModuleData({
+        goalObjectId: 0,
+        goalPosition: { x: 160, y: 170, z: 14 },
+        moveGoalPosition: { x: 160, y: 170, z: 14 },
+        frameToSleepUntil: 0,
+        retryCount: 5,
+        nestedStateId: 0,
+        nestedGoalObjectId: 0,
+        nestedGoalPosition: { x: 160, y: 170, z: 14 },
+        nextEnemyScanFrame: 556,
+        currentVictimId: 0,
+        lastCommandSource: 1,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: moveState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        moving: boolean;
+        moveTarget: { x: number; z: number } | null;
+        movePath: Array<{ x: number; z: number }>;
+        sourceAIAttackMoveState: unknown;
+        attackTargetEntityId: number | null;
+        attackSubState: string;
+        lastCommandSource: string;
+        autoTargetScanNextFrame: number;
+      }>;
+    };
+
+    const importedMover = privateLogic.spawnedEntities.get(226)!;
+    expect(importedMover.sourceAIAttackMoveState).toEqual({
+      currentStateId: 30,
+      goalObjectId: 0,
+      goalPosition: { x: 160, y: 170, z: 14 },
+      moveState: {
+        goalPosition: { x: 160, y: 170, z: 14 },
+        goalLayer: 0,
+        waitingForPath: false,
+        pathGoalPosition: { x: 160, y: 170, z: 14 },
+        pathTimestamp: 0,
+        blockedRepathTimestamp: 0,
+        adjustDestinations: true,
+      },
+      frameToSleepUntil: 0,
+      retryCount: 5,
+      attackMoveMachine: {
+        currentStateId: 0,
+        goalObjectId: 0,
+        goalPosition: { x: 160, y: 170, z: 14 },
+        pickUpCrateState: null,
+      },
+    });
+    expect(importedMover.moving).toBe(true);
+    expect(importedMover.moveTarget).not.toBeNull();
+    expect(importedMover.movePath[importedMover.movePath.length - 1]).toEqual({ x: 160, z: 170 });
+    expect(importedMover.attackTargetEntityId).toBeNull();
+    expect(importedMover.attackSubState).toBe('IDLE');
+    expect(importedMover.lastCommandSource).toBe('SCRIPT');
+    expect(importedMover.autoTargetScanNextFrame).toBe(556);
+  });
+
+  it('imports source AIUpdateInterface attack-move attack state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const targetState = createEmptySourceMapEntitySaveState();
+    targetState.objectId = 227;
+    targetState.position = { x: 240, y: 0, z: 60 };
+
+    const moveState = createEmptySourceMapEntitySaveState();
+    moveState.objectId = 228;
+    moveState.position = { x: 158, y: 0, z: 60 };
+    moveState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceAttackMoveModuleData({
+        goalObjectId: 0,
+        goalPosition: { x: 300, y: 320, z: 14 },
+        moveGoalPosition: { x: 300, y: 320, z: 14 },
+        frameToSleepUntil: 0,
+        retryCount: 4,
+        nestedStateId: 10,
+        nestedGoalObjectId: 227,
+        nestedGoalPosition: { x: 240, y: 60, z: 0 },
+        attackMachineStateId: 2,
+        nextEnemyScanFrame: 557,
+        currentVictimId: 227,
+        lastCommandSource: 2,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: moveState },
+        { templateName: 'AttackImportUnit', state: targetState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        sourceAIAttackMoveState: {
+          attackMoveMachine: { currentStateId: number };
+        } | null;
+        attackTargetEntityId: number | null;
+        attackOriginalVictimPosition: { x: number; z: number } | null;
+        attackSubState: string;
+        moving: boolean;
+      }>;
+    };
+
+    const importedMover = privateLogic.spawnedEntities.get(228)!;
+    expect(importedMover.sourceAIAttackMoveState?.attackMoveMachine.currentStateId).toBe(10);
+    expect(importedMover.attackTargetEntityId).toBe(227);
+    expect(importedMover.attackOriginalVictimPosition).toEqual({ x: 240, z: 60 });
+    expect(importedMover.attackSubState).toBe('AIMING');
+    expect(importedMover.moving).toBe(false);
+  });
+
+  it('updates imported attack-move state to acquire nearby enemies while moving', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const enemyState = createEmptySourceMapEntitySaveState();
+    enemyState.objectId = 230;
+    enemyState.position = { x: 185, y: 0, z: 170 };
+    enemyState.playerIndex = 1;
+
+    const moveState = createEmptySourceMapEntitySaveState();
+    moveState.objectId = 229;
+    moveState.position = { x: 180, y: 0, z: 170 };
+    moveState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceAttackMoveModuleData({
+        goalObjectId: 0,
+        goalPosition: { x: 260, y: 170, z: 0 },
+        moveGoalPosition: { x: 260, y: 170, z: 0 },
+        frameToSleepUntil: 0,
+        retryCount: 5,
+        nestedStateId: 0,
+        nestedGoalObjectId: 0,
+        nestedGoalPosition: { x: 260, y: 170, z: 0 },
+        nextEnemyScanFrame: 0,
+        currentVictimId: 0,
+        lastCommandSource: 2,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackMoveImportUnit', state: moveState },
+        { templateName: 'AttackMoveTargetUnit', state: enemyState },
+      ],
+    });
+    logic.setTeamRelationship('GLA', 'America', 0);
+    logic.setTeamRelationship('America', 'GLA', 0);
+    logic.setSidePlayerType('GLA', 'COMPUTER');
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        sourceAIAttackMoveState: {
+          attackMoveMachine: { currentStateId: number; goalObjectId: number };
+        } | null;
+        attackTargetEntityId: number | null;
+        attackSubState: string;
+      }>;
+    };
+
+    logic.update(1 / 30);
+
+    const importedMover = privateLogic.spawnedEntities.get(229)!;
+    expect(importedMover.sourceAIAttackMoveState?.attackMoveMachine.currentStateId).toBe(10);
+    expect(importedMover.sourceAIAttackMoveState?.attackMoveMachine.goalObjectId).toBe(230);
+    expect(importedMover.attackTargetEntityId).toBe(230);
+    expect(importedMover.attackSubState).toBe('APPROACHING');
   });
 
   it('imports source AIUpdateInterface enter state', () => {
@@ -7669,6 +8118,73 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedBusy.autoTargetScanNextFrame).toBe(790);
   });
 
+  it('reapplies source AI_DEAD runtime state each update', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const deadState = createEmptySourceMapEntitySaveState();
+    deadState.objectId = 147;
+    deadState.position = { x: 320, y: 0, z: 96 };
+    deadState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceStatelessModuleData({
+        currentStateId: 13,
+        goalObjectId: 0,
+        goalPosition: { x: 320, y: 96, z: 0 },
+        nextEnemyScanFrame: 790,
+        lastCommandSource: 2,
+        isAiDead: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: deadState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        moving: boolean;
+        moveTarget: { x: number; z: number } | null;
+        currentSpeed: number;
+        sourceAIUpdateIsDead: boolean;
+        modelConditionFlags: Set<string>;
+      }>;
+      isScriptEntityEffectivelyDead(entity: unknown): boolean;
+      canEntityAttackFromStatus(entity: unknown): boolean;
+    };
+
+    const importedDead = privateLogic.spawnedEntities.get(147)!;
+    importedDead.moving = true;
+    importedDead.moveTarget = { x: 500, z: 500 };
+    importedDead.currentSpeed = 12;
+    importedDead.modelConditionFlags.add('FIRING_A');
+    importedDead.modelConditionFlags.add('RELOADING_A');
+    importedDead.modelConditionFlags.add('MOVING');
+
+    logic.update(1 / 30);
+
+    expect(importedDead.sourceAIUpdateIsDead).toBe(true);
+    expect(importedDead.moving).toBe(false);
+    expect(importedDead.moveTarget).toBeNull();
+    expect(importedDead.currentSpeed).toBe(0);
+    expect(importedDead.modelConditionFlags.has('DYING')).toBe(true);
+    expect(importedDead.modelConditionFlags.has('FIRING_A')).toBe(false);
+    expect(importedDead.modelConditionFlags.has('RELOADING_A')).toBe(false);
+    expect(importedDead.modelConditionFlags.has('MOVING')).toBe(false);
+    expect(privateLogic.isScriptEntityEffectivelyDead(importedDead)).toBe(true);
+    expect(privateLogic.canEntityAttackFromStatus(importedDead)).toBe(false);
+  });
+
   it('imports source AIUpdateInterface face state', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
@@ -7729,6 +8245,56 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedFace.moveTarget).toBeNull();
     expect(importedFace.lastCommandSource).toBe('PLAYER');
     expect(importedFace.autoTargetScanNextFrame).toBe(791);
+  });
+
+  it('updates imported source AIUpdateInterface face state until aligned', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const faceState = createEmptySourceMapEntitySaveState();
+    faceState.objectId = 148;
+    faceState.position = { x: 340, y: 0, z: 104 };
+    faceState.orientation = 0;
+    faceState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceFaceModuleData({
+        currentStateId: 34,
+        goalObjectId: 0,
+        goalPosition: { x: 340, y: 180, z: 0 },
+        canTurnInPlace: true,
+        nextEnemyScanFrame: 791,
+        lastCommandSource: 0,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: faceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        rotationY: number;
+        moving: boolean;
+        sourceAIFaceState: unknown;
+      }>;
+    };
+
+    const importedFace = privateLogic.spawnedEntities.get(148)!;
+    logic.update(1 / 30);
+
+    expect(importedFace.sourceAIFaceState).toBeNull();
+    expect(importedFace.moving).toBe(false);
+    expect(importedFace.rotationY).toBeCloseTo(Math.PI, 6);
   });
 
   it('imports source AIUpdateInterface pick-up-crate state', () => {
@@ -7802,6 +8368,60 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedPickup.moveTarget).toBeNull();
     expect(importedPickup.lastCommandSource).toBe('SCRIPT');
     expect(importedPickup.autoTargetScanNextFrame).toBe(792);
+  });
+
+  it('delays imported source pick-up-crate movement until the source counter expires', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const pickupState = createEmptySourceMapEntitySaveState();
+    pickupState.objectId = 149;
+    pickupState.position = { x: 360, y: 0, z: 112 };
+    pickupState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfacePickUpCrateModuleData({
+        goalObjectId: 999,
+        goalPosition: { x: 44, y: 54, z: 64 },
+        moveGoalPosition: { x: 420, y: 180, z: 0 },
+        delayCounter: 2,
+        crateGoalPosition: { x: 46, y: 56, z: 66 },
+        nextEnemyScanFrame: 792,
+        lastCommandSource: 1,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: pickupState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        moving: boolean;
+        moveTarget: { x: number; z: number } | null;
+        sourceAIPickUpCrateState: { delayCounter: number } | null;
+      }>;
+    };
+
+    const importedPickup = privateLogic.spawnedEntities.get(149)!;
+    logic.update(1 / 30);
+    expect(importedPickup.sourceAIPickUpCrateState?.delayCounter).toBe(1);
+    expect(importedPickup.moving).toBe(false);
+    expect(importedPickup.moveTarget).toBeNull();
+
+    logic.update(1 / 30);
+    expect(importedPickup.sourceAIPickUpCrateState?.delayCounter).toBe(0);
+    expect(importedPickup.moving).toBe(true);
+    expect(importedPickup.moveTarget).not.toBeNull();
   });
 
   it('imports source AIUpdateInterface simple move-derived states', () => {
@@ -7914,6 +8534,169 @@ describe('source-owned game-logic core save-state', () => {
     });
   });
 
+  it('runs imported simple move delete state to silent removal on arrival', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const deleteState = createEmptySourceMapEntitySaveState();
+    deleteState.objectId = 150;
+    deleteState.position = { x: 400, y: 0, z: 180 };
+    deleteState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceSimpleMoveModuleData({
+        currentStateId: 27,
+        goalObjectId: 0,
+        goalPosition: { x: 400, y: 180, z: 0 },
+        moveGoalPosition: { x: 400, y: 180, z: 0 },
+        appendGoalPosition: true,
+        nextEnemyScanFrame: 900,
+        lastCommandSource: 2,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: deleteState },
+      ],
+    });
+
+    expect(logic.getEntityState(150)).not.toBeNull();
+    logic.update(1 / 30);
+    expect(logic.getEntityState(150)).toBeNull();
+  });
+
+  it('advances imported follow-path state across saved source goal-path nodes', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const goalPath = [
+      { x: 400, y: 180, z: 0 },
+      { x: 460, y: 180, z: 0 },
+    ];
+    const followPathState = createEmptySourceMapEntitySaveState();
+    followPathState.objectId = 151;
+    followPathState.position = { x: 400, y: 0, z: 180 };
+    followPathState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceSimpleMoveModuleData({
+        currentStateId: 6,
+        goalObjectId: 0,
+        goalPosition: goalPath[0]!,
+        moveGoalPosition: goalPath[0]!,
+        goalPath,
+        pathIndex: 0,
+        adjustFinal: true,
+        adjustFinalOverride: false,
+        nextEnemyScanFrame: 901,
+        lastCommandSource: 2,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: followPathState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        moving: boolean;
+        moveTarget: { x: number; z: number } | null;
+        sourceAISimpleMoveState: {
+          pathIndex: number | null;
+          goalPath: Array<{ x: number; y: number; z: number }>;
+        } | null;
+      }>;
+    };
+
+    const imported = privateLogic.spawnedEntities.get(151)!;
+    expect(imported.sourceAISimpleMoveState?.goalPath).toEqual(goalPath);
+
+    logic.update(1 / 30);
+
+    expect(imported.sourceAISimpleMoveState?.pathIndex).toBe(1);
+    expect(imported.moving).toBe(true);
+    expect(imported.moveTarget).toEqual({ x: 460, z: 180 });
+  });
+
+  it('runs imported temporary move-to overrides before the saved primary state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const tempMoveState = createEmptySourceMapEntitySaveState();
+    tempMoveState.objectId = 152;
+    tempMoveState.position = { x: 400, y: 0, z: 180 };
+    tempMoveState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceStatelessModuleData({
+        currentStateId: 8,
+        goalObjectId: 0,
+        goalPosition: { x: 400, y: 180, z: 0 },
+        temporaryState: {
+          currentStateId: 1,
+          moveGoalPosition: { x: 400, y: 180, z: 0 },
+        },
+        temporaryStateFrameEnd: 260,
+        nextEnemyScanFrame: 902,
+        lastCommandSource: 2,
+        isAiDead: false,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: tempMoveState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        moving: boolean;
+        moveTarget: { x: number; z: number } | null;
+        sourceAIStatelessState: { currentStateId: number } | null;
+        sourceAITemporaryState: { currentStateId: number; frameEnd: number } | null;
+      }>;
+    };
+
+    const imported = privateLogic.spawnedEntities.get(152)!;
+    expect(imported.sourceAIStatelessState?.currentStateId).toBe(8);
+    expect(imported.sourceAITemporaryState).toMatchObject({
+      currentStateId: 1,
+      frameEnd: 260,
+    });
+    expect(imported.moveTarget).toEqual({ x: 400, z: 180 });
+
+    logic.update(1 / 30);
+
+    expect(imported.sourceAITemporaryState).toBeNull();
+    expect(imported.sourceAIStatelessState?.currentStateId).toBe(8);
+    expect(imported.moving).toBe(false);
+  });
+
   it('imports source AIUpdateInterface full tail state', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
@@ -7929,6 +8712,7 @@ describe('source-owned game-logic core save-state', () => {
       identifier: 'ModuleTag_AI',
       blockData: buildSourceAIUpdateInterfaceMoveToModuleData({
         goalPosition: { x: 180, y: 190, z: 15 },
+        goalSquadObjectIds: [201, 202],
         nextEnemyScanFrame: 111,
         lastCommandSource: 2,
         tail: {
@@ -7961,6 +8745,7 @@ describe('source-owned game-logic core save-state', () => {
         ignoredMovementObstacleId: number | null;
         pathfindGoalCell: { x: number; z: number } | null;
         pathfindPosCell: { x: number; z: number } | null;
+        sourceAIGoalSquadObjectIds: number[] | null;
       }>;
     };
 
@@ -7972,12 +8757,25 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedMover.ignoredMovementObstacleId).toBe(777);
     expect(importedMover.pathfindGoalCell).toEqual({ x: 22, z: 33 });
     expect(importedMover.pathfindPosCell).toEqual({ x: 44, z: 55 });
+    expect(importedMover.sourceAIGoalSquadObjectIds).toEqual([201, 202]);
   });
 
   it('imports source AIUpdateInterface guard state', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
     const map = makeMap([], 64, 64);
+    map.triggers = [{
+      id: 1,
+      name: 'GuardAreaA',
+      isWaterArea: false,
+      isRiver: false,
+      points: [
+        { x: 240, y: 250, z: 0 },
+        { x: 280, y: 250, z: 0 },
+        { x: 280, y: 290, z: 0 },
+        { x: 240, y: 290, z: 0 },
+      ],
+    }];
 
     const logic = new GameLogicSubsystem(new THREE.Scene());
     logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
@@ -7992,6 +8790,7 @@ describe('source-owned game-logic core save-state', () => {
         targetToGuardId: 0,
         nemesisToAttackId: 0,
         positionToGuard: { x: 260, y: 270, z: 16 },
+        areaToGuardName: 'GuardAreaA',
         nextEnemyScanFrame: 222,
         guardNextScanFrame: 654,
         lastCommandSource: 2,
@@ -8014,6 +8813,8 @@ describe('source-owned game-logic core save-state', () => {
         guardPositionX: number;
         guardPositionZ: number;
         guardObjectId: number;
+        guardAreaTriggerIndex: number;
+        sourceGuardAreaName: string | null;
         guardNextScanFrame: number;
         attackTargetEntityId: number | null;
         autoTargetScanNextFrame: number;
@@ -8025,6 +8826,8 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedGuard.guardPositionX).toBe(260);
     expect(importedGuard.guardPositionZ).toBe(270);
     expect(importedGuard.guardObjectId).toBe(0);
+    expect(importedGuard.guardAreaTriggerIndex).toBe(0);
+    expect(importedGuard.sourceGuardAreaName).toBe('GuardAreaA');
     expect(importedGuard.guardNextScanFrame).toBe(654);
     expect(importedGuard.attackTargetEntityId).toBeNull();
     expect(importedGuard.autoTargetScanNextFrame).toBe(222);

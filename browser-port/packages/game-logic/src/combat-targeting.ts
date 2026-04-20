@@ -74,6 +74,9 @@ export function findFireWeaponTargetForPositionUsingWeapon(self: GL,
 }
 
 export function canEntityAttackFromStatus(self: GL, entity: MapEntity): boolean {
+  if (entity.sourceAIUpdateIsDead === true) {
+    return false;
+  }
   // Source parity: DeployStyleAIUpdate — only allow attacks when fully deployed.
   if (entity.deployStyleProfile && entity.deployState !== 'READY_TO_ATTACK') {
     return false;
@@ -163,7 +166,7 @@ export function canAttackerTargetEntity(self: GL,
   target: MapEntity,
   commandSource: AttackCommandSource,
 ): boolean {
-  if (!target.canTakeDamage || target.destroyed) {
+  if (!target.canTakeDamage || target.destroyed || target.sourceAIUpdateIsDead === true) {
     return false;
   }
   if (self.entityHasObjectStatus(target, 'MASKED')) {
@@ -584,6 +587,7 @@ export function clearAttackTarget(self: GL, entityId: number): void {
   entity.attackTargetPosition = null;
   entity.attackOriginalVictimPosition = null;
   entity.attackCommandSource = 'AI';
+  entity.sourceAIAttackStateId = null;
   // Source parity: AIAttackState::onExit() — clear all attack flags on target release.
   self.setEntityAttackStatus(entity, false);
   entity.preAttackFinishFrame = 0;
@@ -599,6 +603,7 @@ export function clearMaxShotsAttackState(self: GL, entity: MapEntity): void {
   entity.attackTargetPosition = null;
   entity.attackOriginalVictimPosition = null;
   entity.attackCommandSource = 'AI';
+  entity.sourceAIAttackStateId = null;
   entity.maxShotsRemaining = 0;
   self.setEntityAttackStatus(entity, false);
   entity.preAttackFinishFrame = 0;

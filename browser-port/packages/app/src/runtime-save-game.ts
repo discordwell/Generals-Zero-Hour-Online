@@ -10103,6 +10103,8 @@ const SOURCE_AI_STATE_FOLLOW_EXITPRODUCTION_PATH = 7;
 const SOURCE_AI_STATE_WAIT = 8;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
+const SOURCE_AI_STATE_FORCE_ATTACK_OBJECT = 11;
+const SOURCE_AI_STATE_ATTACK_AND_FOLLOW_OBJECT = 12;
 const SOURCE_AI_STATE_DEAD = 13;
 const SOURCE_AI_STATE_DOCK = 14;
 const SOURCE_AI_STATE_ENTER = 15;
@@ -10112,6 +10114,7 @@ const SOURCE_AI_STATE_MOVE_AND_TIGHTEN = 24;
 const SOURCE_AI_STATE_MOVE_AND_EVACUATE = 25;
 const SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT = 26;
 const SOURCE_AI_STATE_MOVE_AND_DELETE = 27;
+const SOURCE_AI_STATE_ATTACK_MOVE_TO = 30;
 const SOURCE_AI_STATE_FACE_OBJECT = 33;
 const SOURCE_AI_STATE_FACE_POSITION = 34;
 const SOURCE_AI_STATE_EXIT = 37;
@@ -10138,6 +10141,7 @@ const SOURCE_AI_CMD_FROM_AI = 2;
 const SOURCE_AI_CMD_FROM_DOZER = 3;
 const SOURCE_AI_GUARDTARGET_LOCATION = 0;
 const SOURCE_AI_GUARDTARGET_OBJECT = 1;
+const SOURCE_AI_GUARDTARGET_AREA = 2;
 const SOURCE_AI_GUARDTARGET_NONE = 3;
 const SOURCE_AI_TURRET_INVALID = -1;
 const SOURCE_AI_ATTITUDE_NORMAL = 0;
@@ -10526,10 +10530,76 @@ function sourceAIPickUpCrateState(entity: MapEntity): {
   };
 }
 
+function sourceAIAttackMoveState(entity: MapEntity): {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: Coord3D;
+  moveState: SourceAIInternalMoveToRuntimeSnapshot;
+  frameToSleepUntil: number;
+  retryCount: number;
+  attackMoveMachine: {
+    currentStateId: number;
+    goalObjectId: number;
+    goalPosition: Coord3D;
+    pickUpCrateState: ReturnType<typeof sourceAIPickUpCrateState>;
+  };
+} | null {
+  const state = (entity as {
+    sourceAIAttackMoveState?: {
+      currentStateId?: unknown;
+      goalObjectId?: unknown;
+      goalPosition?: unknown;
+      moveState?: unknown;
+      frameToSleepUntil?: unknown;
+      retryCount?: unknown;
+      attackMoveMachine?: {
+        currentStateId?: unknown;
+        goalObjectId?: unknown;
+        goalPosition?: unknown;
+        pickUpCrateState?: unknown;
+      } | null;
+    } | null;
+  }).sourceAIAttackMoveState;
+  if (state?.currentStateId !== SOURCE_AI_STATE_ATTACK_MOVE_TO || !state.attackMoveMachine) {
+    return null;
+  }
+  const attackMoveMachineStateId = Number.isFinite(state.attackMoveMachine.currentStateId)
+    ? Math.trunc(Number(state.attackMoveMachine.currentStateId))
+    : SOURCE_AI_STATE_IDLE;
+  if (attackMoveMachineStateId !== SOURCE_AI_STATE_IDLE
+    && attackMoveMachineStateId !== SOURCE_AI_STATE_ATTACK_OBJECT
+    && attackMoveMachineStateId !== SOURCE_AI_STATE_PICK_UP_CRATE) {
+    return null;
+  }
+  const pickUpCrateState = state.attackMoveMachine.pickUpCrateState && typeof state.attackMoveMachine.pickUpCrateState === 'object'
+    ? sourceAIPickUpCrateState({
+        ...(entity as object),
+        sourceAIPickUpCrateState: state.attackMoveMachine.pickUpCrateState,
+      } as MapEntity)
+    : null;
+  return {
+    currentStateId: SOURCE_AI_STATE_ATTACK_MOVE_TO,
+    goalObjectId: Number.isFinite(state.goalObjectId) ? normalizeSourceObjectId(Number(state.goalObjectId)) : 0,
+    goalPosition: sourceFiniteCoord3D(state.goalPosition),
+    moveState: sourceAIInternalMoveToRuntimeSnapshot(state.moveState),
+    frameToSleepUntil: sourceAIUnsignedFrame(state.frameToSleepUntil, 0),
+    retryCount: Number.isFinite(state.retryCount) ? Math.trunc(Number(state.retryCount)) : 0,
+    attackMoveMachine: {
+      currentStateId: attackMoveMachineStateId,
+      goalObjectId: Number.isFinite(state.attackMoveMachine.goalObjectId)
+        ? normalizeSourceObjectId(Number(state.attackMoveMachine.goalObjectId))
+        : 0,
+      goalPosition: sourceFiniteCoord3D(state.attackMoveMachine.goalPosition),
+      pickUpCrateState,
+    },
+  };
+}
+
 function sourceAISimpleMoveState(entity: MapEntity): {
   currentStateId: number;
   goalObjectId: number;
   goalPosition: Coord3D;
+  goalPath: Coord3D[];
   moveState: SourceAIInternalMoveToRuntimeSnapshot;
   pathIndex: number | null;
   adjustFinal: boolean | null;
@@ -10546,6 +10616,7 @@ function sourceAISimpleMoveState(entity: MapEntity): {
       currentStateId?: unknown;
       goalObjectId?: unknown;
       goalPosition?: unknown;
+      goalPath?: unknown;
       moveState?: unknown;
       pathIndex?: unknown;
       adjustFinal?: unknown;
@@ -10566,6 +10637,9 @@ function sourceAISimpleMoveState(entity: MapEntity): {
     currentStateId,
     goalObjectId: Number.isFinite(state?.goalObjectId) ? normalizeSourceObjectId(Number(state.goalObjectId)) : 0,
     goalPosition: sourceFiniteCoord3D(state?.goalPosition),
+    goalPath: Array.isArray(state?.goalPath)
+      ? state.goalPath.map((point) => sourceFiniteCoord3D(point))
+      : [],
     moveState: sourceAIInternalMoveToRuntimeSnapshot(state?.moveState),
     pathIndex: Number.isFinite(state?.pathIndex) ? Math.trunc(Number(state.pathIndex)) : null,
     adjustFinal: typeof state?.adjustFinal === 'boolean' ? state.adjustFinal : null,
@@ -10577,6 +10651,72 @@ function sourceAISimpleMoveState(entity: MapEntity): {
     waitFrames: Number.isFinite(state?.waitFrames) ? Math.trunc(Number(state.waitFrames)) : null,
     timer: Number.isFinite(state?.timer) ? Math.trunc(Number(state.timer)) : null,
   };
+}
+
+function sourceAITemporaryState(entity: MapEntity): {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: Coord3D;
+  goalPath: Coord3D[];
+  moveState: SourceAIInternalMoveToRuntimeSnapshot | null;
+  simpleMoveState: ReturnType<typeof sourceAISimpleMoveState>;
+  frameEnd: number;
+} | null {
+  const state = (entity as {
+    sourceAITemporaryState?: {
+      currentStateId?: unknown;
+      goalObjectId?: unknown;
+      goalPosition?: unknown;
+      goalPath?: unknown;
+      moveState?: unknown;
+      simpleMoveState?: unknown;
+      frameEnd?: unknown;
+    } | null;
+  }).sourceAITemporaryState;
+  if (!state || !Number.isFinite(state.currentStateId)) {
+    return null;
+  }
+  const currentStateId = Math.trunc(Number(state.currentStateId));
+  const simpleMoveState = state.simpleMoveState && typeof state.simpleMoveState === 'object'
+    ? sourceAISimpleMoveState({ ...(entity as object), sourceAISimpleMoveState: state.simpleMoveState } as MapEntity)
+    : null;
+  const moveState = state.moveState ? sourceAIInternalMoveToRuntimeSnapshot(state.moveState) : null;
+  if (!isSourceAIStatelessStateId(currentStateId)
+    && !(currentStateId === SOURCE_AI_STATE_MOVE_TO && moveState)
+    && !(isSourceAISimpleMoveStateId(currentStateId) && simpleMoveState)) {
+    return null;
+  }
+  return {
+    currentStateId,
+    goalObjectId: Number.isFinite(state.goalObjectId) ? normalizeSourceObjectId(Number(state.goalObjectId)) : 0,
+    goalPosition: sourceFiniteCoord3D(state.goalPosition),
+    goalPath: Array.isArray(state.goalPath)
+      ? state.goalPath.map((point) => sourceFiniteCoord3D(point))
+      : [],
+    moveState,
+    simpleMoveState,
+    frameEnd: sourceUnsignedInt(state.frameEnd, 0),
+  };
+}
+
+function sourceAIGoalSquadObjectIds(entity: MapEntity): number[] {
+  return normalizeSourceObjectIdArray(
+    (entity as { sourceAIGoalSquadObjectIds?: unknown }).sourceAIGoalSquadObjectIds,
+  );
+}
+
+function sourceAIAttackStateId(entity: MapEntity): number | null {
+  const stateId = (entity as { sourceAIAttackStateId?: unknown }).sourceAIAttackStateId;
+  if (!Number.isFinite(stateId)) {
+    return null;
+  }
+  const normalized = Math.trunc(Number(stateId));
+  return normalized === SOURCE_AI_STATE_ATTACK_POSITION
+    || normalized === SOURCE_AI_STATE_ATTACK_OBJECT
+    || normalized === SOURCE_AI_STATE_FORCE_ATTACK_OBJECT
+    || normalized === SOURCE_AI_STATE_ATTACK_AND_FOLLOW_OBJECT
+    ? normalized
+    : null;
 }
 
 function sourceRepairDockGoalObjectId(entity: MapEntity): number {
@@ -10608,9 +10748,19 @@ function sourceGuardObjectId(entity: MapEntity): number {
     : 0;
 }
 
+function sourceGuardAreaName(entity: MapEntity): string {
+  const areaName = (entity as { sourceGuardAreaName?: unknown }).sourceGuardAreaName;
+  return typeof areaName === 'string' && areaName.trim().length > 0
+    ? areaName.trim()
+    : '';
+}
+
 function sourceGuardTargetType(entity: MapEntity): number {
   if (sourceGuardMachineStateId(entity) === null) {
     return SOURCE_AI_GUARDTARGET_NONE;
+  }
+  if (sourceGuardAreaName(entity).length > 0) {
+    return SOURCE_AI_GUARDTARGET_AREA;
   }
   return sourceGuardObjectId(entity) > 0
     ? SOURCE_AI_GUARDTARGET_OBJECT
@@ -10811,6 +10961,82 @@ function buildGeneratedSourceAIPickUpCrateStateBlockData(
   }
 }
 
+function buildGeneratedSourceAIAttackMoveIdleStateBlockData(entity: MapEntity): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-attack-move-idle-state');
+  try {
+    saver.xferVersion(1);
+    saver.xferUnsignedShort(sourceAIIdleInitialSleepOffset(entity));
+    saver.xferBool(false);
+    saver.xferBool(true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceAIAttackMoveMachineBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  state: NonNullable<ReturnType<typeof sourceAIAttackMoveState>>,
+): Uint8Array {
+  const attackMoveMachine = state.attackMoveMachine;
+  const currentStateId = attackMoveMachine.currentStateId === SOURCE_AI_STATE_ATTACK_OBJECT
+    && entity.attackTargetEntityId !== null
+    ? SOURCE_AI_STATE_ATTACK_OBJECT
+    : attackMoveMachine.currentStateId === SOURCE_AI_STATE_PICK_UP_CRATE
+      && attackMoveMachine.pickUpCrateState
+      ? SOURCE_AI_STATE_PICK_UP_CRATE
+      : SOURCE_AI_STATE_IDLE;
+  const currentStateBlock = currentStateId === SOURCE_AI_STATE_ATTACK_OBJECT
+    ? buildGeneratedSourceAIAttackStateBlockData(entity, currentFrame)
+    : currentStateId === SOURCE_AI_STATE_PICK_UP_CRATE && attackMoveMachine.pickUpCrateState
+      ? buildGeneratedSourceAIPickUpCrateStateBlockData(attackMoveMachine.pickUpCrateState)
+      : buildGeneratedSourceAIAttackMoveIdleStateBlockData(entity);
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-attack-move-machine');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+    saver.xferUnsignedInt(currentStateId);
+    saver.xferBool(false);
+    saver.xferUser(currentStateBlock);
+    saver.xferObjectID(currentStateId === SOURCE_AI_STATE_ATTACK_OBJECT
+      ? sourceAttackGoalObjectId(entity)
+      : attackMoveMachine.goalObjectId);
+    saver.xferCoord3D(currentStateId === SOURCE_AI_STATE_ATTACK_OBJECT
+      ? sourceAttackGoalPosition(entity)
+      : attackMoveMachine.goalPosition);
+    saver.xferBool(false);
+    saver.xferBool(true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceAIAttackMoveStateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  state: NonNullable<ReturnType<typeof sourceAIAttackMoveState>>,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-attack-move-state');
+  try {
+    saver.xferVersion(2);
+    saver.xferUser(buildGeneratedSourceAIInternalMoveToStateSnapshotBlockData(state.moveState));
+    saver.xferUnsignedInt(sourceAIUnsignedFrame(state.frameToSleepUntil, currentFrame));
+    saver.xferInt(state.retryCount);
+    saver.xferUser(buildGeneratedSourceAIAttackMoveMachineBlockData(entity, currentFrame, state));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildGeneratedSourceAISimpleMoveStateBlockData(
   state: NonNullable<ReturnType<typeof sourceAISimpleMoveState>>,
 ): Uint8Array {
@@ -10992,7 +11218,7 @@ function buildGeneratedSourceAIGuardMachineBlockData(entity: MapEntity): Uint8Ar
     saver.xferObjectID(sourceGuardObjectId(entity));
     saver.xferObjectID(normalizeSourceObjectId(entity.attackTargetEntityId ?? 0));
     saver.xferCoord3D(guardPosition);
-    saver.xferAsciiString('');
+    saver.xferAsciiString(sourceGuardAreaName(entity));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -11018,8 +11244,7 @@ function isGeneratedSourceAttackAIStateMachine(entity: MapEntity): boolean {
 }
 
 function isGeneratedSourceGuardAIStateMachine(entity: MapEntity): boolean {
-  return sourceGuardMachineStateId(entity) !== null
-    && entity.guardAreaTriggerIndex < 0;
+  return sourceGuardMachineStateId(entity) !== null;
 }
 
 function isGeneratedSourceEnterAIStateMachine(entity: MapEntity): boolean {
@@ -11062,8 +11287,10 @@ function isGeneratedSourceMoveAIStateMachine(entity: MapEntity): boolean {
 function hasGeneratedSourceAIUpdateRuntimeState(entity: MapEntity): boolean {
   return isGeneratedSourceSimpleMoveAIStateMachine(entity)
     || isGeneratedSourcePickUpCrateAIStateMachine(entity)
+    || sourceAIAttackMoveState(entity) !== null
     || isGeneratedSourceFaceAIStateMachine(entity)
     || isGeneratedSourceStatelessAIStateMachine(entity)
+    || sourceAITemporaryState(entity) !== null
     || isGeneratedSourceExitAIStateMachine(entity)
     || isGeneratedSourceDockAIStateMachine(entity)
     || isGeneratedSourceEnterAIStateMachine(entity)
@@ -11072,11 +11299,75 @@ function hasGeneratedSourceAIUpdateRuntimeState(entity: MapEntity): boolean {
     || isGeneratedSourceMoveAIStateMachine(entity);
 }
 
+function xferGeneratedSourceAITemporaryStateSnapshot(
+  saver: XferSave,
+  state: NonNullable<ReturnType<typeof sourceAITemporaryState>>,
+): void {
+  if (isSourceAIStatelessStateId(state.currentStateId)) {
+    saver.xferUser(buildGeneratedSourceAIStatelessStateBlockData());
+    return;
+  }
+  if (state.currentStateId === SOURCE_AI_STATE_MOVE_TO && state.moveState) {
+    saver.xferUser(buildGeneratedSourceAIInternalMoveToStateSnapshotBlockData(state.moveState));
+    return;
+  }
+  if (isSourceAISimpleMoveStateId(state.currentStateId) && state.simpleMoveState) {
+    saver.xferUser(buildGeneratedSourceAISimpleMoveStateBlockData(state.simpleMoveState));
+    return;
+  }
+  throw new Error(`Cannot serialize generated temporary AI state ${state.currentStateId}.`);
+}
+
+function xferGeneratedSourceSquadSnapshot(saver: XferSave, objectIds: readonly number[]): void {
+  const normalizedIds = normalizeSourceObjectIdArray(objectIds).slice(0, 0xffff);
+  saver.xferVersion(1);
+  saver.xferUnsignedShort(normalizedIds.length);
+  for (const objectId of normalizedIds) {
+    saver.xferObjectID(objectId);
+  }
+}
+
+function xferGeneratedSourceAIStateMachineTail(
+  saver: XferSave,
+  fallback: {
+    goalObjectId: number;
+    goalPosition: Coord3D;
+    goalPath?: readonly Coord3D[] | null;
+    goalSquadObjectIds?: readonly number[] | null;
+  },
+  temporaryState: ReturnType<typeof sourceAITemporaryState>,
+): void {
+  const goalObjectId = temporaryState?.goalObjectId ?? fallback.goalObjectId;
+  const goalPosition = temporaryState?.goalPosition ?? fallback.goalPosition;
+  const goalPath = temporaryState?.goalPath ?? fallback.goalPath ?? [];
+  const goalSquadObjectIds = normalizeSourceObjectIdArray(fallback.goalSquadObjectIds ?? []);
+  saver.xferObjectID(goalObjectId);
+  saver.xferCoord3D(goalPosition);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferInt(goalPath.length);
+  for (const point of goalPath) {
+    saver.xferCoord3D(point);
+  }
+  saver.xferAsciiString('');
+  saver.xferBool(goalSquadObjectIds.length > 0);
+  if (goalSquadObjectIds.length > 0) {
+    xferGeneratedSourceSquadSnapshot(saver, goalSquadObjectIds);
+  }
+  saver.xferUnsignedInt(temporaryState?.currentStateId ?? SOURCE_AI_INVALID_STATE_ID);
+  if (temporaryState) {
+    xferGeneratedSourceAITemporaryStateSnapshot(saver, temporaryState);
+  }
+  saver.xferUnsignedInt(temporaryState?.frameEnd ?? 0);
+}
+
 function buildGeneratedSourceAIStateMachineBlockData(
   entity: MapEntity,
   currentFrame = 0,
   options: { liveEntities?: readonly MapEntity[] | null } = {},
 ): Uint8Array {
+  const temporaryState = sourceAITemporaryState(entity);
+  const goalSquadObjectIds = sourceAIGoalSquadObjectIds(entity);
   const simpleMoveState = sourceAISimpleMoveState(entity);
   if (simpleMoveState) {
     const saver = new XferSave();
@@ -11089,15 +11380,12 @@ function buildGeneratedSourceAIStateMachineBlockData(
       saver.xferUnsignedInt(simpleMoveState.currentStateId);
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAISimpleMoveStateBlockData(simpleMoveState));
-      saver.xferObjectID(simpleMoveState.goalObjectId);
-      saver.xferCoord3D(simpleMoveState.goalPosition);
-      saver.xferBool(false);
-      saver.xferBool(true);
-      saver.xferInt(0);
-      saver.xferAsciiString('');
-      saver.xferBool(false);
-      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
-      saver.xferUnsignedInt(0);
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId: simpleMoveState.goalObjectId,
+        goalPosition: simpleMoveState.goalPosition,
+        goalPath: simpleMoveState.goalPath,
+        goalSquadObjectIds,
+      }, temporaryState);
       return new Uint8Array(saver.getBuffer());
     } finally {
       saver.close();
@@ -11116,15 +11404,34 @@ function buildGeneratedSourceAIStateMachineBlockData(
       saver.xferUnsignedInt(SOURCE_AI_STATE_PICK_UP_CRATE);
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAIPickUpCrateStateBlockData(pickUpCrateState));
-      saver.xferObjectID(pickUpCrateState.goalObjectId);
-      saver.xferCoord3D(pickUpCrateState.goalPosition);
-      saver.xferBool(false);
-      saver.xferBool(true);
-      saver.xferInt(0);
-      saver.xferAsciiString('');
-      saver.xferBool(false);
-      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId: pickUpCrateState.goalObjectId,
+        goalPosition: pickUpCrateState.goalPosition,
+        goalSquadObjectIds,
+      }, temporaryState);
+      return new Uint8Array(saver.getBuffer());
+    } finally {
+      saver.close();
+    }
+  }
+
+  const attackMoveState = sourceAIAttackMoveState(entity);
+  if (attackMoveState) {
+    const saver = new XferSave();
+    saver.open('build-generated-source-ai-state-machine-attack-move');
+    try {
+      saver.xferVersion(1);
+      saver.xferVersion(1);
       saver.xferUnsignedInt(0);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_ATTACK_MOVE_TO);
+      saver.xferBool(false);
+      saver.xferUser(buildGeneratedSourceAIAttackMoveStateBlockData(entity, currentFrame, attackMoveState));
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId: attackMoveState.goalObjectId,
+        goalPosition: attackMoveState.goalPosition,
+        goalSquadObjectIds,
+      }, temporaryState);
       return new Uint8Array(saver.getBuffer());
     } finally {
       saver.close();
@@ -11143,15 +11450,11 @@ function buildGeneratedSourceAIStateMachineBlockData(
       saver.xferUnsignedInt(faceState.currentStateId);
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAIFaceStateBlockData(faceState.canTurnInPlace));
-      saver.xferObjectID(faceState.goalObjectId);
-      saver.xferCoord3D(faceState.goalPosition);
-      saver.xferBool(false);
-      saver.xferBool(true);
-      saver.xferInt(0);
-      saver.xferAsciiString('');
-      saver.xferBool(false);
-      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
-      saver.xferUnsignedInt(0);
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId: faceState.goalObjectId,
+        goalPosition: faceState.goalPosition,
+        goalSquadObjectIds,
+      }, temporaryState);
       return new Uint8Array(saver.getBuffer());
     } finally {
       saver.close();
@@ -11170,15 +11473,11 @@ function buildGeneratedSourceAIStateMachineBlockData(
       saver.xferUnsignedInt(statelessState.currentStateId);
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAIStatelessStateBlockData());
-      saver.xferObjectID(statelessState.goalObjectId);
-      saver.xferCoord3D(statelessState.goalPosition);
-      saver.xferBool(false);
-      saver.xferBool(true);
-      saver.xferInt(0);
-      saver.xferAsciiString('');
-      saver.xferBool(false);
-      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
-      saver.xferUnsignedInt(0);
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId: statelessState.goalObjectId,
+        goalPosition: statelessState.goalPosition,
+        goalSquadObjectIds,
+      }, temporaryState);
       return new Uint8Array(saver.getBuffer());
     } finally {
       saver.close();
@@ -11202,15 +11501,11 @@ function buildGeneratedSourceAIStateMachineBlockData(
       saver.xferUnsignedInt(currentStateId);
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAIExitStateBlockData(entity));
-      saver.xferObjectID(goalObjectId);
-      saver.xferCoord3D(goalPosition);
-      saver.xferBool(false);
-      saver.xferBool(true);
-      saver.xferInt(0);
-      saver.xferAsciiString('');
-      saver.xferBool(false);
-      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
-      saver.xferUnsignedInt(0);
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId,
+        goalPosition,
+        goalSquadObjectIds,
+      }, temporaryState);
       return new Uint8Array(saver.getBuffer());
     } finally {
       saver.close();
@@ -11230,15 +11525,11 @@ function buildGeneratedSourceAIStateMachineBlockData(
       saver.xferUnsignedInt(SOURCE_AI_STATE_DOCK);
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAIDockStateBlockData(entity, options.liveEntities));
-      saver.xferObjectID(goalObjectId);
-      saver.xferCoord3D(goalPosition);
-      saver.xferBool(false);
-      saver.xferBool(true);
-      saver.xferInt(0);
-      saver.xferAsciiString('');
-      saver.xferBool(false);
-      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
-      saver.xferUnsignedInt(0);
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId,
+        goalPosition,
+        goalSquadObjectIds,
+      }, temporaryState);
       return new Uint8Array(saver.getBuffer());
     } finally {
       saver.close();
@@ -11258,15 +11549,11 @@ function buildGeneratedSourceAIStateMachineBlockData(
       saver.xferUnsignedInt(SOURCE_AI_STATE_ENTER);
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAIEnterStateBlockData(entity, currentFrame, options.liveEntities));
-      saver.xferObjectID(goalObjectId);
-      saver.xferCoord3D(goalPosition);
-      saver.xferBool(false);
-      saver.xferBool(true);
-      saver.xferInt(0);
-      saver.xferAsciiString('');
-      saver.xferBool(false);
-      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
-      saver.xferUnsignedInt(0);
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId,
+        goalPosition,
+        goalSquadObjectIds,
+      }, temporaryState);
       return new Uint8Array(saver.getBuffer());
     } finally {
       saver.close();
@@ -11285,15 +11572,11 @@ function buildGeneratedSourceAIStateMachineBlockData(
       saver.xferUnsignedInt(SOURCE_AI_STATE_GUARD);
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAIGuardStateBlockData(entity));
-      saver.xferObjectID(sourceGuardObjectId(entity));
-      saver.xferCoord3D(goalPosition);
-      saver.xferBool(false);
-      saver.xferBool(true);
-      saver.xferInt(0);
-      saver.xferAsciiString('');
-      saver.xferBool(false);
-      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
-      saver.xferUnsignedInt(0);
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId: sourceGuardObjectId(entity),
+        goalPosition,
+        goalSquadObjectIds,
+      }, temporaryState);
       return new Uint8Array(saver.getBuffer());
     } finally {
       saver.close();
@@ -11302,8 +11585,12 @@ function buildGeneratedSourceAIStateMachineBlockData(
 
   if (isGeneratedSourceAttackAIStateMachine(entity)) {
     const isAttackingObject = entity.attackTargetEntityId !== null;
+    const storedAttackStateId = sourceAIAttackStateId(entity);
     const currentStateId = isAttackingObject
-      ? SOURCE_AI_STATE_ATTACK_OBJECT
+      ? (storedAttackStateId === SOURCE_AI_STATE_FORCE_ATTACK_OBJECT
+        || storedAttackStateId === SOURCE_AI_STATE_ATTACK_AND_FOLLOW_OBJECT
+        ? storedAttackStateId
+        : SOURCE_AI_STATE_ATTACK_OBJECT)
       : SOURCE_AI_STATE_ATTACK_POSITION;
     const goalPosition = sourceAttackGoalPosition(entity);
     const saver = new XferSave();
@@ -11316,15 +11603,11 @@ function buildGeneratedSourceAIStateMachineBlockData(
       saver.xferUnsignedInt(currentStateId);
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAIAttackStateBlockData(entity, currentFrame));
-      saver.xferObjectID(isAttackingObject ? sourceAttackGoalObjectId(entity) : 0);
-      saver.xferCoord3D(goalPosition);
-      saver.xferBool(false);
-      saver.xferBool(true);
-      saver.xferInt(0);
-      saver.xferAsciiString('');
-      saver.xferBool(false);
-      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
-      saver.xferUnsignedInt(0);
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId: isAttackingObject ? sourceAttackGoalObjectId(entity) : 0,
+        goalPosition,
+        goalSquadObjectIds,
+      }, temporaryState);
       return new Uint8Array(saver.getBuffer());
     } finally {
       saver.close();
@@ -11343,15 +11626,11 @@ function buildGeneratedSourceAIStateMachineBlockData(
       saver.xferUnsignedInt(SOURCE_AI_STATE_MOVE_TO);
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAIInternalMoveToStateBlockData(entity, currentFrame));
-      saver.xferObjectID(0);
-      saver.xferCoord3D(goalPosition);
-      saver.xferBool(false);
-      saver.xferBool(true);
-      saver.xferInt(0);
-      saver.xferAsciiString('');
-      saver.xferBool(false);
-      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
-      saver.xferUnsignedInt(0);
+      xferGeneratedSourceAIStateMachineTail(saver, {
+        goalObjectId: 0,
+        goalPosition,
+        goalSquadObjectIds,
+      }, temporaryState);
       return new Uint8Array(saver.getBuffer());
     } finally {
       saver.close();
@@ -11371,15 +11650,11 @@ function buildGeneratedSourceAIStateMachineBlockData(
     saver.xferUnsignedShort(sourceAIIdleInitialSleepOffset(entity));
     saver.xferBool(true);
     saver.xferBool(true);
-    saver.xferObjectID(0);
-    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
-    saver.xferBool(false);
-    saver.xferBool(true);
-    saver.xferInt(0);
-    saver.xferAsciiString('');
-    saver.xferBool(false);
-    saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
-    saver.xferUnsignedInt(0);
+    xferGeneratedSourceAIStateMachineTail(saver, {
+      goalObjectId: 0,
+      goalPosition: { x: 0, y: 0, z: 0 },
+      goalSquadObjectIds,
+    }, temporaryState);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();

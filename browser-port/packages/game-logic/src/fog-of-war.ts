@@ -30,9 +30,18 @@ export interface PartitionCellShroudLevelSnapshot {
   activeShroudLevel: number;
 }
 
+export interface ShroudStatusStoreRestoreState {
+  cellsWide: number;
+  foggedOrRevealed: Uint8Array[];
+}
+
 export type SourcePartitionCellCountMode =
   | 'generals-direct-ceil'
   | 'zero-hour-float-inverse-ceil';
+
+const STORE_DONT_TOUCH = 0;
+const STORE_FOG = 1;
+const STORE_PERMANENTLY_REVEALED = 2;
 
 function sourcePartitionCellCount(
   worldExtent: number,
@@ -368,6 +377,75 @@ export class FogOfWarGrid {
       cells.push(cell);
     }
     return cells;
+  }
+
+  captureShroudStatusStoreRestore(storeToFog: boolean): ShroudStatusStoreRestoreState {
+    const totalCells = this.getTotalCellCount();
+    const foggedOrRevealed: Uint8Array[] = [];
+    for (let playerIndex = 0; playerIndex < MAX_FOW_PLAYERS; playerIndex += 1) {
+      const storedCells = new Uint8Array(totalCells);
+      for (let cellIndex = 0; cellIndex < totalCells; cellIndex += 1) {
+        const lookers = this.lookerCounts[playerIndex]?.[cellIndex] ?? 0;
+        const activeShroudLevel = this.activeShroudCounts[playerIndex]?.[cellIndex] ?? 0;
+        const seen = this.everSeen[playerIndex]?.[cellIndex] ?? 0;
+        if (storeToFog) {
+          if (lookers <= 0 && activeShroudLevel <= 0 && seen > 0) {
+            storedCells[cellIndex] = STORE_FOG;
+          }
+        } else if (lookers > 0) {
+          storedCells[cellIndex] = STORE_PERMANENTLY_REVEALED;
+        }
+      }
+      foggedOrRevealed.push(storedCells);
+    }
+    return {
+      cellsWide: this.cellsWide,
+      foggedOrRevealed,
+    };
+  }
+
+  restoreShroudStatusStoreRestore(
+    store: ShroudStatusStoreRestoreState,
+    restoreToFog: boolean,
+  ): void {
+    const storeWidth = Math.max(0, Math.trunc(store.cellsWide));
+    if (storeWidth <= 0) {
+      return;
+    }
+    const firstPlayerStore = store.foggedOrRevealed[0];
+    const storeHeight = firstPlayerStore ? Math.floor(firstPlayerStore.length / storeWidth) : 0;
+    for (let playerIndex = 0; playerIndex < MAX_FOW_PLAYERS; playerIndex += 1) {
+      const storedCells = store.foggedOrRevealed[playerIndex];
+      if (!storedCells) {
+        continue;
+      }
+      for (let cellY = 0; cellY < storeHeight; cellY += 1) {
+        if (cellY >= this.cellsDeep) {
+          return;
+        }
+        for (let cellX = 0; cellX < storeWidth; cellX += 1) {
+          if (cellX >= this.cellsWide) {
+            break;
+          }
+          const storedValue = storedCells[cellY * storeWidth + cellX] ?? STORE_DONT_TOUCH;
+          if (storedValue === STORE_DONT_TOUCH) {
+            continue;
+          }
+          const cellIndex = cellY * this.cellsWide + cellX;
+          if (storedValue === STORE_FOG && restoreToFog) {
+            this.everSeen[playerIndex]![cellIndex] = 1;
+            continue;
+          }
+          if (storedValue === STORE_PERMANENTLY_REVEALED && !restoreToFog) {
+            this.lookerCounts[playerIndex]![cellIndex] = Math.min(
+              0x7fff,
+              (this.lookerCounts[playerIndex]?.[cellIndex] ?? 0) + 1,
+            );
+            this.everSeen[playerIndex]![cellIndex] = 1;
+          }
+        }
+      }
+    }
   }
 
   restorePartitionCellShroudLevels(

@@ -251,6 +251,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     sourceAIFaceState: null,
     sourceAIPickUpCrateState: null,
     sourceAISimpleMoveState: null,
+    sourceAIGoalSquadObjectIds: null,
     chinookCombatDropState: null,
     chinookRappelState: null,
     repairDockState: null,
@@ -1440,6 +1441,25 @@ describe('entity-xfer', () => {
       waitFrames: 7,
       timer: 8,
     });
+  });
+
+  it('round-trips source AI goal squad snapshot', () => {
+    const original = createTestEntity({
+      sourceAIGoalSquadObjectIds: [101, 102, 103],
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity();
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.sourceAIGoalSquadObjectIds).toEqual([101, 102, 103]);
   });
 
   it('round-trips Chinook combat-drop and rappel runtime state', () => {

@@ -69,6 +69,23 @@ export interface BlockerReportInputs {
       blockedRoundTrips?: number;
     };
   } | null;
+  sourceSaveMapAssets?: {
+    summary?: {
+      parseFailedSaveFiles?: number;
+      missingMapAssets?: number;
+      blockedSaveFiles?: number;
+    };
+    requiredMaps?: Array<{
+      sourceMapPath?: string;
+      status?: string;
+      saveFiles?: string[];
+      candidateOutputPaths?: string[];
+    }>;
+    parseFailures?: Array<{
+      fileName?: string;
+      error?: string;
+    }>;
+  } | null;
   visualSceneParity?: {
     summary?: {
       blockedScenarios?: number;
@@ -317,6 +334,56 @@ export function collectBlockerFindings(inputs: BlockerReportInputs): BlockerFind
     );
   }
 
+  if (!inputs.sourceSaveMapAssets) {
+    pushBlocker(
+      blockers,
+      'source-save-map-asset-report-missing',
+      'save-files',
+      1,
+      ['source-save-map-asset-report.json missing'],
+    );
+  } else {
+    const summary = inputs.sourceSaveMapAssets.summary ?? {};
+    const parseFailures = normalizeCount(summary.parseFailedSaveFiles);
+    const missingMapAssets = normalizeCount(summary.missingMapAssets);
+    const blockedSaveFiles = normalizeCount(summary.blockedSaveFiles);
+    const missingMapDetails = (inputs.sourceSaveMapAssets.requiredMaps ?? [])
+      .filter((row) => row.status === 'missing')
+      .slice(0, 10)
+      .map((row) => {
+        const sourceMapPath = row.sourceMapPath ?? '(unknown map)';
+        const saveCount = Array.isArray(row.saveFiles) ? row.saveFiles.length : 0;
+        const candidates = (row.candidateOutputPaths ?? []).slice(0, 2).join(', ');
+        const candidateSuffix = candidates ? ` candidates ${candidates}` : '';
+        return `${sourceMapPath} (${saveCount} save fixtures)${candidateSuffix}`;
+      });
+    const parseFailureDetails = (inputs.sourceSaveMapAssets.parseFailures ?? [])
+      .slice(0, 5)
+      .map((failure) => `${failure.fileName ?? '(unknown save)'}: ${failure.error ?? 'parse failed'}`);
+
+    pushBlocker(
+      blockers,
+      'source-save-map-assets-parse-failed',
+      'save-files',
+      parseFailures,
+      parseFailureDetails.length > 0
+        ? parseFailureDetails
+        : ['One or more source save fixtures could not be parsed while checking map asset readiness.'],
+    );
+    pushBlocker(
+      blockers,
+      'source-save-map-assets-missing',
+      'save-files',
+      Math.max(missingMapAssets, blockedSaveFiles),
+      missingMapDetails.length > 0
+        ? [
+          ...missingMapDetails,
+          'Run: npm run fixtures:extract-save-maps -- --big <path-to-Generals>/Maps.big',
+        ]
+        : ['Source save fixtures require map assets that are missing from the runtime manifest.'],
+    );
+  }
+
   if (!inputs.visualSceneParity) {
     pushBlocker(blockers, 'visual-scene-report-missing', 'visual-scenes', 1, ['visual-scene-parity-report.json missing']);
   } else {
@@ -413,6 +480,9 @@ async function main(): Promise<void> {
   const saveCoreChunks = await readJsonOrNull<BlockerReportInputs['saveCoreChunks']>(
     path.join(rootDir, 'save-core-chunk-report.json'),
   );
+  const sourceSaveMapAssets = await readJsonOrNull<BlockerReportInputs['sourceSaveMapAssets']>(
+    path.join(rootDir, 'source-save-map-asset-report.json'),
+  );
   const visualSceneParity = await readJsonOrNull<BlockerReportInputs['visualSceneParity']>(
     path.join(rootDir, 'visual-scene-parity-report.json'),
   );
@@ -427,6 +497,7 @@ async function main(): Promise<void> {
     prerequisiteCoverage,
     saveGeneratedModuleCoverage,
     saveCoreChunks,
+    sourceSaveMapAssets,
     visualSceneParity,
     uiLayoutParity,
   });

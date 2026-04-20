@@ -329,8 +329,8 @@ export function syncModelConditionFlags(self: GL, entity: MapEntity): void {
       flags.delete('SOLD');
     }
 
-    // ── DYING — during slow death / structure collapse ──
-    if (entity.slowDeathState || entity.structureCollapseState) {
+    // ── DYING — during slow death / structure collapse / imported AI_DEAD state ──
+    if (entity.sourceAIUpdateIsDead || entity.slowDeathState || entity.structureCollapseState) {
       flags.add('DYING');
     } else {
       flags.delete('DYING');

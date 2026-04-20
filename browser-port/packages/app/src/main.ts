@@ -155,6 +155,8 @@ import {
 } from './runtime-save-game.js';
 import { applySourceTeamFactoryChunkToState } from './runtime-team-factory-save.js';
 
+const E2E_AUTO_PAUSE_KEY = '__GENERALS_E2E_AUTO_PAUSE__';
+
 // ============================================================================
 // Loading screen
 // ============================================================================
@@ -198,6 +200,29 @@ function resolvePlayerTemplateNum(
     index += 1;
   }
   return -1;
+}
+
+function resolvePlayerTemplateSide(
+  iniDataRegistry: IniDataRegistry,
+  playerTemplateNum: number | null | undefined,
+): string | null {
+  const normalizedPlayerTemplateNum = typeof playerTemplateNum === 'number' && Number.isFinite(playerTemplateNum)
+    ? Math.trunc(playerTemplateNum)
+    : -1;
+  if (normalizedPlayerTemplateNum < 0) {
+    return null;
+  }
+  let index = 0;
+  for (const faction of iniDataRegistry.factions.values()) {
+    if (index === normalizedPlayerTemplateNum) {
+      const resolvedSide = typeof faction.side === 'string' && faction.side.trim().length > 0
+        ? faction.side.trim()
+        : faction.name.trim();
+      return resolvedSide.length > 0 ? resolvedSide : null;
+    }
+    index += 1;
+  }
+  return null;
 }
 
 function resolveChallengePlayerDisplayName(
@@ -1903,6 +1928,15 @@ async function startGame(
         gameLogic.setPlayerSide(0, resolved ?? playerName);
         break;
       }
+    }
+  }
+  if (campaignContext?.settings.gameMode === 'CHALLENGE' && gameLogic.getPlayerSide(0) === null) {
+    const challengePlayerSide = resolvePlayerTemplateSide(
+      ctx.iniDataRegistry,
+      campaignContext.settings.playerTemplateNum,
+    );
+    if (challengePlayerSide) {
+      gameLogic.setPlayerSide(0, challengePlayerSide);
     }
   }
 
@@ -4092,6 +4126,11 @@ async function startGame(
   // ========================================================================
 
   const gameLoop = new GameLoop(30);
+  const shouldAutoPauseForE2E = (globalThis as Record<string, unknown>)[E2E_AUTO_PAUSE_KEY] === true;
+  if (shouldAutoPauseForE2E) {
+    gameLoop.paused = true;
+    delete (globalThis as Record<string, unknown>)[E2E_AUTO_PAUSE_KEY];
+  }
   if (replaySkirmishSettings && !campaignContext && !replayContext) {
     replayManager.startRecording(
       activeMapPath ?? replaySkirmishSettings.mapPath ?? '',
@@ -5367,9 +5406,10 @@ async function startGame(
         runtimeSaveLoadContext?.runtimeSave.campaign?.challengeGameInfoState
         ?? null,
     });
+    const missionRuntimeMapPath = campaignContext.campaignManager.resolveMapAssetPath(activeMission) ?? activeMapPath;
     const saveFile = buildRuntimeSaveFile({
       description: missionSave.description,
-      mapPath: activeMapPath,
+      mapPath: missionRuntimeMapPath,
       mapData: null,
       cameraState: null,
       gameLogic,
@@ -5391,10 +5431,13 @@ async function startGame(
     const activeMission = campaignContext?.campaignManager.getCurrentMission()
       ?? campaignContext?.settings.mission
       ?? null;
+    const campaignRuntimeMapPath = activeMission && campaignContext
+      ? (campaignContext.campaignManager.resolveMapAssetPath(activeMission) ?? activeMapPath)
+      : activeMapPath;
     const currentCameraState = rtsCamera.getState();
     const saveFile = buildRuntimeSaveFile({
       description,
-      mapPath: activeMapPath,
+      mapPath: campaignRuntimeMapPath,
       mapData,
       cameraState: currentCameraState,
       tacticalViewState: {
@@ -5597,6 +5640,16 @@ async function startGame(
     loadGameFromSlot: (slotId: string) => loadSavedGameSlot(slotId),
     listSaves: () => ctx.saveStorage.listSaves(),
     findNextSaveSlotId: () => ctx.saveStorage.findNextSourceSaveSlotId(),
+    setSimulationPaused: (paused: boolean) => {
+      gameLoop.paused = paused;
+    },
+    setAutoPauseOnNextLoad: (paused: boolean) => {
+      if (paused) {
+        (globalThis as Record<string, unknown>)[E2E_AUTO_PAUSE_KEY] = true;
+      } else {
+        delete (globalThis as Record<string, unknown>)[E2E_AUTO_PAUSE_KEY];
+      }
+    },
     debugSpawnParticleSystem: (templateName: string, position: { x: number; y: number; z: number }) =>
       particleSystemManager.createSystem(
         templateName,
@@ -5661,7 +5714,7 @@ async function startGameFromRuntimeSave(
 
     const currentCampaign = campaignManager.getCurrentCampaign();
     const currentMission = campaignManager.getCurrentMission();
-    resolvedMapPath = resolvedMapPath ?? campaignManager.resolveMapAssetPath(currentMission);
+    resolvedMapPath = campaignManager.resolveMapAssetPath(currentMission) ?? resolvedMapPath;
     if (!currentCampaign || !currentMission || !resolvedMapPath) {
       throw new Error(
         'Campaign save restore did not resolve a valid campaign, mission, and runtime map path.',

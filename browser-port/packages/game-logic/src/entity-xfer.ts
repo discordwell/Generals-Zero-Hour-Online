@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 58;
+const ENTITY_XFER_VERSION = 63;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2012,12 +2012,36 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.sourceAIPickUpCrateState = null;
   }
   if (version >= 58) {
+    e.sourceAIAttackMoveState = xferNullableJsonObject(
+      xfer,
+      (e.sourceAIAttackMoveState as object | null | undefined) ?? null,
+    );
+  } else {
+    e.sourceAIAttackMoveState = null;
+  }
+  if (version >= 59) {
     e.sourceAISimpleMoveState = xferNullableJsonObject(
       xfer,
       (e.sourceAISimpleMoveState as object | null | undefined) ?? null,
     );
   } else {
     e.sourceAISimpleMoveState = null;
+  }
+  if (version >= 60) {
+    e.sourceAITemporaryState = xferNullableJsonObject(
+      xfer,
+      (e.sourceAITemporaryState as object | null | undefined) ?? null,
+    );
+  } else {
+    e.sourceAITemporaryState = null;
+  }
+  if (version >= 61) {
+    const sourceAIAttackStateId = Number.isFinite(e.sourceAIAttackStateId)
+      ? Number(e.sourceAIAttackStateId)
+      : 0;
+    e.sourceAIAttackStateId = xfer.xferInt(sourceAIAttackStateId);
+  } else {
+    e.sourceAIAttackStateId = null;
   }
   if (version >= 11) {
     e.chinookCombatDropState = xferNullableJsonObject(
@@ -2200,6 +2224,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.guardPositionZ = xfer.xferReal(e.guardPositionZ as number);
   e.guardObjectId = xfer.xferInt(e.guardObjectId as number);
   e.guardAreaTriggerIndex = xfer.xferInt(e.guardAreaTriggerIndex as number);
+  if (version >= 62) {
+    e.sourceGuardAreaName = xferNullableString(xfer, (e.sourceGuardAreaName as string | null | undefined) ?? null);
+  } else {
+    e.sourceGuardAreaName = null;
+  }
   e.guardMode = xfer.xferInt(e.guardMode as number);
   e.guardNextScanFrame = xfer.xferInt(e.guardNextScanFrame as number);
   e.guardChaseExpireFrame = xfer.xferInt(e.guardChaseExpireFrame as number);
@@ -2851,6 +2880,14 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     } else {
       e.healthBoxOffset = { x: 0, y: 0, z: 0 };
     }
+    if (version >= 63) {
+      e.sourceAIGoalSquadObjectIds = xferNullableJsonObject(
+        xfer,
+        (e.sourceAIGoalSquadObjectIds as number[] | null | undefined) ?? null,
+      );
+    } else {
+      e.sourceAIGoalSquadObjectIds = null;
+    }
     return;
   }
 
@@ -2881,4 +2918,5 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.sourceWaveGuideUpdateState = null;
   e.dumbProjectileProfile = null;
   e.healthBoxOffset = { x: 0, y: 0, z: 0 };
+  e.sourceAIGoalSquadObjectIds = null;
 }

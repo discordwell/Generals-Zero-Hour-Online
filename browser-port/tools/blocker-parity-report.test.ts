@@ -47,6 +47,15 @@ describe('blocker parity report', () => {
           blockedRoundTrips: 0,
         },
       },
+      sourceSaveMapAssets: {
+        summary: {
+          parseFailedSaveFiles: 0,
+          missingMapAssets: 0,
+          blockedSaveFiles: 0,
+        },
+        requiredMaps: [],
+        parseFailures: [],
+      },
       visualSceneParity: {
         summary: {
           blockedScenarios: 0,
@@ -118,6 +127,23 @@ describe('blocker parity report', () => {
           blockedRoundTrips: 4,
         },
       },
+      sourceSaveMapAssets: {
+        summary: {
+          parseFailedSaveFiles: 1,
+          missingMapAssets: 1,
+          blockedSaveFiles: 2,
+        },
+        requiredMaps: [{
+          sourceMapPath: 'Maps/USA02/USA02.map',
+          status: 'missing',
+          saveFiles: ['source-a.sav', 'source-b.sav'],
+          candidateOutputPaths: ['maps/_extracted/Maps/Maps/USA02/USA02.json'],
+        }],
+        parseFailures: [{
+          fileName: 'corrupt.sav',
+          error: 'bad header',
+        }],
+      },
       visualSceneParity: {
         summary: {
           blockedScenarios: 2,
@@ -168,6 +194,8 @@ describe('blocker parity report', () => {
       'save-core-raw-or-missing-chunks',
       'save-core-unsupported-gameclient-drawables',
       'save-core-roundtrip-blocked',
+      'source-save-map-assets-parse-failed',
+      'source-save-map-assets-missing',
       'visual-scene-blocked-scenarios',
       'ui-layout-blocked-scenarios',
     ]));
@@ -175,6 +203,11 @@ describe('blocker parity report', () => {
     expect(wetFixtureBlocker?.details).toEqual(expect.arrayContaining([
       'Import real retail/source saves with: npm run fixtures:import-source-saves -- <save-file-or-directory>',
       'Carve opaque disk captures with: npm run fixtures:carve-source-saves -- <capture-or-disk-image>',
+    ]));
+    const sourceMapBlocker = report.blockers.find((blocker) => blocker.id === 'source-save-map-assets-missing');
+    expect(sourceMapBlocker?.details).toEqual(expect.arrayContaining([
+      'Maps/USA02/USA02.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/USA02/USA02.json',
+      'Run: npm run fixtures:extract-save-maps -- --big <path-to-Generals>/Maps.big',
     ]));
   });
 });
