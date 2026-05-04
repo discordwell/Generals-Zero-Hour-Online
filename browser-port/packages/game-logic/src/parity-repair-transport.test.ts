@@ -66,6 +66,7 @@ describe('Dozer repair rate (C++ parity)', () => {
         MaxHealth: 1000,
         InitialHealth: 1000,
       }),
+      makeBlock('Behavior', 'BaseRegenerateUpdate ModuleTag_BaseRegen', {}),
     ]);
 
     const bundle = makeBundle({

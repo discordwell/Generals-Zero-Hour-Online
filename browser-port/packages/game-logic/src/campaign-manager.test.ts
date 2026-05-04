@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { RuntimeManifest } from '@generals/assets';
 import {
   CampaignManager,
+  FALLBACK_ZERO_HOUR_CAMPAIGN_INI,
   parseCampaignIni,
   resolveCampaignMapAssetPath,
   type Campaign,
@@ -405,6 +406,23 @@ describe('parseCampaignIni', () => {
     expect(usa.isChallengeCampaign).toBe(false);
   });
 
+  it('parses packaged fallback campaigns for shell startup without raw Campaign.ini', () => {
+    const campaigns = parseCampaignIni(FALLBACK_ZERO_HOUR_CAMPAIGN_INI);
+    const storyCampaigns = campaigns.filter(c => !c.isChallengeCampaign);
+    const challengeCampaigns = campaigns.filter(c => c.isChallengeCampaign);
+    const usa = campaigns.find(c => c.name === 'usa')!;
+    const challenge0 = campaigns.find(c => c.name === 'challenge_0')!;
+
+    expect(storyCampaigns.map(c => c.name).sort()).toEqual(['china', 'gla', 'usa']);
+    expect(challengeCampaigns).toHaveLength(9);
+    expect(usa.missions[0]?.mapName).toBe('Maps\\MD_USA01\\MD_USA01.map');
+    expect(usa.missions[0]?.nextMission).toBe('mission02');
+    expect(usa.missions[1]?.mapName).toBe('Maps\\MD_USA02\\MD_USA02.map');
+    expect(usa.missions[1]?.movieLabel).toBe('MD_USA02_0');
+    expect(challenge0.playerFactionName).toBe('FactionAmericaAirForceGeneral');
+    expect(challenge0.missions[0]?.mapName).toBe('Maps\\GC_ChemGeneral\\GC_ChemGeneral.map');
+  });
+
   it('parses challenge campaign fields', () => {
     const campaigns = parseCampaignIni(MINIMAL_CAMPAIGN_INI);
     const challenge = campaigns.find(c => c.name === 'challenge_0')!;
@@ -546,6 +564,30 @@ describe('CampaignManager', () => {
     expect(mgr.setCampaignAndMission('USA', 'Mission02')).toBe(true);
     expect(mgr.getCurrentMission()!.name).toBe('mission02');
     expect(mgr.getCurrentMissionNumber()).toBe(1);
+  });
+
+  it('restores a source save campaign snapshot without Campaign.ini mission data', () => {
+    const mgr = new CampaignManager();
+    expect(mgr.restoreCampaignSaveSnapshot({
+      campaignName: 'challenge_3',
+      missionName: 'mission06',
+      missionNumber: 5,
+      mapName: 'Maps\\GC_NukeGeneral\\GC_NukeGeneral.map',
+      isChallengeCampaign: true,
+    })).toBe(true);
+
+    expect(mgr.getCurrentCampaign()).toEqual(expect.objectContaining({
+      name: 'challenge_3',
+      isChallengeCampaign: true,
+    }));
+    expect(mgr.getCurrentMission()).toEqual(expect.objectContaining({
+      name: 'mission06',
+      mapName: 'Maps\\GC_NukeGeneral\\GC_NukeGeneral.map',
+    }));
+    expect(mgr.getCurrentMissionNumber()).toBe(5);
+    expect(mgr.resolveMapAssetPath()).toBe(
+      'maps/_extracted/MapsZH/Maps/GC_NukeGeneral/GC_NukeGeneral.json',
+    );
   });
 
   it('resolveMapAssetPath converts Windows path to asset path', () => {

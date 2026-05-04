@@ -20,6 +20,7 @@ import { GameLogicSubsystem } from './index.js';
 import {
   makeBlock,
   makeObjectDef,
+  makeObjectCreationListDef,
   makeWeaponDef,
   makeBundle,
   makeRegistry,
@@ -302,6 +303,7 @@ describe('FireSpreadUpdate — fire spreads to nearby flammable objects (C++ par
     flameStatus: 'NORMAL' | 'AFLAME' | 'BURNED';
     flammableProfile: object | null;
     fireSpreadProfile: {
+      oclEmbersName: string;
       minSpreadDelayFrames: number;
       maxSpreadDelayFrames: number;
       spreadTryRange: number;
@@ -315,16 +317,21 @@ describe('FireSpreadUpdate — fire spreads to nearby flammable objects (C++ par
     minSpreadDelayMs?: number;
     maxSpreadDelayMs?: number;
     targetDistance?: number;
+    oclEmbersName?: string;
+    burningSoundName?: string;
+    aflameDurationMs?: number;
   } = {}) {
     const spreaderDef = makeObjectDef('BurningBuilding', 'America', ['STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
       makeBlock('Behavior', 'FlammableUpdate ModuleTag_Flammable', {
         FlameDamageLimit: 1,
-        AflameDuration: 10000,
+        AflameDuration: opts.aflameDurationMs ?? 10000,
         AflameDamageDelay: 500,
         AflameDamageAmount: 5,
+        ...(opts.burningSoundName ? { BurningSoundName: opts.burningSoundName } : {}),
       }),
       makeBlock('Behavior', 'FireSpreadUpdate ModuleTag_FireSpread', {
+        ...(opts.oclEmbersName ? { OCLEmbers: opts.oclEmbersName } : {}),
         MinSpreadDelay: opts.minSpreadDelayMs ?? 100,
         MaxSpreadDelay: opts.maxSpreadDelayMs ?? 100,
         SpreadTryRange: opts.spreadTryRange ?? 50,
@@ -361,9 +368,21 @@ describe('FireSpreadUpdate — fire spreads to nearby flammable objects (C++ par
       makeMapObject('Flamer', 5, 5),
     ];
 
+    const emberDef = opts.oclEmbersName
+      ? [makeObjectDef('FireEmber', 'America', ['UNATTACKABLE'], [
+        makeBlock('Body', 'InactiveBody ModuleTag_Body', {}),
+      ])]
+      : [];
+    const objectCreationLists = opts.oclEmbersName
+      ? [makeObjectCreationListDef(opts.oclEmbersName, [
+        makeBlock('CreateObject', 'CreateObject', { ObjectNames: 'FireEmber' }),
+      ])]
+      : [];
+
     const bundle = makeBundle({
-      objects: [spreaderDef, targetDef, attackerDef],
+      objects: [spreaderDef, targetDef, attackerDef, ...emberDef],
       weapons: [flameWeapon],
+      objectCreationLists,
     });
     const scene = new THREE.Scene();
     const logic = new GameLogicSubsystem(scene);
@@ -411,6 +430,46 @@ describe('FireSpreadUpdate — fire spreads to nearby flammable objects (C++ par
     // MinSpreadDelay=100ms = ceil(100/33.33)=3 frames. Run 30 to be safe.
     for (let i = 0; i < 30; i++) logic.update(1 / 30);
     expect(target.flameStatus).toBe('AFLAME');
+  });
+
+  it('creates OCLEmbers on each fire spread attempt (C++ line 124)', () => {
+    const { logic, priv } = makeFireSpreadSetup({
+      spreadTryRange: 0,
+      minSpreadDelayMs: 100,
+      maxSpreadDelayMs: 100,
+      oclEmbersName: 'OCL_TestFireEmbers',
+    });
+
+    const spreader = priv.spawnedEntities.get(1)!;
+    priv.igniteEntity(spreader);
+
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    const emberCount = Array.from(priv.spawnedEntities.values())
+      .filter((entity: any) => entity.templateName === 'FireEmber').length;
+    expect(spreader.fireSpreadProfile?.oclEmbersName).toBe('OCL_TestFireEmbers');
+    expect(emberCount).toBeGreaterThan(0);
+  });
+
+  it('plays and removes BurningSoundName for the aflame lifetime (C++ FlammableUpdate)', () => {
+    const { logic, priv } = makeFireSpreadSetup({
+      burningSoundName: 'BuildingBurningLoop',
+      aflameDurationMs: 100,
+    });
+
+    const spreader = priv.spawnedEntities.get(1)!;
+    priv.igniteEntity(spreader);
+
+    expect(logic.drainScriptAudioPlaybackRequests()).toContainEqual(expect.objectContaining({
+      audioName: 'BuildingBurningLoop',
+      sourceEntityId: 1,
+    }));
+
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    expect(logic.drainScriptAudioRemovalRequests()).toContainEqual(expect.objectContaining({
+      eventName: 'BuildingBurningLoop',
+    }));
   });
 
   it('fire does not spread to entities outside SpreadTryRange (C++ line 127-155)', () => {

@@ -43,6 +43,7 @@ describe('hack internet save-state', () => {
         hackInternetRuntimeState: {
           cashUpdateDelayFrames: number;
           cashAmountPerCycle: number;
+          xpPerCashUpdate: number;
           nextCashFrame: number;
         } | null;
         hackInternetPendingCommand: {
@@ -65,6 +66,7 @@ describe('hack internet save-state', () => {
     entity.hackInternetRuntimeState = {
       cashUpdateDelayFrames: 90,
       cashAmountPerCycle: 5,
+      xpPerCashUpdate: 2,
       nextCashFrame: 120,
     };
     entity.hackInternetPendingCommand = {
@@ -93,6 +95,7 @@ describe('hack internet save-state', () => {
     expect(restoredEntity?.hackInternetRuntimeState).toEqual({
       cashUpdateDelayFrames: 90,
       cashAmountPerCycle: 5,
+      xpPerCashUpdate: 2,
       nextCashFrame: 120,
     });
     expect(restoredEntity?.hackInternetPendingCommand).toEqual({
@@ -140,6 +143,7 @@ describe('hack internet save-state', () => {
         hackInternetRuntimeState: {
           cashUpdateDelayFrames: number;
           cashAmountPerCycle: number;
+          xpPerCashUpdate: number;
           nextCashFrame: number;
         } | null;
         hackInternetPendingCommand: {
@@ -158,6 +162,7 @@ describe('hack internet save-state', () => {
     expect(entity?.hackInternetRuntimeState).toEqual({
       cashUpdateDelayFrames: 60,
       cashAmountPerCycle: 8,
+      xpPerCashUpdate: 0,
       nextCashFrame: 140,
     });
     expect(entity?.hackInternetPendingCommand).toEqual({

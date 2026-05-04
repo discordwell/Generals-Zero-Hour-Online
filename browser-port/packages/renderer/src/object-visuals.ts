@@ -45,6 +45,8 @@ export interface RenderableEntityState {
    */
   ignoreConditionStates?: readonly string[];
   modelConditionFlags?: readonly string[];
+  /** Source parity: Drawable::setAnimationFrame from ManualDeployAnimations. */
+  manualAnimationFrame?: number;
   category?: string;
   currentSpeed?: number;
   maxSpeed?: number;
@@ -87,6 +89,9 @@ export interface RenderableEntityState {
   isOwnedByLocalPlayer?: boolean;
   /** True when the entity is in guard mode (guardState !== 'NONE'). */
   isGuarding?: boolean;
+  /** Source parity: SubObjectsUpgrade Drawable::showSubObject overrides. */
+  forcedHiddenSubObjects?: readonly string[];
+  forcedShownSubObjects?: readonly string[];
   /** Tunnel enter/exit transition opacity override (0..1). Undefined = no transition active. */
   tunnelTransitionOpacity?: number;
 }
@@ -428,6 +433,8 @@ export class ObjectVisualManager {
       this.syncStealthOpacity(visual, state);
       this.syncTurretBones(visual, state);
       this.syncConditionAnimation(visual, state, dt);
+      this.syncManualAnimationFrame(visual, state);
+      this.syncForcedSubObjectVisibility(visual, state);
       // Only use legacy 5-state system if condition system isn't managing animation.
       if (visual.conditionAction === null) {
         this.applyAnimationState(visual, state.animationState);
@@ -2564,6 +2571,27 @@ export class ObjectVisualManager {
     this.playConditionClip(visual, clipName, match.animationMode);
   }
 
+  private syncManualAnimationFrame(visual: VisualAssetState, state: RenderableEntityState): void {
+    if (!Number.isFinite(state.manualAnimationFrame)) {
+      return;
+    }
+    const action = visual.conditionAction;
+    const mixer = visual.mixer;
+    if (!action || !mixer) {
+      return;
+    }
+    const clip = action.getClip();
+    if (!clip || clip.duration <= 0) {
+      return;
+    }
+    const frame = Math.max(0, Number(state.manualAnimationFrame));
+    action.enabled = true;
+    action.paused = false;
+    action.timeScale = 0;
+    action.time = Math.min(clip.duration, frame / 30);
+    mixer.update(0);
+  }
+
   /**
    * Apply sub-object hide/show lists from a condition-like info.
    */
@@ -2583,6 +2611,13 @@ export class ObjectVisualManager {
         }
       });
     }
+  }
+
+  private syncForcedSubObjectVisibility(visual: VisualAssetState, state: RenderableEntityState): void {
+    const hideSubObjects = [...(state.forcedHiddenSubObjects ?? [])];
+    const showSubObjects = [...(state.forcedShownSubObjects ?? [])];
+    if (hideSubObjects.length === 0 && showSubObjects.length === 0) return;
+    this.applySubObjectVisibility(visual, { hideSubObjects, showSubObjects });
   }
 
   /**

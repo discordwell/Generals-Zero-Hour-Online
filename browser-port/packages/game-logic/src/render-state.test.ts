@@ -14,6 +14,7 @@ import {
   makeScienceDef,
   makeAudioEventDef,
   makeSpecialPowerDef,
+  makeObjectCreationListDef,
   makeBundle,
   makeRegistry,
   makeHeightmap,
@@ -52,6 +53,50 @@ describe('ModelConditionUpgrade', () => {
     logic.update(1 / 30);
 
     expect(entity.modelConditionFlags.has('UPGRADE')).toBe(true);
+  });
+});
+
+describe('SubObjectsUpgrade', () => {
+  it('forces sub-object visibility on upgrade application and exposes it to render state', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('PayloadUnit', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('Behavior', 'SubObjectsUpgrade ModuleTag_SubObjectsA', {
+            TriggeredBy: 'Upgrade_LoadA',
+            ShowSubObjects: 'Bombload02 BombWing',
+            HideSubObjects: 'Bombload01',
+          }),
+          makeBlock('Behavior', 'SubObjectsUpgrade ModuleTag_SubObjectsB', {
+            TriggeredBy: 'Upgrade_LoadB',
+            ShowSubObjects: 'Bombload01',
+            HideSubObjects: 'Bombload02',
+          }),
+        ]),
+      ],
+      upgrades: [
+        makeUpgradeDef('Upgrade_LoadA', { Type: 'OBJECT', BuildTime: 0.1, BuildCost: 0 }),
+        makeUpgradeDef('Upgrade_LoadB', { Type: 'OBJECT', BuildTime: 0.1, BuildCost: 0 }),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([makeMapObject('PayloadUnit', 50, 50)]), makeRegistry(bundle), makeHeightmap());
+
+    logic.submitCommand({ type: 'applyUpgrade', entityId: 1, upgradeName: 'Upgrade_LoadA' });
+    logic.update(1 / 30);
+
+    let state = logic.getRenderableEntityStates()[0]!;
+    expect(state.forcedShownSubObjects).toEqual(['BOMBLOAD02', 'BOMBWING']);
+    expect(state.forcedHiddenSubObjects).toEqual(['BOMBLOAD01']);
+
+    logic.submitCommand({ type: 'applyUpgrade', entityId: 1, upgradeName: 'Upgrade_LoadB' });
+    logic.update(1 / 30);
+
+    state = logic.getRenderableEntityStates()[0]!;
+    expect(state.forcedShownSubObjects).toEqual(['BOMBLOAD01', 'BOMBWING']);
+    expect(state.forcedHiddenSubObjects).toEqual(['BOMBLOAD02']);
+    expect(logic.getEntityState(1)!.forcedShownSubObjects).toEqual(['BOMBLOAD01', 'BOMBWING']);
+    expect(logic.getEntityState(1)!.forcedHiddenSubObjects).toEqual(['BOMBLOAD02']);
   });
 });
 
@@ -1049,11 +1094,12 @@ describe('RadiusDecalUpdate', () => {
     return { logic };
   }
 
-  it('tracks radius decal position to entity position', () => {
+  it('keeps radius decal anchored at its created position', () => {
     const { logic } = makeRadiusDecalSetup();
     const priv = logic as unknown as {
       spawnedEntities: Map<number, {
         x: number;
+        y: number;
         z: number;
         radiusDecalStates: Array<{
           positionX: number;
@@ -1070,20 +1116,130 @@ describe('RadiusDecalUpdate', () => {
 
     // Add a radius decal programmatically.
     entity.radiusDecalStates.push({
-      positionX: 0,
+      positionX: 11,
       positionY: 0,
-      positionZ: 0,
+      positionZ: 17,
       radius: 50,
       visible: true,
       killWhenNoLongerAttacking: false,
     });
+    entity.x = 80;
+    entity.y = 2;
+    entity.z = 90;
 
-    // Run a frame — decal should update to entity position.
+    // Run a frame — C++ updates the decal object without moving it to the source entity.
     logic.update(1 / 30);
 
     expect(entity.radiusDecalStates.length).toBe(1);
-    expect(entity.radiusDecalStates[0]!.positionX).toBe(entity.x);
-    expect(entity.radiusDecalStates[0]!.positionZ).toBeCloseTo(entity.z, 1);
+    expect(entity.radiusDecalStates[0]!.positionX).toBe(11);
+    expect(entity.radiusDecalStates[0]!.positionY).toBe(0);
+    expect(entity.radiusDecalStates[0]!.positionZ).toBe(17);
+  });
+
+  it('extracts RadiusDecalUpdate module state from normal INI', () => {
+    const unitDef = makeObjectDef('TestUnit', 'America', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+      makeBlock('Behavior', 'RadiusDecalUpdate ModuleTag_RadiusDecal', {}),
+    ]);
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestUnit', 3, 3)]),
+      makeRegistry(makeBundle({ objects: [unitDef] })),
+      makeHeightmap(),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        radiusDecalModuleStates: Array<{ moduleTag: string; killWhenNoLongerAttacking: boolean }>;
+      }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+
+    expect(entity.radiusDecalModuleStates).toEqual([{
+      moduleTag: 'MODULETAG_RADIUSDECAL',
+      killWhenNoLongerAttacking: false,
+    }]);
+  });
+
+  it('OCL Attack creates a target decal and fires at the attack position', () => {
+    const launcherDef = makeObjectDef('Launcher', 'America', ['STRUCTURE'], [
+      makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'TestGroundWeapon'] }),
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+      makeBlock('Behavior', 'AIUpdateInterface ModuleTag_AI', {}),
+      makeBlock('Behavior', 'RadiusDecalUpdate ModuleTag_RadiusDecal', {}),
+    ]);
+    const enemyDef = makeObjectDef('Target', 'GLA', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+    ]);
+    const bundle = makeBundle({
+      objects: [launcherDef, enemyDef],
+      weapons: [
+        makeWeaponDef('TestGroundWeapon', {
+          AttackRange: 9999,
+          PrimaryDamage: 25,
+          PrimaryDamageRadius: 40,
+          WeaponSpeed: 999999,
+          DelayBetweenShots: 0,
+          RadiusDamageAffects: ['ENEMIES', 'NEUTRALS'],
+        }),
+      ],
+      objectCreationLists: [
+        makeObjectCreationListDef('OCL_TestAttack', [
+          makeBlock('Attack', 'Attack', { NumberOfShots: 1, WeaponSlot: 'PRIMARY', DeliveryDecalRadius: 35 }, [
+            makeBlock('DeliveryDecal', 'DeliveryDecal', { Texture: 'TestDecal' }),
+          ]),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Launcher', 10, 10), makeMapObject('Target', 30, 30)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        templateName: string;
+        health: number;
+        objectStatusFlags: Set<string>;
+        radiusDecalStates: Array<{
+          positionX: number;
+          positionY: number;
+          positionZ: number;
+          radius: number;
+          visible: boolean;
+          killWhenNoLongerAttacking: boolean;
+        }>;
+        radiusDecalModuleStates: Array<{ moduleTag: string; killWhenNoLongerAttacking: boolean }>;
+      }>;
+      executeOCL(name: string, source: unknown, lifetimeOverrideFrames?: number, targetX?: number, targetZ?: number): void;
+    };
+    const launcher = [...priv.spawnedEntities.values()].find((entity) => entity.templateName === 'Launcher')!;
+    const target = [...priv.spawnedEntities.values()].find((entity) => entity.templateName === 'Target')!;
+
+    priv.executeOCL('OCL_TestAttack', launcher, undefined, 30, 30);
+
+    expect(launcher.radiusDecalStates).toHaveLength(1);
+    expect(launcher.radiusDecalStates[0]).toMatchObject({
+      positionX: 30,
+      positionZ: 30,
+      radius: 35,
+      visible: true,
+      killWhenNoLongerAttacking: true,
+    });
+    expect(launcher.radiusDecalModuleStates[0]!.killWhenNoLongerAttacking).toBe(true);
+    expect(launcher.objectStatusFlags.has('IS_ATTACKING')).toBe(true);
+
+    logic.update(1 / 30);
+
+    expect(target.health).toBeLessThan(100);
+    expect(launcher.radiusDecalStates).toHaveLength(1);
+
+    logic.update(1 / 30);
+
+    expect(launcher.radiusDecalStates).toHaveLength(0);
   });
 
   it('removes decal when kill-when-not-attacking and entity stops attacking', () => {
@@ -1126,6 +1282,58 @@ describe('RadiusDecalUpdate', () => {
   });
 });
 
+describe('Client visual update modules', () => {
+  it('extracts AnimatedParticleSysBoneClientUpdate and SwayClientUpdate render state from INI', () => {
+    const objectDef = makeObjectDef('VisualClientObject', 'Neutral', ['IMMOBILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('ClientUpdate', 'AnimatedParticleSysBoneClientUpdate ModuleTag_ParticleBones', {}),
+      makeBlock('ClientUpdate', 'SwayClientUpdate ModuleTag_Sway', {}),
+    ]);
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('VisualClientObject', 5, 5)]),
+      makeRegistry(makeBundle({ objects: [objectDef] })),
+      makeHeightmap(),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        animatedParticleSysBoneClientUpdateState: { moduleTag: string; life: number } | null;
+        swayClientUpdateState: {
+          moduleTag: string;
+          curValue: number;
+          curAngle: number;
+          curDelta: number;
+          curAngleLimit: number;
+          leanAngle: number;
+          curVersion: number;
+          swaying: boolean;
+        } | null;
+      }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+
+    expect(entity.animatedParticleSysBoneClientUpdateState).toEqual({
+      moduleTag: 'MODULETAG_PARTICLEBONES',
+      life: 0,
+    });
+    expect(entity.swayClientUpdateState).toEqual({
+      moduleTag: 'MODULETAG_SWAY',
+      curValue: 0,
+      curAngle: 0,
+      curDelta: 0,
+      curAngleLimit: 0,
+      leanAngle: 0,
+      curVersion: -1,
+      swaying: true,
+    });
+
+    const renderable = logic.getRenderableEntityStates()[0]!;
+    expect(renderable.animatedParticleSysBoneClientUpdate).toEqual(entity.animatedParticleSysBoneClientUpdateState);
+    expect(renderable.swayClientUpdate).toEqual(entity.swayClientUpdateState);
+  });
+});
+
 describe('BoneFXUpdate', () => {
   function makeBoneFXSetup(opts: {
     fxListFields?: Record<string, string>;
@@ -1145,6 +1353,7 @@ describe('BoneFXUpdate', () => {
         InitialHealth: opts.health ?? 500,
       }),
       makeBlock('Behavior', 'BoneFXUpdate ModuleTag_BoneFX', fields),
+      makeBlock('Behavior', 'BoneFXDamage ModuleTag_BoneFXDamage', {}),
     ]);
 
     const bundle = makeBundle({ objects: [buildingDef] });
@@ -1216,6 +1425,25 @@ describe('BoneFXUpdate', () => {
     expect(entity.boneFXState).not.toBeNull();
   });
 
+  it('requires the BoneFXDamage companion before initializing BoneFXUpdate state', () => {
+    const buildingDef = makeObjectDef('BoneFXBuilding', 'America', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+      makeBlock('Behavior', 'BoneFXUpdate ModuleTag_BoneFX', {
+        PristineFXList1: 'Bone:FXBone01 OnlyOnce:No 0 0 FXList:FXBoneFire',
+      }),
+    ]);
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('BoneFXBuilding', 4, 4)]),
+      makeRegistry(makeBundle({ objects: [buildingDef] })),
+      makeHeightmap(),
+    );
+
+    const entity = (logic as any).spawnedEntities.values().next().value;
+    expect(entity.boneFXProfile).toBeNull();
+    expect(entity.boneFXState).toBeNull();
+  });
+
   it('fires FX events at scheduled frames', () => {
     const { logic } = makeBoneFXSetup({
       fxListFields: {
@@ -1248,6 +1476,37 @@ describe('BoneFXUpdate', () => {
     expect(events[0]!.type).toBe('FX');
     expect(events[0]!.effectName).toBe('FXBoneFire');
     expect(events[0]!.boneName).toBe('FXBone01');
+  });
+
+  it('emits pristine particle systems through the visual event pipeline', () => {
+    const { logic } = makeBoneFXSetup({
+      psysFields: {
+        PristineParticleSystem1: 'Bone:FXBone01 OnlyOnce:No 0 0 PSys:SmokePlume',
+      },
+    });
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        boneFXState: {
+          pendingVisualEvents: Array<{ type: string; effectName: string; boneName: string }>;
+        } | null;
+      }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+
+    logic.drainVisualEvents();
+    logic.update(1 / 30);
+
+    expect(entity.boneFXState!.pendingVisualEvents).toContainEqual(expect.objectContaining({
+      type: 'PARTICLE_SYSTEM',
+      effectName: 'SmokePlume',
+      boneName: 'FXBone01',
+    }));
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_PARTICLE_SYSTEM',
+      effectName: 'SmokePlume',
+      sourceEntityId: 1,
+    }));
   });
 
   it('stops after first fire when onlyOnce is set', () => {

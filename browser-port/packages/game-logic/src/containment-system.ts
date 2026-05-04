@@ -12,7 +12,14 @@ import {
   executeRailedTransportCommand as executeRailedTransportCommandImpl,
 } from './railed-transport.js';
 import { isPassengerAllowedToFireFromContainingObject as isPassengerAllowedToFireFromContainingObjectImpl } from './combat-containment.js';
-import { RELATIONSHIP_ENEMIES, BASE_REGEN_HEALTH_PERCENT_PER_SECOND, LOGIC_FRAME_RATE, calcBodyDamageState } from './index.js';
+import { buildContainedEntityIdsByContainerId } from './containment-queries.js';
+import {
+  RELATIONSHIP_ENEMIES,
+  BASE_REGEN_HEALTH_PERCENT_PER_SECOND,
+  LOGIC_FRAME_RATE,
+  WEAPON_SET_FLAG_MASK_BY_NAME,
+  calcBodyDamageState,
+} from './index.js';
 type GL = any;
 
 // ---- Containment implementations ----
@@ -446,6 +453,89 @@ export function noteContainerEnteredBy(self: GL, container: MapEntity, rider: Ma
   container.containPlayerEnteredToken = self.resolveEntityControllingPlayerTokenForAffiliation(rider);
 }
 
+export function findRiderChangeInfoForPassenger(self: GL, container: MapEntity, passenger: MapEntity): RiderInfo | null {
+  const profile = container.riderChangeContainProfile;
+  if (!profile) {
+    return null;
+  }
+  for (const riderInfo of profile.riders) {
+    if (self.areEquivalentTemplateNames(passenger.templateName, riderInfo.templateName)) {
+      return riderInfo;
+    }
+  }
+  return null;
+}
+
+function normalizeRiderObjectStatus(self: GL, statusName: string): string | null {
+  const normalized = self.normalizeObjectStatusName(statusName);
+  return normalized && normalized !== 'NONE' ? normalized : null;
+}
+
+function applyRiderChangeInfo(self: GL, container: MapEntity, riderInfo: RiderInfo): void {
+  if (riderInfo.modelConditionFlag) {
+    container.modelConditionFlags.add(riderInfo.modelConditionFlag);
+  }
+  const weaponSetMask = WEAPON_SET_FLAG_MASK_BY_NAME.get(riderInfo.weaponSetFlag) ?? 0;
+  if (weaponSetMask !== 0) {
+    container.weaponSetFlagsMask |= weaponSetMask;
+  }
+  const objectStatus = normalizeRiderObjectStatus(self, riderInfo.objectStatus);
+  if (objectStatus) {
+    container.objectStatusFlags.add(objectStatus);
+    self.syncDerivedStatusFields(container);
+  }
+  const commandSet = riderInfo.commandSet.trim();
+  if (commandSet && commandSet.toUpperCase() !== 'NONE') {
+    container.commandSetStringOverride = riderInfo.commandSet;
+  }
+  const locomotorSetType = riderInfo.locomotorSetType.trim();
+  if (locomotorSetType && locomotorSetType.toUpperCase() !== 'NONE') {
+    self.setEntityLocomotorSet(container.id, locomotorSetType);
+  }
+  if (container.objectStatusFlags.has('STEALTHED')) {
+    container.objectStatusFlags.add('DETECTED');
+  }
+}
+
+function clearRiderChangeInfo(self: GL, container: MapEntity, riderInfo: RiderInfo): void {
+  if (riderInfo.modelConditionFlag) {
+    container.modelConditionFlags.delete(riderInfo.modelConditionFlag);
+  }
+  container.modelConditionFlags.delete('DOOR_1_CLOSING');
+  const weaponSetMask = WEAPON_SET_FLAG_MASK_BY_NAME.get(riderInfo.weaponSetFlag) ?? 0;
+  if (weaponSetMask !== 0) {
+    container.weaponSetFlagsMask &= ~weaponSetMask;
+  }
+  const objectStatus = normalizeRiderObjectStatus(self, riderInfo.objectStatus);
+  if (objectStatus) {
+    container.objectStatusFlags.delete(objectStatus);
+    self.syncDerivedStatusFields(container);
+  }
+}
+
+function onRiderChangePassengerRemoving(
+  self: GL,
+  container: MapEntity,
+  passenger: MapEntity,
+  suppressScuttle: boolean,
+): void {
+  const riderInfo = findRiderChangeInfoForPassenger(self, container, passenger);
+  if (riderInfo) {
+    clearRiderChangeInfo(self, container, riderInfo);
+  }
+  if (suppressScuttle) {
+    return;
+  }
+  container.riderChangeScuttledFrame = self.frameCounter;
+  container.objectStatusFlags.add('UNSELECTABLE');
+  container.modelConditionFlags.add(container.riderChangeContainProfile?.scuttleStatus ?? 'TOPPLED');
+  if (!container.moving) {
+    container.objectStatusFlags.add('IMMOBILE');
+    container.isImmobile = true;
+  }
+  self.syncDerivedStatusFields(container);
+}
+
 export function canSourceAttemptContainerEnter(self: GL, source: MapEntity): boolean {
   if (self.isEntityDisabledForMovement(source)) {
     return false;
@@ -630,6 +720,26 @@ export function enterGarrisonBuilding(self: GL, source: MapEntity, building: Map
 export function enterTransport(self: GL, passenger: MapEntity, transport: MapEntity): void {
   self.cancelEntityCommandPathActions(passenger.id);
   self.clearAttackTarget(passenger.id);
+
+  let riderChangeInfo: RiderInfo | null = null;
+  if (transport.containProfile?.moduleType === 'RIDERCHANGE') {
+    riderChangeInfo = findRiderChangeInfoForPassenger(self, transport, passenger);
+    if (!riderChangeInfo || transport.riderChangeScuttledFrame !== 0) {
+      return;
+    }
+    for (const existingPassengerId of collectContainedEntityIds(self, transport.id)) {
+      if (existingPassengerId === passenger.id) continue;
+      const existingPassenger = self.spawnedEntities.get(existingPassengerId);
+      if (!existingPassenger || existingPassenger.destroyed) continue;
+      releaseEntityFromContainer(self, existingPassenger, { suppressRiderChangeScuttle: true });
+      existingPassenger.x = transport.x;
+      existingPassenger.z = transport.z;
+      existingPassenger.y = self.resolveGroundHeight(existingPassenger.x, existingPassenger.z) + existingPassenger.baseHeight;
+      self.updatePathfindPosCell(existingPassenger);
+    }
+    applyRiderChangeInfo(self, transport, riderChangeInfo);
+  }
+
   passenger.transportContainerId = transport.id;
   noteContainerEnteredBy(self, transport, passenger);
   passenger.x = transport.x;
@@ -660,6 +770,7 @@ export function isEnclosingContainer(self: GL, container: MapEntity): boolean {
   const profile = container.containProfile;
   if (!profile) return false;
   return profile.moduleType === 'TRANSPORT'
+    || profile.moduleType === 'RIDERCHANGE'
     || profile.moduleType === 'OVERLORD'
     || profile.moduleType === 'HELIX'
     || profile.moduleType === 'TUNNEL'
@@ -770,7 +881,7 @@ export function updateHealing(self: GL): void {
     }
 
     // ── BaseRegenerateUpdate (structure regen) ──
-    if (entity.kindOf.has('STRUCTURE') && !isDisabled && entity.health < entity.maxHealth
+    if (entity.baseRegenerateUpdateProfile && !isDisabled && entity.health < entity.maxHealth
         && !entity.objectStatusFlags.has('UNDER_CONSTRUCTION')
         && !entity.objectStatusFlags.has('SOLD')
         && BASE_REGEN_HEALTH_PERCENT_PER_SECOND > 0) {
@@ -792,11 +903,24 @@ export function updateHealing(self: GL): void {
         && !entity.objectStatusFlags.has('SOLD')) {
       const prof = entity.propagandaTowerProfile;
       const isUpgraded = prof.upgradeRequired !== null
-        && entity.completedUpgrades.has(prof.upgradeRequired.toUpperCase());
+        && self.entityHasUpgrade(entity, prof.upgradeRequired);
       const healPct = isUpgraded ? prof.upgradedHealPercentPerSecond : prof.healPercentPerSecond;
 
       // Rescan for units in range periodically.
       if (self.frameCounter >= entity.propagandaTowerNextScanFrame) {
+        const pulseFXName = (isUpgraded ? prof.upgradedPulseFXName : prof.pulseFXName).trim();
+        if (pulseFXName) {
+          self.visualEventBuffer.push({
+            type: 'NAMED_FX',
+            x: entity.x,
+            y: entity.y,
+            z: entity.z,
+            radius: 0,
+            sourceEntityId: entity.id,
+            projectileType: 'BULLET',
+            effectName: pulseFXName,
+          });
+        }
         entity.propagandaTowerTrackedIds = [];
         const radiusSq = prof.radius * prof.radius;
         for (const target of self.spawnedEntities.values()) {
@@ -1040,6 +1164,7 @@ export function updateTransportContainHealing(self: GL): void {
     if (profile.healthRegenPercentPerSec <= 0) continue;
     // Source parity: only transport-derived containers have HealthRegen%PerSec.
     const isTransportDerived = profile.moduleType === 'TRANSPORT'
+      || profile.moduleType === 'RIDERCHANGE'
       || profile.moduleType === 'OVERLORD'
       || profile.moduleType === 'HELIX'
       || profile.moduleType === 'INTERNET_HACK';
@@ -1058,13 +1183,27 @@ export function updateTransportContainHealing(self: GL): void {
   }
 }
 
+export function updateRiderChangeContainScuttle(self: GL): void {
+  for (const entity of self.spawnedEntities.values()) {
+    if (entity.destroyed) continue;
+    if (!entity.riderChangeContainProfile) continue;
+    if (entity.riderChangeScuttledFrame === 0) continue;
+    const killFrame = entity.riderChangeScuttledFrame + entity.riderChangeContainProfile.scuttleDelayFrames;
+    if (self.frameCounter >= killFrame) {
+      self.killEntity(entity);
+    }
+  }
+}
+
 export function updateContainModelConditions(self: GL): void {
+  const containedEntityIdsByContainerId = buildContainedEntityIdsByContainerId(self);
   for (const container of self.spawnedEntities.values()) {
     if (container.destroyed) continue;
     const profile = container.containProfile;
     if (!profile) continue;
 
     const isTransportStyle = profile.moduleType === 'TRANSPORT'
+      || profile.moduleType === 'RIDERCHANGE'
       || profile.moduleType === 'OVERLORD'
       || profile.moduleType === 'HELIX'
       || profile.moduleType === 'OPEN'
@@ -1072,7 +1211,7 @@ export function updateContainModelConditions(self: GL): void {
     const isGarrison = profile.moduleType === 'GARRISON';
     if (!isTransportStyle && !isGarrison) continue;
 
-    const passengerIds = collectContainedEntityIds(self, container.id);
+    const passengerIds = containedEntityIdsByContainerId.get(container.id) ?? [];
     const hasPassengers = passengerIds.length > 0;
 
     // Source parity: TransportContain::onContaining / onRemoving — MODELCONDITION_LOADED.
@@ -1188,7 +1327,7 @@ export function countContainedRappellers(self: GL, containerId: number): number 
   return count;
 }
 
-export function releaseEntityFromContainer(self: GL, entity: MapEntity): void {
+export function releaseEntityFromContainer(self: GL, entity: MapEntity, options: { suppressRiderChangeScuttle?: boolean } = {}): void {
   if (entity.parkingSpaceProducerId !== null) {
     const parkingProducer = self.spawnedEntities.get(entity.parkingSpaceProducerId);
     if (parkingProducer?.parkingPlaceProfile) {
@@ -1213,6 +1352,10 @@ export function releaseEntityFromContainer(self: GL, entity: MapEntity): void {
   }
 
   if (entity.transportContainerId !== null) {
+    const transport = self.spawnedEntities.get(entity.transportContainerId);
+    if (transport?.riderChangeContainProfile) {
+      onRiderChangePassengerRemoving(self, transport, entity, options.suppressRiderChangeScuttle === true);
+    }
     entity.transportContainerId = null;
     entity.healContainEnteredFrame = 0;
     // Source parity: TransportContain::onRemoving — clear DISABLED_HELD on release.

@@ -119,6 +119,7 @@ export function createMapEntity(self: GL,
   const flightDeckProfile = self.extractFlightDeckProfile(objectDef);
   const containProfile = extractContainProfile(self, objectDef);
   const createModuleStates = extractCreateModuleStates(objectDef);
+  const radiusDecalModuleStates = extractRadiusDecalModuleStates(objectDef);
   const riderChangeContainProfile = extractRiderChangeContainProfile(self, objectDef);
   const supplyWarehouseProfile = extractSupplyWarehouseProfile(self, objectDef);
   const supplyTruckProfile = extractSupplyTruckProfile(self, objectDef);
@@ -155,6 +156,8 @@ export function createMapEntity(self: GL,
   const specialPowerModules = extractSpecialPowerModules(self, objectDef);
   const sourceSpecialPowerBitNames = extractSourceSpecialPowerBitNames(self, specialPowerModules);
   const bodyStats = self.resolveBodyStats(objectDef);
+  const boneFXProfile = extractBoneFXProfile(self, objectDef);
+  const hasBoneFXDamageModule = extractBoneFXDamageModuleEnabled(objectDef);
   // Source parity: ThingTemplate has two separate energy fields.
   // EnergyProduction — base power production/consumption (positive = produces, negative = consumes).
   // EnergyBonus — additional production granted by upgrades (e.g. Control Rods on Power Plant).
@@ -369,6 +372,8 @@ export function createMapEntity(self: GL,
     upgradeModules,
     objectStatusFlags: new Set<string>(),
     modelConditionFlags: new Set<string>(),
+    forcedHiddenSubObjects: new Set<string>(),
+    forcedShownSubObjects: new Set<string>(),
     scriptFlashCount: 0,
     scriptFlashColor: 0,
     scriptAmbientSoundEnabled: true,
@@ -460,6 +465,7 @@ export function createMapEntity(self: GL,
     tunnelFadeStartFrame: 0,
     healContainEnteredFrame: 0,
     initialPayloadCreated: false,
+    riderChangeScuttledFrame: 0,
     helixPortableRiderId: null,
     slaverEntityId: null,
     spawnBehaviorState: self.extractSpawnBehaviorState(objectDef),
@@ -594,6 +600,7 @@ export function createMapEntity(self: GL,
     autoHealStopped: false,
     autoHealDamageDelayUntilFrame: 0,
     autoHealSingleBurstDone: false,
+    baseRegenerateUpdateProfile: extractBaseRegenerateUpdateProfile(self, objectDef),
     baseRegenDelayUntilFrame: 0,
     propagandaTowerProfile: extractPropagandaTowerProfile(self, objectDef),
     propagandaTowerNextScanFrame: 0,
@@ -695,6 +702,7 @@ export function createMapEntity(self: GL,
     deployStyleProfile: extractDeployStyleProfile(self, objectDef),
     deployState: 'READY_TO_MOVE' as DeployState,
     deployFrameToWait: 0,
+    deployManualAnimationFrame: null,
     // Construction state — born complete unless dozer-placed.
     constructionPercent: CONSTRUCTION_COMPLETE,
     capturePercent: -1,
@@ -888,6 +896,7 @@ export function createMapEntity(self: GL,
     // PhysicsBehavior (rigid body physics)
     physicsBehaviorProfile: extractPhysicsBehaviorProfile(self, objectDef),
     physicsBehaviorState: null,
+    railroadBehaviorProfile: extractRailroadBehaviorProfile(self, objectDef),
     // StructureToppleUpdate (building collapse)
     structureToppleProfile: extractStructureToppleProfile(self, objectDef),
     structureToppleState: null,
@@ -1030,12 +1039,15 @@ export function createMapEntity(self: GL,
     // MobMemberSlavedUpdate (angry mob member behavior)
     mobMemberProfile: self.extractMobMemberSlavedUpdateProfile(objectDef),
     mobMemberState: null,
-    // BoneFXUpdate (bone-attached visual effects per damage state)
-    boneFXProfile: extractBoneFXProfile(self, objectDef),
+    // BoneFXUpdate + BoneFXDamage (bone-attached visual effects per damage state)
+    boneFXProfile: hasBoneFXDamageModule ? boneFXProfile : null,
     boneFXState: null,
-    // RadiusDecalUpdate (ground radius decals — programmatically created, not INI-driven)
+    transitionDamageFXProfile: extractTransitionDamageFXProfile(self, objectDef),
+    animatedParticleSysBoneClientUpdateState: extractAnimatedParticleSysBoneClientUpdateState(objectDef),
+    swayClientUpdateState: extractSwayClientUpdateState(objectDef),
+    // RadiusDecalUpdate (ground radius decals — decals are created by OCL/weapon flows)
     radiusDecalStates: [],
-    radiusDecalModuleStates: [],
+    radiusDecalModuleStates,
     // Bridge behavior (bridge lifecycle manager)
     bridgeBehaviorProfile: self.extractBridgeBehaviorProfile(objectDef),
     bridgeBehaviorState: null,
@@ -1043,7 +1055,7 @@ export function createMapEntity(self: GL,
     bridgeTowerProfile: self.extractBridgeTowerProfile(objectDef),
     bridgeTowerState: null,
     // Bridge scaffold behavior (scaffold animation)
-    bridgeScaffoldState: null,
+    bridgeScaffoldState: extractBridgeScaffoldState(objectDef),
     // Flight deck (aircraft carrier)
     flightDeckProfile,
     flightDeckState: null,
@@ -1394,8 +1406,18 @@ export function extractIniValueTokens(self: GL, value: IniValue | undefined): st
   return [];
 }
 
+function readIniFieldValueCaseInsensitive(fields: Record<string, IniValue>, fieldName: string): IniValue | undefined {
+  const normalizedFieldName = fieldName.toUpperCase();
+  for (const [name, value] of Object.entries(fields)) {
+    if (name.toUpperCase() === normalizedFieldName) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export function extractDynamicAudioEventName(self: GL, fields: Record<string, IniValue>, fieldName: string): string | null {
-  const value = self.readIniFieldValue(fields, fieldName);
+  const value = readIniFieldValueCaseInsensitive(fields, fieldName);
   for (const tokenGroup of extractIniValueTokens(self, value)) {
     const eventName = tokenGroup[0]?.trim();
     if (!eventName) {
@@ -1408,6 +1430,62 @@ export function extractDynamicAudioEventName(self: GL, fields: Record<string, In
     return eventName;
   }
   return null;
+}
+
+function extractSpecialPowerUpgradeOCLs(self: GL, value: IniValue | undefined): Array<{ scienceName: string; oclName: string }> {
+  const tokenGroups = (() => {
+    if (!Array.isArray(value)) {
+      return extractIniValueTokens(self, value);
+    }
+    const groups = value.map((entry) => extractIniValueTokens(self, entry as IniValue)[0] ?? []);
+    if (groups.every((group) => group.length <= 1)) {
+      const tokens = groups.flat();
+      const pairs: string[][] = [];
+      for (let i = 0; i + 1 < tokens.length; i += 2) {
+        pairs.push([tokens[i]!, tokens[i + 1]!]);
+      }
+      return pairs;
+    }
+    return groups;
+  })();
+  return tokenGroups
+    .map((tokens) => ({
+      scienceName: tokens[0]?.trim().toUpperCase() ?? '',
+      oclName: tokens[1]?.trim() ?? '',
+    }))
+    .filter((entry) => entry.scienceName.length > 0
+      && entry.scienceName !== 'NONE'
+      && entry.scienceName !== 'SCIENCE_INVALID'
+      && entry.oclName.length > 0
+      && entry.oclName.toUpperCase() !== 'NONE');
+}
+
+function extractCashHackUpgradeMoneyAmounts(self: GL, value: IniValue | undefined): Array<{ scienceName: string; amountToSteal: number }> {
+  const tokenGroups = (() => {
+    if (!Array.isArray(value)) {
+      return extractIniValueTokens(self, value);
+    }
+    const groups = value.map((entry) => extractIniValueTokens(self, entry as IniValue)[0] ?? []);
+    if (groups.every((group) => group.length <= 1)) {
+      const tokens = groups.flat();
+      const pairs: string[][] = [];
+      for (let i = 0; i + 1 < tokens.length; i += 2) {
+        pairs.push([tokens[i]!, tokens[i + 1]!]);
+      }
+      return pairs;
+    }
+    return groups;
+  })();
+  return tokenGroups
+    .map((tokens) => ({
+      scienceName: tokens[0]?.trim().toUpperCase() ?? '',
+      amountToSteal: Math.trunc(Number(tokens[1] ?? 0)),
+    }))
+    .filter((entry) => entry.scienceName.length > 0
+      && entry.scienceName !== 'NONE'
+      && entry.scienceName !== 'SCIENCE_INVALID'
+      && Number.isFinite(entry.amountToSteal)
+      && entry.amountToSteal >= 0);
 }
 
 export function extractAmbientSoundProfile(self: GL, objectDef: ObjectDef | undefined): AmbientSoundProfile | null {
@@ -1646,6 +1724,7 @@ export function extractProductionProfile(self: GL, objectDef: ObjectDef | undefi
 
   let foundModule = false;
   let maxQueueEntries = 9;
+  let disabledTypesToProcess = new Set<string>(['DISABLED_HELD']);
   let numDoorAnimations = 0;
   let doorOpeningTimeFrames = 0;
   let constructionCompleteDurationFrames = 0;
@@ -1660,6 +1739,15 @@ export function extractProductionProfile(self: GL, objectDef: ObjectDef | undefi
         const configuredMaxQueueEntries = readNumericField(block.fields, ['MaxQueueEntries']);
         if (configuredMaxQueueEntries !== null && Number.isFinite(configuredMaxQueueEntries)) {
           maxQueueEntries = Math.max(0, Math.trunc(configuredMaxQueueEntries));
+        }
+
+        const disabledTypes = readStringList(block.fields, ['DisabledTypesToProcess'])
+          .map((token) => token.trim().toUpperCase())
+          .filter(Boolean);
+        if (disabledTypes.length > 0) {
+          disabledTypesToProcess = new Set(disabledTypes
+            .filter((token) => token !== 'NONE')
+            .map((token) => token.startsWith('DISABLED_') ? token : `DISABLED_${token}`));
         }
 
         // Source parity: ProductionUpdateModuleData::m_numDoorAnimations (parseInt).
@@ -1706,6 +1794,7 @@ export function extractProductionProfile(self: GL, objectDef: ObjectDef | undefi
 
   return {
     maxQueueEntries,
+    disabledTypesToProcess,
     quantityModifiers,
     numDoorAnimations,
     doorOpeningTimeFrames,
@@ -1741,6 +1830,7 @@ export function extractQueueProductionExitProfile(self: GL, objectDef: ObjectDef
           allowAirborneCreation: readBooleanField(block.fields, ['AllowAirborneCreation']) === true,
           initialBurst: Math.max(0, Math.trunc(initialBurstRaw)),
           spawnPointBoneName: null,
+          useSpawnRallyPoint: readBooleanField(block.fields, ['UseSpawnRallyPoint']) === true,
         };
       } else if (moduleType === 'SUPPLYCENTERPRODUCTIONEXITUPDATE') {
         const unitCreatePoint = readCoord3DField(block.fields, ['UnitCreatePoint']) ?? { x: 0, y: 0, z: 0 };
@@ -1753,6 +1843,7 @@ export function extractQueueProductionExitProfile(self: GL, objectDef: ObjectDef
           allowAirborneCreation: false,
           initialBurst: 0,
           spawnPointBoneName: null,
+          useSpawnRallyPoint: false,
         };
       } else if (moduleType === 'SPAWNPOINTPRODUCTIONEXITUPDATE') {
         // Source parity: SpawnPointProductionExitUpdate.cpp drives exits from named bone positions.
@@ -1767,6 +1858,7 @@ export function extractQueueProductionExitProfile(self: GL, objectDef: ObjectDef
           allowAirborneCreation: false,
           initialBurst: 0,
           spawnPointBoneName: spawnPointBoneName ?? null,
+          useSpawnRallyPoint: false,
         };
       }
     }
@@ -1892,11 +1984,36 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
     // Source parity: TransportContainModuleData::m_isDelayExitInAir (default FALSE).
     const delayExitInAirRaw = readBooleanField(block.fields, ['DelayExitInAir']);
     const delayExitInAir = delayExitInAirRaw === true;
+    const parachutePitchRateMaxDegPerSec = readNumericField(block.fields, ['PitchRateMax']);
+    const parachutePitchRateMax = parachutePitchRateMaxDegPerSec != null
+      ? parachutePitchRateMaxDegPerSec * (Math.PI / 180) / LOGIC_FRAME_RATE
+      : 0;
+    const parachuteRollRateMaxDegPerSec = readNumericField(block.fields, ['RollRateMax']);
+    const parachuteRollRateMax = parachuteRollRateMaxDegPerSec != null
+      ? parachuteRollRateMaxDegPerSec * (Math.PI / 180) / LOGIC_FRAME_RATE
+      : 0;
+    const parachuteFreeFallDamagePercentRaw = readNumericField(block.fields, ['FreeFallDamagePercent']);
+    const parachuteFreeFallDamagePercent = parachuteFreeFallDamagePercentRaw != null
+      ? parachuteFreeFallDamagePercentRaw / 100
+      : 0.5;
+    const parachuteContainFields = {
+      parachutePitchRateMax,
+      parachuteRollRateMax,
+      parachuteLowAltitudeDamping: readNumericField(block.fields, ['LowAltitudeDamping']) ?? 0.2,
+      parachuteOpenDist: readNumericField(block.fields, ['ParachuteOpenDist']) ?? 0,
+      parachuteKillWhenLandingInWaterSlop: readNumericField(block.fields, ['KillWhenLandingInWaterSlop']) ?? 10,
+      parachuteFreeFallDamagePercent,
+      parachuteOpenSoundName: extractDynamicAudioEventName(self, block.fields, 'ParachuteOpenSound') ?? '',
+    };
     // Source parity: OverlordContainModuleData::m_experienceSinkForRider — ZH-only field.
     // XP earned by riders is funneled to the overlord. Default TRUE (C++ constructor).
     // For OverlordContain/HelixContain we read from INI; for other types we hardcode true.
     const experienceSinkForRiderRaw = readBooleanField(block.fields, ['ExperienceSinkForRider']);
     const experienceSinkForRiderParsed = experienceSinkForRiderRaw !== false;
+    // Source parity: HelixContainModuleData::m_drawPips defaults TRUE and is parsed from ShouldDrawPips.
+    const shouldDrawPips = moduleType === 'HELIXCONTAIN'
+      ? readBooleanField(block.fields, ['ShouldDrawPips']) !== false
+      : true;
 
     // Common OpenContain fields shared across all container profiles.
     const openContainFields = {
@@ -1910,6 +2027,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
       experienceSinkForRider: (moduleType === 'OVERLORDCONTAIN' || moduleType === 'HELIXCONTAIN')
         ? experienceSinkForRiderParsed
         : true,
+      shouldDrawPips,
     };
     // Common TransportContain fields (use parsed values for transport-derived modules,
     // C++ defaults for non-transport modules).
@@ -2051,6 +2169,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         destroyRidersWhoAreNotFreeToExit,
         ...openContainFields,
         ...transportContainDefaults,
+        ...parachuteContainFields,
       };
     } else if (moduleType === 'GARRISONCONTAIN') {
       // GarrisonContain is OpenContain-derived in source but always returns TRUE from
@@ -2275,7 +2394,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
  *   templateName  modelConditionFlag  weaponSetFlag  objectStatus  commandSet  locomotorSetType
  */
 export function extractRiderChangeContainProfile(self: GL, objectDef: ObjectDef | undefined): {
-  riders: { templateName: string; modelConditionFlag: string; weaponSetFlag: string; objectStatus: string; commandSet: string; locomotorSetType: string }[];
+  riders: { templateName: string; slotIndex: number; modelConditionFlag: string; weaponSetFlag: string; objectStatus: string; commandSet: string; locomotorSetType: string }[];
   scuttleDelayFrames: number;
   scuttleStatus: string;
 } | null {
@@ -2284,7 +2403,7 @@ export function extractRiderChangeContainProfile(self: GL, objectDef: ObjectDef 
   }
 
   let profile: {
-    riders: { templateName: string; modelConditionFlag: string; weaponSetFlag: string; objectStatus: string; commandSet: string; locomotorSetType: string }[];
+    riders: { templateName: string; slotIndex: number; modelConditionFlag: string; weaponSetFlag: string; objectStatus: string; commandSet: string; locomotorSetType: string }[];
     scuttleDelayFrames: number;
     scuttleStatus: string;
   } | null = null;
@@ -2308,15 +2427,26 @@ export function extractRiderChangeContainProfile(self: GL, objectDef: ObjectDef 
       return;
     }
 
+    const riderFields = [
+      'Rider1',
+      'Rider2',
+      'Rider3',
+      'Rider4',
+      'Rider5',
+      'Rider6',
+      'Rider7',
+      'Rider8',
+    ] as const;
     // Parse rider slots (Rider1 through Rider8).
     // Each rider is stored as an array of 6 string tokens in the INI data.
-    const riders: { templateName: string; modelConditionFlag: string; weaponSetFlag: string; objectStatus: string; commandSet: string; locomotorSetType: string }[] = [];
-    for (let i = 1; i <= 8; i++) {
-      const riderKey = `Rider${i}`;
+    const riders: { templateName: string; slotIndex: number; modelConditionFlag: string; weaponSetFlag: string; objectStatus: string; commandSet: string; locomotorSetType: string }[] = [];
+    for (let i = 0; i < riderFields.length; i++) {
+      const riderKey = riderFields[i]!;
       const riderTokens = readStringList(block.fields, [riderKey]);
       if (riderTokens.length >= 6) {
         riders.push({
           templateName: riderTokens[0]!.toUpperCase(),
+          slotIndex: i,
           modelConditionFlag: riderTokens[1]!.toUpperCase(),
           weaponSetFlag: riderTokens[2]!.toUpperCase(),
           objectStatus: riderTokens[3]!.toUpperCase(),
@@ -3060,6 +3190,25 @@ export function extractAutoHealProfile(self: GL, objectDef: ObjectDef | undefine
   return profile;
 }
 
+export function extractBaseRegenerateUpdateProfile(self: GL, objectDef: ObjectDef | undefined): BaseRegenerateUpdateProfile | null {
+  if (!objectDef) return null;
+  const visitBlock = (block: IniBlock): boolean => {
+    if (block.type.toUpperCase() === 'BEHAVIOR') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'BASEREGENERATEUPDATE') {
+        return true;
+      }
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) {
+        if (visitBlock(child)) return true;
+      }
+    }
+    return false;
+  };
+  return objectDef.blocks?.some((block) => visitBlock(block)) ? { _marker: true } : null;
+}
+
 export function extractPropagandaTowerProfile(self: GL, objectDef: ObjectDef | undefined): PropagandaTowerProfile | null {
   if (!objectDef) return null;
   let profile: PropagandaTowerProfile | null = null;
@@ -3074,6 +3223,8 @@ export function extractPropagandaTowerProfile(self: GL, objectDef: ObjectDef | u
           healPercentPerSecond: readNumericField(block.fields, ['HealPercentEachSecond']) ?? 0.01,
           upgradedHealPercentPerSecond: readNumericField(block.fields, ['UpgradedHealPercentEachSecond']) ?? 0.02,
           upgradeRequired: readStringField(block.fields, ['UpgradeRequired']) ?? null,
+          pulseFXName: readStringField(block.fields, ['PulseFX']) ?? '',
+          upgradedPulseFXName: readStringField(block.fields, ['UpgradedPulseFX']) ?? '',
           affectsSelf: readBooleanField(block.fields, ['AffectsSelf']) === true,
         };
       }
@@ -3103,6 +3254,7 @@ export function extractFlammableProfile(self: GL, objectDef: ObjectDef | undefin
           aflameDamageDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['AflameDamageDelay']) ?? 500),
           aflameDamageAmount: readNumericField(block.fields, ['AflameDamageAmount']) ?? DEFAULT_AFLAME_DAMAGE_AMOUNT,
           burnedDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['BurnedDelay']) ?? 0),
+          burningSoundName: readStringField(block.fields, ['BurningSoundName']) ?? '',
         };
       }
     }
@@ -3487,6 +3639,141 @@ function extractCreateModuleStates(objectDef: ObjectDef | undefined): CreateModu
   return states;
 }
 
+function extractRadiusDecalModuleStates(objectDef: ObjectDef | undefined): Array<{ moduleTag: string; killWhenNoLongerAttacking: boolean }> {
+  if (!objectDef) return [];
+  const states: Array<{ moduleTag: string; killWhenNoLongerAttacking: boolean }> = [];
+  const visitBlock = (block: IniBlock): void => {
+    const blockType = block.type.toUpperCase();
+    if (blockType === 'BEHAVIOR' || blockType === 'UPDATE') {
+      const moduleType = sourceModuleTypeFromBlockName(block.name);
+      if (moduleType === 'RADIUSDECALUPDATE') {
+        states.push({
+          moduleTag: sourceModuleTagFromBlockName(block.name).trim().toUpperCase(),
+          killWhenNoLongerAttacking: false,
+        });
+      }
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+  if (objectDef.blocks) {
+    for (const block of objectDef.blocks) visitBlock(block);
+  }
+  return states;
+}
+
+function extractBoneFXDamageModuleEnabled(objectDef: ObjectDef | undefined): boolean {
+  if (!objectDef) return false;
+  let enabled = false;
+  const visitBlock = (block: IniBlock): void => {
+    if (enabled) return;
+    const blockType = block.type.toUpperCase();
+    if (blockType === 'BEHAVIOR' || blockType === 'DAMAGE') {
+      enabled = sourceModuleTypeFromBlockName(block.name) === 'BONEFXDAMAGE';
+      if (enabled) return;
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+  if (objectDef.blocks) {
+    for (const block of objectDef.blocks) visitBlock(block);
+  }
+  return enabled;
+}
+
+function extractBridgeScaffoldState(objectDef: ObjectDef | undefined): {
+  targetMotion: number;
+  createPos: { x: number; y: number; z: number };
+  riseToPos: { x: number; y: number; z: number };
+  buildPos: { x: number; y: number; z: number };
+  targetPos: { x: number; y: number; z: number };
+  lateralSpeed: number;
+  verticalSpeed: number;
+} | null {
+  if (!objectDef) return null;
+  let hasBridgeScaffoldBehavior = false;
+  const visitBlock = (block: IniBlock): void => {
+    if (hasBridgeScaffoldBehavior) return;
+    if (block.type.toUpperCase() === 'BEHAVIOR') {
+      hasBridgeScaffoldBehavior = sourceModuleTypeFromBlockName(block.name) === 'BRIDGESCAFFOLDBEHAVIOR';
+      if (hasBridgeScaffoldBehavior) return;
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+  if (objectDef.blocks) {
+    for (const block of objectDef.blocks) visitBlock(block);
+  }
+  if (!hasBridgeScaffoldBehavior) return null;
+
+  const zero = () => ({ x: 0, y: 0, z: 0 });
+  return {
+    targetMotion: 0,
+    createPos: zero(),
+    riseToPos: zero(),
+    buildPos: zero(),
+    targetPos: zero(),
+    lateralSpeed: 1.0,
+    verticalSpeed: 1.0,
+  };
+}
+
+function findClientUpdateModuleTag(objectDef: ObjectDef | undefined, moduleTypeName: string): string | null {
+  if (!objectDef) return null;
+  const normalizedModuleType = moduleTypeName.trim().toUpperCase();
+  let moduleTag: string | null = null;
+  const visitBlock = (block: IniBlock): void => {
+    if (moduleTag !== null) return;
+    if (block.type.toUpperCase() === 'CLIENTUPDATE') {
+      const moduleType = sourceModuleTypeFromBlockName(block.name);
+      if (moduleType === normalizedModuleType) {
+        moduleTag = sourceModuleTagFromBlockName(block.name).trim().toUpperCase();
+        return;
+      }
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+  if (objectDef.blocks) {
+    for (const block of objectDef.blocks) visitBlock(block);
+  }
+  return moduleTag;
+}
+
+function extractAnimatedParticleSysBoneClientUpdateState(objectDef: ObjectDef | undefined): { moduleTag: string; life: number } | null {
+  const moduleTag = findClientUpdateModuleTag(objectDef, 'ANIMATEDPARTICLESYSBONECLIENTUPDATE');
+  return moduleTag ? { moduleTag, life: 0 } : null;
+}
+
+function extractSwayClientUpdateState(objectDef: ObjectDef | undefined): {
+  moduleTag: string;
+  curValue: number;
+  curAngle: number;
+  curDelta: number;
+  curAngleLimit: number;
+  leanAngle: number;
+  curVersion: number;
+  swaying: boolean;
+} | null {
+  const moduleTag = findClientUpdateModuleTag(objectDef, 'SWAYCLIENTUPDATE');
+  return moduleTag
+    ? {
+      moduleTag,
+      curValue: 0,
+      curAngle: 0,
+      curDelta: 0,
+      curAngleLimit: 0,
+      leanAngle: 0,
+      curVersion: -1,
+      swaying: true,
+    }
+    : null;
+}
+
 export function extractVeterancyGainCreateProfiles(self: GL, objectDef: ObjectDef | undefined): VeterancyGainCreateProfile[] {
   if (!objectDef) return [];
   const profiles: VeterancyGainCreateProfile[] = [];
@@ -3580,7 +3867,18 @@ export function extractCrushDieProfiles(self: GL, objectDef: ObjectDef | undefin
         const rsStr = readStringField(block.fields, ['RequiredStatus'])?.trim().toUpperCase() ?? '';
         if (rsStr) { for (const t of rsStr.split(/\s+/)) { if (t) requiredStatus.add(t); } }
 
-        profiles.push({ deathTypes, veterancyLevels, exemptStatus, requiredStatus });
+        profiles.push({
+          deathTypes,
+          veterancyLevels,
+          exemptStatus,
+          requiredStatus,
+          totalCrushSoundName: extractDynamicAudioEventName(self, block.fields, 'TotalCrushSound') ?? '',
+          totalCrushSoundPercent: readNumericField(block.fields, ['TotalCrushSoundPercent']) ?? 100,
+          backEndCrushSoundName: extractDynamicAudioEventName(self, block.fields, 'BackEndCrushSound') ?? '',
+          backEndCrushSoundPercent: readNumericField(block.fields, ['BackEndCrushSoundPercent']) ?? 100,
+          frontEndCrushSoundName: extractDynamicAudioEventName(self, block.fields, 'FrontEndCrushSound') ?? '',
+          frontEndCrushSoundPercent: readNumericField(block.fields, ['FrontEndCrushSoundPercent']) ?? 100,
+        });
       }
     }
     if (block.blocks) {
@@ -3977,6 +4275,7 @@ export function extractAutoDepositProfile(self: GL, objectDef: ObjectDef | undef
           depositFrames: Math.max(1, self.msToLogicFrames(depositTimingMs)),
           depositAmount,
           initialCaptureBonus,
+          actualMoney: readBooleanField(block.fields, ['ActualMoney']) ?? true,
         };
       }
     }
@@ -4122,6 +4421,8 @@ export function extractToppleProfile(self: GL, objectDef: ObjectDef | undefined)
         const parsePercent = (raw: number | null | undefined): number | null =>
           raw != null ? raw / 100 : null;
         profile = {
+          toppleFXName: readStringField(block.fields, ['ToppleFX']) ?? '',
+          bounceFXName: readStringField(block.fields, ['BounceFX']) ?? '',
           initialVelocityPercent: parsePercent(readNumericField(block.fields, ['InitialVelocityPercent'])) ?? 0.20,
           initialAccelPercent: parsePercent(readNumericField(block.fields, ['InitialAccelPercent'])) ?? 0.01,
           bounceVelocityPercent: parsePercent(readNumericField(block.fields, ['BounceVelocityPercent'])) ?? 0.30,
@@ -4190,6 +4491,46 @@ export function extractPhysicsBehaviorProfile(self: GL, objectDef: ObjectDef | u
   return profile;
 }
 
+export function extractRailroadBehaviorProfile(self: GL, objectDef: ObjectDef | undefined): RailroadBehaviorProfile | null {
+  if (!objectDef) return null;
+  let profile: RailroadBehaviorProfile | null = null;
+  const visitBlock = (block: IniBlock): void => {
+    if (profile) return;
+    if (block.type.toUpperCase() === 'BEHAVIOR') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'RAILROADBEHAVIOR') {
+        const waitAtStationTime = readNumericField(block.fields, ['WaitAtStationTime']);
+        profile = {
+          pathPrefixName: readStringField(block.fields, ['PathPrefixName']) ?? '',
+          crashFXTemplateName: readStringField(block.fields, ['CrashFXTemplateName']) ?? '',
+          isLocomotive: readBooleanField(block.fields, ['IsLocomotive']) ?? false,
+          carriageTemplateNames: readStringList(block.fields, ['CarriageTemplateName']),
+          bigMetalBounceSoundName: extractDynamicAudioEventName(self, block.fields, 'BigMetalBounceSound') ?? '',
+          smallMetalBounceSoundName: extractDynamicAudioEventName(self, block.fields, 'SmallMetalBounceSound') ?? '',
+          meatyBounceSoundName: extractDynamicAudioEventName(self, block.fields, 'MeatyBounceSound') ?? '',
+          runningGarrisonSpeedMax: readNumericField(block.fields, ['RunningGarrisonSpeedMax']) ?? 1.0,
+          killSpeedMin: readNumericField(block.fields, ['KillSpeedMin']) ?? 1.0,
+          speedMax: readNumericField(block.fields, ['SpeedMax']) ?? 4.0,
+          acceleration: readNumericField(block.fields, ['Acceleration']) ?? 1.01,
+          braking: readNumericField(block.fields, ['Braking']) ?? 0.99,
+          waitAtStationFrames: waitAtStationTime == null ? 150 : self.msToLogicFrames(waitAtStationTime),
+          runningSoundName: extractDynamicAudioEventName(self, block.fields, 'RunningSound') ?? '',
+          clicketyClackSoundName: extractDynamicAudioEventName(self, block.fields, 'ClicketyClackSound') ?? '',
+          whistleSoundName: extractDynamicAudioEventName(self, block.fields, 'WhistleSound') ?? '',
+          friction: readNumericField(block.fields, ['Friction']) ?? 0.97,
+        };
+      }
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+  if (objectDef.blocks) {
+    for (const block of objectDef.blocks) visitBlock(block);
+  }
+  return profile;
+}
+
 export function extractStructureToppleProfile(self: GL, objectDef: ObjectDef | undefined): StructureToppleProfile | null {
   if (!objectDef) return null;
   let profile: StructureToppleProfile | null = null;
@@ -4198,6 +4539,18 @@ export function extractStructureToppleProfile(self: GL, objectDef: ObjectDef | u
     if (block.type.toUpperCase() === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'STRUCTURETOPPLEUPDATE') {
+        const angleFXTokens = readStringList(block.fields, ['AngleFX']);
+        const angleFX: Array<{ angleRadians: number; effectName: string }> = [];
+        for (let i = 0; i + 1 < angleFXTokens.length; i += 2) {
+          const angleDegrees = Number(angleFXTokens[i]);
+          const effectName = angleFXTokens[i + 1]?.trim() ?? '';
+          if (Number.isFinite(angleDegrees) && effectName.length > 0) {
+            angleFX.push({
+              angleRadians: angleDegrees * (Math.PI / 180),
+              effectName,
+            });
+          }
+        }
         profile = {
           minToppleDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['MinToppleDelay']) ?? 500),
           maxToppleDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['MaxToppleDelay']) ?? 1000),
@@ -4206,6 +4559,11 @@ export function extractStructureToppleProfile(self: GL, objectDef: ObjectDef | u
           structuralIntegrity: readNumericField(block.fields, ['StructuralIntegrity']) ?? 0.1,
           structuralDecay: readNumericField(block.fields, ['StructuralDecay']) ?? 0,
           crushingWeaponName: readStringField(block.fields, ['CrushingWeaponName']) ?? '',
+          toppleStartFXName: readStringField(block.fields, ['ToppleStartFX']) ?? '',
+          toppleDelayFXName: readStringField(block.fields, ['ToppleDelayFX']) ?? '',
+          toppleDoneFXName: readStringField(block.fields, ['ToppleDoneFX']) ?? '',
+          crushingFXName: readStringField(block.fields, ['CrushingFX']) ?? '',
+          angleFX,
         };
       }
     }
@@ -4232,6 +4590,12 @@ export function extractMissileLauncherBuildingProfile(self: GL, objectDef: Objec
           doorOpenTimeFrames: self.msToLogicFrames(readNumericField(block.fields, ['DoorOpenTime']) ?? 0),
           doorWaitOpenTimeFrames: self.msToLogicFrames(readNumericField(block.fields, ['DoorWaitOpenTime']) ?? 0),
           doorClosingTimeFrames: self.msToLogicFrames(readNumericField(block.fields, ['DoorCloseTime']) ?? 0),
+          doorOpeningFXName: readStringField(block.fields, ['DoorOpeningFX']) ?? '',
+          doorOpenFXName: readStringField(block.fields, ['DoorOpenFX']) ?? '',
+          doorWaitingToCloseFXName: readStringField(block.fields, ['DoorWaitingToCloseFX']) ?? '',
+          doorClosingFXName: readStringField(block.fields, ['DoorClosingFX']) ?? '',
+          doorClosedFXName: readStringField(block.fields, ['DoorClosedFX']) ?? '',
+          doorOpenIdleAudioName: readStringField(block.fields, ['DoorOpenIdleAudio']) ?? '',
         };
       }
     }
@@ -4270,10 +4634,33 @@ export function extractParticleUplinkCannonProfile(self: GL, objectDef: ObjectDe
           revealRange: (readNumericField(block.fields, ['RevealRange']) ?? 0) * MAP_XY_FACTOR,
           swathOfDeathDistance: (readNumericField(block.fields, ['SwathOfDeathDistance']) ?? 0) * MAP_XY_FACTOR,
           swathOfDeathAmplitude: (readNumericField(block.fields, ['SwathOfDeathAmplitude']) ?? 0) * MAP_XY_FACTOR,
-          framesBetweenLaunchFXRefresh: self.msToLogicFrames(readNumericField(block.fields, ['DelayBetweenLaunchFX']) ?? 0),
+          outerEffectBoneName: readStringField(block.fields, ['OuterEffectBoneName']) ?? '',
+          outerEffectNumBones: readNumericField(block.fields, ['OuterEffectNumBones']) ?? 0,
+          outerNodesLightFlareParticleSystemName: readStringField(block.fields, ['OuterNodesLightFlareParticleSystem']) ?? '',
+          outerNodesMediumFlareParticleSystemName: readStringField(block.fields, ['OuterNodesMediumFlareParticleSystem']) ?? '',
+          outerNodesIntenseFlareParticleSystemName: readStringField(block.fields, ['OuterNodesIntenseFlareParticleSystem']) ?? '',
+          connectorBoneName: readStringField(block.fields, ['ConnectorBoneName']) ?? '',
+          connectorMediumLaserName: readStringField(block.fields, ['ConnectorMediumLaserName']) ?? '',
+          connectorIntenseLaserName: readStringField(block.fields, ['ConnectorIntenseLaserName']) ?? '',
+          connectorMediumFlareParticleSystemName: readStringField(block.fields, ['ConnectorMediumFlare']) ?? '',
+          connectorIntenseFlareParticleSystemName: readStringField(block.fields, ['ConnectorIntenseFlare']) ?? '',
+          fireBoneName: readStringField(block.fields, ['FireBoneName']) ?? '',
+          laserBaseLightFlareParticleSystemName: readStringField(block.fields, ['LaserBaseLightFlareParticleSystemName']) ?? '',
+          laserBaseMediumFlareParticleSystemName: readStringField(block.fields, ['LaserBaseMediumFlareParticleSystemName']) ?? '',
+          laserBaseIntenseFlareParticleSystemName: readStringField(block.fields, ['LaserBaseIntenseFlareParticleSystemName']) ?? '',
+          particleBeamLaserName: readStringField(block.fields, ['ParticleBeamLaserName']) ?? '',
+          beamLaunchFXName: readStringField(block.fields, ['BeamLaunchFX']) ?? '',
+          groundHitFXName: readStringField(block.fields, ['GroundHitFX']) ?? '',
+          scorchMarkScalar: readNumericField(block.fields, ['ScorchMarkScalar']) ?? 1.0,
+          powerupSoundName: readStringField(block.fields, ['PoweringUpSoundLoop']) ?? '',
+          unpackToReadySoundName: readStringField(block.fields, ['UnpackToIdleSoundLoop']) ?? '',
+          firingToIdleSoundName: readStringField(block.fields, ['FiringToPackSoundLoop']) ?? '',
+          annihilationSoundName: readStringField(block.fields, ['GroundAnnihilationSoundLoop']) ?? '',
+          damagePulseRemnantObjectName: readStringField(block.fields, ['DamagePulseRemnantObjectName']) ?? '',
+          framesBetweenLaunchFXRefresh: self.msToLogicFrames(readNumericField(block.fields, ['DelayBetweenLaunchFX']) ?? 1000),
           manualDrivingSpeed: (readNumericField(block.fields, ['ManualDrivingSpeed']) ?? 0) / LOGICFRAMES_PER_SECOND,
           manualFastDrivingSpeed: (readNumericField(block.fields, ['ManualFastDrivingSpeed']) ?? 0) / LOGICFRAMES_PER_SECOND,
-          doubleClickToFastDriveDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['DoubleClickToFastDriveDelay']) ?? 0),
+          doubleClickToFastDriveDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['DoubleClickToFastDriveDelay']) ?? 500),
         };
       }
     }
@@ -4304,6 +4691,8 @@ export function extractNeutronMissileUpdateProfile(self: GL, objectDef: ObjectDe
           specialAccelFactor: readNumericField(block.fields, ['SpecialAccelFactor']) ?? 1.0,
           specialSpeedTimeFrames: self.msToLogicFrames(readNumericField(block.fields, ['SpecialSpeedTime']) ?? 0),
           specialSpeedHeight: readNumericField(block.fields, ['SpecialSpeedHeight']) ?? 0,
+          launchFXName: readStringField(block.fields, ['LaunchFX'])?.trim() ?? '',
+          ignitionFXName: readStringField(block.fields, ['IgnitionFX'])?.trim() ?? '',
           deliveryDecalRadius: readNumericField(block.fields, ['DeliveryDecalRadius']) ?? 0,
           specialJitterDistance: readNumericField(block.fields, ['SpecialJitterDistance']) ?? 0,
         };
@@ -4340,8 +4729,13 @@ export function extractSpecialAbilityProfile(self: GL, objectDef: ObjectDef | un
           packTimeFrames: self.msToLogicFrames(readNumericField(block.fields, ['PackTime']) ?? 0),
           unpackTimeFrames: self.msToLogicFrames(readNumericField(block.fields, ['UnpackTime']) ?? 0),
           packUnpackVariationFactor: readNumericField(block.fields, ['PackUnpackVariationFactor']) ?? 0,
+          packSoundName: extractDynamicAudioEventName(self, block.fields, 'PackSound') ?? '',
+          unpackSoundName: extractDynamicAudioEventName(self, block.fields, 'UnpackSound') ?? '',
+          prepSoundLoopName: extractDynamicAudioEventName(self, block.fields, 'PrepSoundLoop') ?? '',
+          triggerSoundName: extractDynamicAudioEventName(self, block.fields, 'TriggerSound') ?? '',
           skipPackingWithNoTarget: readBooleanField(block.fields, ['SkipPackingWithNoTarget']) === true,
           effectDurationFrames: self.msToLogicFrames(readNumericField(block.fields, ['EffectDuration']) ?? 0),
+          disableFXParticleSystemName: readStringField(block.fields, ['DisableFXParticleSystem']) ?? '',
           fleeRangeAfterCompletion: readNumericField(block.fields, ['FleeRangeAfterCompletion']) ?? 0,
           flipOwnerAfterPacking: readBooleanField(block.fields, ['FlipOwnerAfterPacking']) === true,
           flipOwnerAfterUnpacking: readBooleanField(block.fields, ['FlipOwnerAfterUnpacking']) === true,
@@ -4491,6 +4885,11 @@ export function extractCrateCollideProfile(self: GL, objectDef: ObjectDef | unde
           forbidOwnerPlayer: readBooleanField(block.fields, ['ForbidOwnerPlayer']) ?? false,
           buildingPickup: readBooleanField(block.fields, ['BuildingPickup']) ?? false,
           humanOnly: readBooleanField(block.fields, ['HumanOnly']) ?? false,
+          executeFXName: readStringField(block.fields, ['ExecuteFX']) ?? '',
+          executeAnimationName: readStringField(block.fields, ['ExecuteAnimation']) ?? '',
+          executeAnimationTimeSeconds: readNumericField(block.fields, ['ExecuteAnimationTime']) ?? 0,
+          executeAnimationZRisePerSecond: readNumericField(block.fields, ['ExecuteAnimationZRise']) ?? 0,
+          executeAnimationFades: readBooleanField(block.fields, ['ExecuteAnimationFades']) ?? false,
           moneyProvided: readNumericField(block.fields, ['MoneyProvided']) ?? 0,
           upgradedBoosts: extractUpgradedBoosts(block.fields['UpgradedBoost']),
           unitType: readStringField(block.fields, ['UnitName']) ?? '',
@@ -4570,6 +4969,8 @@ export function extractDeployStyleProfile(self: GL, objectDef: ObjectDef | undef
             readBooleanField(block.fields, ['ResetTurretBeforePacking']) ?? false,
           turretsMustCenterBeforePacking:
             readBooleanField(block.fields, ['TurretsMustCenterBeforePacking']) ?? false,
+          manualDeployAnimations:
+            readBooleanField(block.fields, ['ManualDeployAnimations']) ?? false,
         };
       }
     }
@@ -4586,6 +4987,19 @@ export function extractDeployStyleProfile(self: GL, objectDef: ObjectDef | undef
 export function extractBattlePlanProfile(self: GL, objectDef: ObjectDef | undefined): BattlePlanProfile | null {
   if (!objectDef) return null;
   let profile: BattlePlanProfile | null = null;
+  const readMaxHealthChangeType = (fields: Record<string, IniValue>): MaxHealthChangeTypeName => {
+    const normalized = (readStringField(fields, ['StrategyCenterHoldTheLineMaxHealthChangeType']) ?? 'PRESERVE_RATIO')
+      .trim()
+      .toUpperCase();
+    switch (normalized) {
+      case 'SAME_CURRENTHEALTH':
+      case 'PRESERVE_RATIO':
+      case 'ADD_CURRENT_HEALTH_TOO':
+        return normalized;
+      default:
+        return 'PRESERVE_RATIO';
+    }
+  };
   const visitBlock = (block: IniBlock): void => {
     if (profile) return;
     const blockType = block.type.toUpperCase();
@@ -4618,6 +5032,20 @@ export function extractBattlePlanProfile(self: GL, objectDef: ObjectDef | undefi
             readBooleanField(block.fields, ['StrategyCenterSearchAndDestroyDetectsStealth']) ?? false,
           strategyCenterHoldTheLineMaxHealthScalar:
             readNumericField(block.fields, ['StrategyCenterHoldTheLineMaxHealthScalar']) ?? 1.0,
+          strategyCenterHoldTheLineMaxHealthChangeType: readMaxHealthChangeType(block.fields),
+          bombardmentPlanUnpackSoundName: readStringField(block.fields, ['BombardmentPlanUnpackSoundName']) ?? '',
+          bombardmentPlanPackSoundName: readStringField(block.fields, ['BombardmentPlanPackSoundName']) ?? '',
+          bombardmentMessageLabel: readStringField(block.fields, ['BombardmentMessageLabel']) ?? '',
+          bombardmentAnnouncementName: readStringField(block.fields, ['BombardmentAnnouncementName']) ?? '',
+          holdTheLinePlanUnpackSoundName: readStringField(block.fields, ['HoldTheLinePlanUnpackSoundName']) ?? '',
+          holdTheLinePlanPackSoundName: readStringField(block.fields, ['HoldTheLinePlanPackSoundName']) ?? '',
+          holdTheLineMessageLabel: readStringField(block.fields, ['HoldTheLineMessageLabel']) ?? '',
+          holdTheLineAnnouncementName: readStringField(block.fields, ['HoldTheLineAnnouncementName']) ?? '',
+          searchAndDestroyPlanUnpackSoundName: readStringField(block.fields, ['SearchAndDestroyPlanUnpackSoundName']) ?? '',
+          searchAndDestroyPlanIdleLoopSoundName: readStringField(block.fields, ['SearchAndDestroyPlanIdleLoopSoundName']) ?? '',
+          searchAndDestroyPlanPackSoundName: readStringField(block.fields, ['SearchAndDestroyPlanPackSoundName']) ?? '',
+          searchAndDestroyMessageLabel: readStringField(block.fields, ['SearchAndDestroyMessageLabel']) ?? '',
+          searchAndDestroyAnnouncementName: readStringField(block.fields, ['SearchAndDestroyAnnouncementName']) ?? '',
           validMemberKindOf: new Set(
             validKindOf.split(/\s+/).map((t) => t.trim().toUpperCase()).filter(Boolean),
           ),
@@ -4677,17 +5105,113 @@ export function extractProjectileStreamProfile(self: GL, objectDef: ObjectDef | 
   return null;
 }
 
+const BONE_FX_FIELD_GROUPS: Array<{
+  stateIdx: number;
+  target: 'fxLists' | 'oclLists' | 'particleSystems';
+  fields: readonly string[];
+}> = [
+  {
+    stateIdx: 0,
+    target: 'fxLists',
+    fields: [
+      'PristineFXList1', 'PristineFXList2', 'PristineFXList3', 'PristineFXList4',
+      'PristineFXList5', 'PristineFXList6', 'PristineFXList7', 'PristineFXList8',
+    ],
+  },
+  {
+    stateIdx: 0,
+    target: 'oclLists',
+    fields: [
+      'PristineOCL1', 'PristineOCL2', 'PristineOCL3', 'PristineOCL4',
+      'PristineOCL5', 'PristineOCL6', 'PristineOCL7', 'PristineOCL8',
+    ],
+  },
+  {
+    stateIdx: 0,
+    target: 'particleSystems',
+    fields: [
+      'PristineParticleSystem1', 'PristineParticleSystem2', 'PristineParticleSystem3', 'PristineParticleSystem4',
+      'PristineParticleSystem5', 'PristineParticleSystem6', 'PristineParticleSystem7', 'PristineParticleSystem8',
+    ],
+  },
+  {
+    stateIdx: 1,
+    target: 'fxLists',
+    fields: [
+      'DamagedFXList1', 'DamagedFXList2', 'DamagedFXList3', 'DamagedFXList4',
+      'DamagedFXList5', 'DamagedFXList6', 'DamagedFXList7', 'DamagedFXList8',
+    ],
+  },
+  {
+    stateIdx: 1,
+    target: 'oclLists',
+    fields: [
+      'DamagedOCL1', 'DamagedOCL2', 'DamagedOCL3', 'DamagedOCL4',
+      'DamagedOCL5', 'DamagedOCL6', 'DamagedOCL7', 'DamagedOCL8',
+    ],
+  },
+  {
+    stateIdx: 1,
+    target: 'particleSystems',
+    fields: [
+      'DamagedParticleSystem1', 'DamagedParticleSystem2', 'DamagedParticleSystem3', 'DamagedParticleSystem4',
+      'DamagedParticleSystem5', 'DamagedParticleSystem6', 'DamagedParticleSystem7', 'DamagedParticleSystem8',
+    ],
+  },
+  {
+    stateIdx: 2,
+    target: 'fxLists',
+    fields: [
+      'ReallyDamagedFXList1', 'ReallyDamagedFXList2', 'ReallyDamagedFXList3', 'ReallyDamagedFXList4',
+      'ReallyDamagedFXList5', 'ReallyDamagedFXList6', 'ReallyDamagedFXList7', 'ReallyDamagedFXList8',
+    ],
+  },
+  {
+    stateIdx: 2,
+    target: 'oclLists',
+    fields: [
+      'ReallyDamagedOCL1', 'ReallyDamagedOCL2', 'ReallyDamagedOCL3', 'ReallyDamagedOCL4',
+      'ReallyDamagedOCL5', 'ReallyDamagedOCL6', 'ReallyDamagedOCL7', 'ReallyDamagedOCL8',
+    ],
+  },
+  {
+    stateIdx: 2,
+    target: 'particleSystems',
+    fields: [
+      'ReallyDamagedParticleSystem1', 'ReallyDamagedParticleSystem2', 'ReallyDamagedParticleSystem3', 'ReallyDamagedParticleSystem4',
+      'ReallyDamagedParticleSystem5', 'ReallyDamagedParticleSystem6', 'ReallyDamagedParticleSystem7', 'ReallyDamagedParticleSystem8',
+    ],
+  },
+  {
+    stateIdx: 3,
+    target: 'fxLists',
+    fields: [
+      'RubbleFXList1', 'RubbleFXList2', 'RubbleFXList3', 'RubbleFXList4',
+      'RubbleFXList5', 'RubbleFXList6', 'RubbleFXList7', 'RubbleFXList8',
+    ],
+  },
+  {
+    stateIdx: 3,
+    target: 'oclLists',
+    fields: [
+      'RubbleOCL1', 'RubbleOCL2', 'RubbleOCL3', 'RubbleOCL4',
+      'RubbleOCL5', 'RubbleOCL6', 'RubbleOCL7', 'RubbleOCL8',
+    ],
+  },
+  {
+    stateIdx: 3,
+    target: 'particleSystems',
+    fields: [
+      'RubbleParticleSystem1', 'RubbleParticleSystem2', 'RubbleParticleSystem3', 'RubbleParticleSystem4',
+      'RubbleParticleSystem5', 'RubbleParticleSystem6', 'RubbleParticleSystem7', 'RubbleParticleSystem8',
+    ],
+  },
+];
+
 export function extractBoneFXProfile(self: GL, objectDef: ObjectDef | undefined): BoneFXProfile | null {
   if (!objectDef) return null;
 
   let profile: BoneFXProfile | null = null;
-
-  const damageStateNames = ['Pristine', 'Damaged', 'ReallyDamaged', 'Rubble'];
-  const effectTypes = [
-    { prefix: 'FXList', target: 'fxLists' as const },
-    { prefix: 'OCL', target: 'oclLists' as const },
-    { prefix: 'ParticleSystem', target: 'particleSystems' as const },
-  ];
 
   const visitBlock = (block: IniBlock): void => {
     if (profile !== null) return;
@@ -4710,28 +5234,18 @@ export function extractBoneFXProfile(self: GL, objectDef: ObjectDef | undefined)
         const oclLists = makeGrid();
         const particleSystems = makeGrid();
 
-        for (const [fieldName, fieldValue] of Object.entries(block.fields)) {
-          if (typeof fieldValue !== 'string') continue;
-          const upperFieldName = fieldName.toUpperCase();
+        for (const group of BONE_FX_FIELD_GROUPS) {
+          for (let boneIndex = 0; boneIndex < group.fields.length; boneIndex++) {
+            const fieldValue = self.readIniFieldValue(block.fields, group.fields[boneIndex]!);
+            if (typeof fieldValue !== 'string') continue;
 
-          for (let stateIdx = 0; stateIdx < numStates; stateIdx++) {
-            const stateName = damageStateNames[stateIdx]!.toUpperCase();
-            for (const eff of effectTypes) {
-              const prefix = stateName + eff.prefix.toUpperCase();
-              if (upperFieldName.startsWith(prefix)) {
-                const indexStr = upperFieldName.slice(prefix.length);
-                const boneIndex = parseInt(indexStr, 10) - 1; // 1-based → 0-based
-                if (boneIndex < 0 || boneIndex >= numBones || isNaN(boneIndex)) continue;
-
-                const entry = self.parseBoneFXFieldValue(fieldValue);
-                if (entry) {
-                  const target =
-                    eff.target === 'fxLists' ? fxLists :
-                    eff.target === 'oclLists' ? oclLists :
-                    particleSystems;
-                  target[stateIdx]![boneIndex] = entry;
-                }
-              }
+            const entry = self.parseBoneFXFieldValue(fieldValue);
+            if (entry) {
+              const target =
+                group.target === 'fxLists' ? fxLists :
+                group.target === 'oclLists' ? oclLists :
+                particleSystems;
+              target[group.stateIdx]![boneIndex] = entry;
             }
           }
         }
@@ -4758,6 +5272,227 @@ export function extractBoneFXProfile(self: GL, objectDef: ObjectDef | undefined)
     for (const block of objectDef.blocks) {
       visitBlock(block);
     }
+  }
+  return profile;
+}
+
+function transitionDamageValueEntries(value: IniValue | undefined): string[] {
+  if (value === undefined || value === null) return [];
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return [String(value)];
+  }
+  if (Array.isArray(value)) {
+    if (value.some((entry) => Array.isArray(entry))) {
+      return value.flatMap((entry) => transitionDamageValueEntries(entry as IniValue));
+    }
+    return [value.map((entry) => String(entry)).join(' ')];
+  }
+  return [];
+}
+
+function transitionDamageTokens(value: IniValue | undefined): string[] {
+  return transitionDamageValueEntries(value)
+    .flatMap((entry) => entry.split(/\s+/))
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function parseTransitionToken(token: string): { key: string; value: string } {
+  const idx = token.indexOf(':');
+  if (idx < 0) {
+    return { key: token.toUpperCase(), value: '' };
+  }
+  return {
+    key: token.slice(0, idx).toUpperCase(),
+    value: token.slice(idx + 1),
+  };
+}
+
+function readTransitionTokenValue(tokens: string[], index: number): string {
+  const parsed = parseTransitionToken(tokens[index] ?? '');
+  if (parsed.value.length > 0) return parsed.value;
+  const next = tokens[index + 1];
+  if (next && !next.includes(':')) return next;
+  return '';
+}
+
+function parseTransitionDamageFXEntry(
+  value: IniValue | undefined,
+  effectKey: 'FXLIST' | 'OCL' | 'PSYS',
+): TransitionDamageFXEntry | null {
+  const tokens = transitionDamageTokens(value);
+  if (tokens.length === 0) return null;
+
+  let locType: 'BONE' | 'COORD' | null = null;
+  let boneName: string | null = null;
+  let randomBone = false;
+  const loc = { x: 0, y: 0, z: 0 };
+  let effectName = '';
+
+  for (let i = 0; i < tokens.length; i++) {
+    const parsed = parseTransitionToken(tokens[i]!);
+    switch (parsed.key) {
+      case 'BONE':
+        locType = 'BONE';
+        boneName = readTransitionTokenValue(tokens, i);
+        break;
+      case 'RANDOMBONE':
+        randomBone = readTransitionTokenValue(tokens, i).toUpperCase() === 'YES';
+        break;
+      case 'LOC':
+        locType = 'COORD';
+        break;
+      case 'X':
+        loc.x = Number.parseFloat(readTransitionTokenValue(tokens, i)) || 0;
+        break;
+      case 'Y':
+        loc.y = Number.parseFloat(readTransitionTokenValue(tokens, i)) || 0;
+        break;
+      case 'Z':
+        loc.z = Number.parseFloat(readTransitionTokenValue(tokens, i)) || 0;
+        break;
+      case 'FXLIST':
+      case 'OCL':
+      case 'PSYS':
+        if (parsed.key === effectKey) {
+          effectName = readTransitionTokenValue(tokens, i);
+        }
+        break;
+    }
+  }
+
+  if (!effectName || !locType) return null;
+  return {
+    effectName,
+    locType,
+    boneName,
+    randomBone,
+    loc,
+  };
+}
+
+function parseTransitionDamageTypeFilter(value: IniValue | undefined): TransitionDamageTypeFilter | null {
+  const tokens = transitionDamageTokens(value);
+  if (tokens.length === 0) return null;
+
+  let includeAll = false;
+  const includes: string[] = [];
+  const excludes: string[] = [];
+  for (const rawToken of tokens) {
+    let token = rawToken.trim().toUpperCase();
+    if (!token) continue;
+    const isExcluded = token.startsWith('-');
+    if (token.startsWith('-') || token.startsWith('+')) {
+      token = token.slice(1);
+    }
+    if (!token || token === 'NONE') continue;
+    if (token === 'ALL') {
+      if (!isExcluded) includeAll = true;
+      continue;
+    }
+    if (isExcluded) {
+      excludes.push(token);
+    } else {
+      includes.push(token);
+    }
+  }
+
+  if (includeAll && excludes.length === 0 && includes.length === 0) return null;
+  return { includeAll, includes, excludes };
+}
+
+const TRANSITION_DAMAGE_FX_FIELD_NAMES_BY_STATE: Record<number, readonly string[]> = {
+  1: [
+    'DamagedFXList1', 'DamagedFXList2', 'DamagedFXList3', 'DamagedFXList4',
+    'DamagedFXList5', 'DamagedFXList6', 'DamagedFXList7', 'DamagedFXList8',
+    'DamagedFXList9', 'DamagedFXList10', 'DamagedFXList11', 'DamagedFXList12',
+    'DamagedOCL1', 'DamagedOCL2', 'DamagedOCL3', 'DamagedOCL4',
+    'DamagedOCL5', 'DamagedOCL6', 'DamagedOCL7', 'DamagedOCL8',
+    'DamagedOCL9', 'DamagedOCL10', 'DamagedOCL11', 'DamagedOCL12',
+    'DamagedParticleSystem1', 'DamagedParticleSystem2', 'DamagedParticleSystem3', 'DamagedParticleSystem4',
+    'DamagedParticleSystem5', 'DamagedParticleSystem6', 'DamagedParticleSystem7', 'DamagedParticleSystem8',
+    'DamagedParticleSystem9', 'DamagedParticleSystem10', 'DamagedParticleSystem11', 'DamagedParticleSystem12',
+  ],
+  2: [
+    'ReallyDamagedFXList1', 'ReallyDamagedFXList2', 'ReallyDamagedFXList3', 'ReallyDamagedFXList4',
+    'ReallyDamagedFXList5', 'ReallyDamagedFXList6', 'ReallyDamagedFXList7', 'ReallyDamagedFXList8',
+    'ReallyDamagedFXList9', 'ReallyDamagedFXList10', 'ReallyDamagedFXList11', 'ReallyDamagedFXList12',
+    'ReallyDamagedOCL1', 'ReallyDamagedOCL2', 'ReallyDamagedOCL3', 'ReallyDamagedOCL4',
+    'ReallyDamagedOCL5', 'ReallyDamagedOCL6', 'ReallyDamagedOCL7', 'ReallyDamagedOCL8',
+    'ReallyDamagedOCL9', 'ReallyDamagedOCL10', 'ReallyDamagedOCL11', 'ReallyDamagedOCL12',
+    'ReallyDamagedParticleSystem1', 'ReallyDamagedParticleSystem2', 'ReallyDamagedParticleSystem3', 'ReallyDamagedParticleSystem4',
+    'ReallyDamagedParticleSystem5', 'ReallyDamagedParticleSystem6', 'ReallyDamagedParticleSystem7', 'ReallyDamagedParticleSystem8',
+    'ReallyDamagedParticleSystem9', 'ReallyDamagedParticleSystem10', 'ReallyDamagedParticleSystem11', 'ReallyDamagedParticleSystem12',
+  ],
+  3: [
+    'RubbleFXList1', 'RubbleFXList2', 'RubbleFXList3', 'RubbleFXList4',
+    'RubbleFXList5', 'RubbleFXList6', 'RubbleFXList7', 'RubbleFXList8',
+    'RubbleFXList9', 'RubbleFXList10', 'RubbleFXList11', 'RubbleFXList12',
+    'RubbleOCL1', 'RubbleOCL2', 'RubbleOCL3', 'RubbleOCL4',
+    'RubbleOCL5', 'RubbleOCL6', 'RubbleOCL7', 'RubbleOCL8',
+    'RubbleOCL9', 'RubbleOCL10', 'RubbleOCL11', 'RubbleOCL12',
+    'RubbleParticleSystem1', 'RubbleParticleSystem2', 'RubbleParticleSystem3', 'RubbleParticleSystem4',
+    'RubbleParticleSystem5', 'RubbleParticleSystem6', 'RubbleParticleSystem7', 'RubbleParticleSystem8',
+    'RubbleParticleSystem9', 'RubbleParticleSystem10', 'RubbleParticleSystem11', 'RubbleParticleSystem12',
+  ],
+};
+
+export function extractTransitionDamageFXProfile(self: GL, objectDef: ObjectDef | undefined): TransitionDamageFXProfile | null {
+  if (!objectDef?.blocks) return null;
+
+  const numStates = 4;
+  const makeRows = (): TransitionDamageFXEntry[][] => Array.from({ length: numStates }, () => []);
+
+  let profile: TransitionDamageFXProfile | null = null;
+  const visitBlock = (block: IniBlock): void => {
+    if (profile) return;
+    const blockType = block.type.toUpperCase();
+    if (blockType === 'BEHAVIOR' || blockType === 'CLIENTUPDATE') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'TRANSITIONDAMAGEFX') {
+        const fxLists = makeRows();
+        const oclLists = makeRows();
+        const particleSystems = makeRows();
+
+        for (const [stateText, fieldNames] of Object.entries(TRANSITION_DAMAGE_FX_FIELD_NAMES_BY_STATE)) {
+          const state = Number.parseInt(stateText, 10);
+          for (const fieldName of fieldNames) {
+            const fieldValue = self.readIniFieldValue(block.fields, fieldName);
+            if (fieldValue === undefined) continue;
+            if (fieldName.includes('FXList')) {
+              const entry = parseTransitionDamageFXEntry(fieldValue as IniValue, 'FXLIST');
+              if (entry) fxLists[state]!.push(entry);
+            } else if (fieldName.includes('OCL')) {
+              const entry = parseTransitionDamageFXEntry(fieldValue as IniValue, 'OCL');
+              if (entry) oclLists[state]!.push(entry);
+            } else if (fieldName.includes('ParticleSystem')) {
+              const entry = parseTransitionDamageFXEntry(fieldValue as IniValue, 'PSYS');
+              if (entry) particleSystems[state]!.push(entry);
+            }
+          }
+        }
+
+        const hasEntries = [fxLists, oclLists, particleSystems]
+          .some((rows) => rows.some((row) => row.length > 0));
+        if (hasEntries) {
+          profile = {
+            fxLists,
+            oclLists,
+            particleSystems,
+            damageFXTypes: parseTransitionDamageTypeFilter(self.readIniFieldValue(block.fields, 'DamageFXTypes')),
+            damageOCLTypes: parseTransitionDamageTypeFilter(self.readIniFieldValue(block.fields, 'DamageOCLTypes')),
+            damageParticleTypes: parseTransitionDamageTypeFilter(self.readIniFieldValue(block.fields, 'DamageParticleTypes')),
+          };
+        }
+      }
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+
+  for (const block of objectDef.blocks) {
+    visitBlock(block);
   }
   return profile;
 }
@@ -5153,6 +5888,37 @@ export function extractStructureCollapseProfile(self: GL, objectDef: ObjectDef |
   return profile;
 }
 
+function readRgbColorField(
+  fields: Record<string, IniValue>,
+  names: string[],
+  fallback: readonly [number, number, number],
+): readonly [number, number, number] {
+  const tokens = readStringList(fields, names);
+  if (tokens.length === 0) {
+    const numeric = readNumericListField(fields, names);
+    if (numeric && numeric.length >= 3) {
+      return [
+        Math.max(0, Math.min(255, Math.trunc(numeric[0] ?? fallback[0]))),
+        Math.max(0, Math.min(255, Math.trunc(numeric[1] ?? fallback[1]))),
+        Math.max(0, Math.min(255, Math.trunc(numeric[2] ?? fallback[2]))),
+      ];
+    }
+    return fallback;
+  }
+  const result = [...fallback] as [number, number, number];
+  for (const token of tokens) {
+    const match = token.match(/^([RGB])\s*:\s*(-?\d+(?:\.\d+)?)$/i);
+    if (!match) continue;
+    const channel = match[1]!.toUpperCase();
+    const value = Math.max(0, Math.min(255, Math.trunc(Number(match[2]))));
+    if (!Number.isFinite(value)) continue;
+    if (channel === 'R') result[0] = value;
+    else if (channel === 'G') result[1] = value;
+    else if (channel === 'B') result[2] = value;
+  }
+  return result;
+}
+
 export function extractEmpUpdateProfile(self: GL, objectDef: ObjectDef | undefined): EMPUpdateProfile | null {
   if (!objectDef) return null;
   let profile: EMPUpdateProfile | null = null;
@@ -5164,6 +5930,10 @@ export function extractEmpUpdateProfile(self: GL, objectDef: ObjectDef | undefin
 
     const victimRequiredKindOf = new Set<string>();
     const victimForbiddenKindOf = new Set<string>();
+    const doesNotAffect = new Set<string>();
+    for (const token of readStringList(block.fields, ['DoesNotAffect'])) {
+      if (token) doesNotAffect.add(token.toUpperCase());
+    }
     const victimReqRaw = readStringField(block.fields, ['VictimRequiredKindOf']);
     if (victimReqRaw) {
       for (const token of victimReqRaw.trim().split(/\s+/)) {
@@ -5182,6 +5952,12 @@ export function extractEmpUpdateProfile(self: GL, objectDef: ObjectDef | undefin
       startFadeFrame: self.msToLogicFrames(readNumericField(block.fields, ['StartFadeTime']) ?? 0),
       disabledDurationFrames: self.msToLogicFrames(readNumericField(block.fields, ['DisabledDuration']) ?? 0),
       effectRadius: readNumericField(block.fields, ['EffectRadius']) ?? 200.0,
+      startScale: readNumericField(block.fields, ['StartScale']) ?? 1.0,
+      targetScaleMin: readNumericField(block.fields, ['TargetScaleMin']) ?? 1.0,
+      targetScaleMax: readNumericField(block.fields, ['TargetScaleMax']) ?? 1.0,
+      startColor: readRgbColorField(block.fields, ['StartColor'], [255, 255, 255]),
+      endColor: readRgbColorField(block.fields, ['EndColor'], [0, 0, 0]),
+      doesNotAffect,
       doesNotAffectMyOwnBuildings: readStringField(block.fields, ['DoesNotAffectMyOwnBuildings'])?.toUpperCase() === 'YES',
       victimRequiredKindOf,
       victimForbiddenKindOf,
@@ -5283,6 +6059,12 @@ export function extractDynamicGeometryProfile(self: GL, objectDef: ObjectDef | u
 export function extractFirestormDamageProfile(self: GL, objectDef: ObjectDef | undefined): FirestormDamageProfile | null {
   if (!objectDef) return null;
   let profile: FirestormDamageProfile | null = null;
+  const particleSystemFields = [
+    'ParticleSystem1', 'ParticleSystem2', 'ParticleSystem3', 'ParticleSystem4',
+    'ParticleSystem5', 'ParticleSystem6', 'ParticleSystem7', 'ParticleSystem8',
+    'ParticleSystem9', 'ParticleSystem10', 'ParticleSystem11', 'ParticleSystem12',
+    'ParticleSystem13', 'ParticleSystem14', 'ParticleSystem15', 'ParticleSystem16',
+  ];
   const visitBlock = (block: IniBlock): void => {
     if (profile) return;
     const blockType = block.type.toUpperCase();
@@ -5293,6 +6075,12 @@ export function extractFirestormDamageProfile(self: GL, objectDef: ObjectDef | u
       damageAmount: readNumericField(block.fields, ['DamageAmount']) ?? 0,
       delayBetweenDamageFrames: self.msToLogicFrames(readNumericField(block.fields, ['DelayBetweenDamageFrames']) ?? 0),
       maxHeightForDamage: readNumericField(block.fields, ['MaxHeightForDamage']) ?? 20.0,
+      particleSystemNames: particleSystemFields
+        .map((fieldName) => readStringField(block.fields, [fieldName]) ?? '')
+        .filter((name) => name.trim().length > 0),
+      particleOffsetZ: readNumericField(block.fields, ['ParticleOffsetZ']) ?? 0.0,
+      fxListName: readStringField(block.fields, ['FXList']) ?? '',
+      scorchSize: readNumericField(block.fields, ['ScorchSize']) ?? 0.0,
     };
   };
   for (const block of objectDef.blocks) visitBlock(block);
@@ -5364,6 +6152,13 @@ export function extractBunkerBusterProfile(self: GL, objectDef: ObjectDef | unde
       upgradeRequired: (readStringField(block.fields, ['UpgradeRequired']) ?? '').trim().toUpperCase(),
       occupantDamageWeaponName: (readStringField(block.fields, ['OccupantDamageWeaponTemplate']) ?? '').trim(),
       shockwaveWeaponName: (readStringField(block.fields, ['ShockwaveWeaponTemplate']) ?? '').trim(),
+      detonationFXName: (readStringField(block.fields, ['DetonationFX']) ?? '').trim(),
+      crashThroughBunkerFXName: (readStringField(block.fields, ['CrashThroughBunkerFX']) ?? '').trim(),
+      crashThroughBunkerFXFrequencyFrames: readNumericField(block.fields, ['CrashThroughBunkerFXFrequency']) !== null
+        ? self.msToLogicFrames(readNumericField(block.fields, ['CrashThroughBunkerFXFrequency']) ?? 0)
+        : 4,
+      seismicEffectRadius: readNumericField(block.fields, ['SeismicEffectRadius']) ?? 140.0,
+      seismicEffectMagnitude: readNumericField(block.fields, ['SeismicEffectMagnitude']) ?? 6.0,
     };
   };
   for (const block of objectDef.blocks) visitBlock(block);
@@ -5372,6 +6167,108 @@ export function extractBunkerBusterProfile(self: GL, objectDef: ObjectDef | unde
   }
   return profile;
 }
+
+const NEUTRON_MISSILE_BLAST_FIELDS = [
+  {
+    enabled: 'Blast1Enabled',
+    delay: 'Blast1Delay',
+    scorchDelay: 'Blast1ScorchDelay',
+    innerRadius: 'Blast1InnerRadius',
+    outerRadius: 'Blast1OuterRadius',
+    maxDamage: 'Blast1MaxDamage',
+    minDamage: 'Blast1MinDamage',
+    toppleSpeed: 'Blast1ToppleSpeed',
+    pushForce: 'Blast1PushForce',
+  },
+  {
+    enabled: 'Blast2Enabled',
+    delay: 'Blast2Delay',
+    scorchDelay: 'Blast2ScorchDelay',
+    innerRadius: 'Blast2InnerRadius',
+    outerRadius: 'Blast2OuterRadius',
+    maxDamage: 'Blast2MaxDamage',
+    minDamage: 'Blast2MinDamage',
+    toppleSpeed: 'Blast2ToppleSpeed',
+    pushForce: 'Blast2PushForce',
+  },
+  {
+    enabled: 'Blast3Enabled',
+    delay: 'Blast3Delay',
+    scorchDelay: 'Blast3ScorchDelay',
+    innerRadius: 'Blast3InnerRadius',
+    outerRadius: 'Blast3OuterRadius',
+    maxDamage: 'Blast3MaxDamage',
+    minDamage: 'Blast3MinDamage',
+    toppleSpeed: 'Blast3ToppleSpeed',
+    pushForce: 'Blast3PushForce',
+  },
+  {
+    enabled: 'Blast4Enabled',
+    delay: 'Blast4Delay',
+    scorchDelay: 'Blast4ScorchDelay',
+    innerRadius: 'Blast4InnerRadius',
+    outerRadius: 'Blast4OuterRadius',
+    maxDamage: 'Blast4MaxDamage',
+    minDamage: 'Blast4MinDamage',
+    toppleSpeed: 'Blast4ToppleSpeed',
+    pushForce: 'Blast4PushForce',
+  },
+  {
+    enabled: 'Blast5Enabled',
+    delay: 'Blast5Delay',
+    scorchDelay: 'Blast5ScorchDelay',
+    innerRadius: 'Blast5InnerRadius',
+    outerRadius: 'Blast5OuterRadius',
+    maxDamage: 'Blast5MaxDamage',
+    minDamage: 'Blast5MinDamage',
+    toppleSpeed: 'Blast5ToppleSpeed',
+    pushForce: 'Blast5PushForce',
+  },
+  {
+    enabled: 'Blast6Enabled',
+    delay: 'Blast6Delay',
+    scorchDelay: 'Blast6ScorchDelay',
+    innerRadius: 'Blast6InnerRadius',
+    outerRadius: 'Blast6OuterRadius',
+    maxDamage: 'Blast6MaxDamage',
+    minDamage: 'Blast6MinDamage',
+    toppleSpeed: 'Blast6ToppleSpeed',
+    pushForce: 'Blast6PushForce',
+  },
+  {
+    enabled: 'Blast7Enabled',
+    delay: 'Blast7Delay',
+    scorchDelay: 'Blast7ScorchDelay',
+    innerRadius: 'Blast7InnerRadius',
+    outerRadius: 'Blast7OuterRadius',
+    maxDamage: 'Blast7MaxDamage',
+    minDamage: 'Blast7MinDamage',
+    toppleSpeed: 'Blast7ToppleSpeed',
+    pushForce: 'Blast7PushForce',
+  },
+  {
+    enabled: 'Blast8Enabled',
+    delay: 'Blast8Delay',
+    scorchDelay: 'Blast8ScorchDelay',
+    innerRadius: 'Blast8InnerRadius',
+    outerRadius: 'Blast8OuterRadius',
+    maxDamage: 'Blast8MaxDamage',
+    minDamage: 'Blast8MinDamage',
+    toppleSpeed: 'Blast8ToppleSpeed',
+    pushForce: 'Blast8PushForce',
+  },
+  {
+    enabled: 'Blast9Enabled',
+    delay: 'Blast9Delay',
+    scorchDelay: 'Blast9ScorchDelay',
+    innerRadius: 'Blast9InnerRadius',
+    outerRadius: 'Blast9OuterRadius',
+    maxDamage: 'Blast9MaxDamage',
+    minDamage: 'Blast9MinDamage',
+    toppleSpeed: 'Blast9ToppleSpeed',
+    pushForce: 'Blast9PushForce',
+  },
+] as const;
 
 export function extractNeutronMissileSlowDeathProfile(self: GL, objectDef: ObjectDef | undefined): NeutronMissileSlowDeathProfile | null {
   if (!objectDef) return null;
@@ -5384,19 +6281,18 @@ export function extractNeutronMissileSlowDeathProfile(self: GL, objectDef: Objec
     if (moduleType !== 'NEUTRONMISSILESLOWDEATHBEHAVIOR') return;
     const blasts: NeutronMissileBlastInfo[] = [];
     // Source parity: MAX_NEUTRON_BLASTS = 9 (indices 1-9 in INI).
-    for (let i = 1; i <= 9; i++) {
-      const prefix = `Blast${i}`;
-      const enabled = (readStringField(block.fields, [`${prefix}Enabled`]) ?? 'No').toUpperCase() === 'YES';
+    for (const fields of NEUTRON_MISSILE_BLAST_FIELDS) {
+      const enabled = (readStringField(block.fields, [fields.enabled]) ?? 'No').toUpperCase() === 'YES';
       blasts.push({
         enabled,
-        delay: self.msToLogicFrames(readNumericField(block.fields, [`${prefix}Delay`]) ?? 0),
-        scorchDelay: self.msToLogicFrames(readNumericField(block.fields, [`${prefix}ScorchDelay`]) ?? 0),
-        innerRadius: readNumericField(block.fields, [`${prefix}InnerRadius`]) ?? 0,
-        outerRadius: readNumericField(block.fields, [`${prefix}OuterRadius`]) ?? 0,
-        maxDamage: readNumericField(block.fields, [`${prefix}MaxDamage`]) ?? 0,
-        minDamage: readNumericField(block.fields, [`${prefix}MinDamage`]) ?? 0,
-        toppleSpeed: readNumericField(block.fields, [`${prefix}ToppleSpeed`]) ?? 0,
-        pushForce: readNumericField(block.fields, [`${prefix}PushForce`]) ?? 0,
+        delay: self.msToLogicFrames(readNumericField(block.fields, [fields.delay]) ?? 0),
+        scorchDelay: self.msToLogicFrames(readNumericField(block.fields, [fields.scorchDelay]) ?? 0),
+        innerRadius: readNumericField(block.fields, [fields.innerRadius]) ?? 0,
+        outerRadius: readNumericField(block.fields, [fields.outerRadius]) ?? 0,
+        maxDamage: readNumericField(block.fields, [fields.maxDamage]) ?? 0,
+        minDamage: readNumericField(block.fields, [fields.minDamage]) ?? 0,
+        toppleSpeed: readNumericField(block.fields, [fields.toppleSpeed]) ?? 0,
+        pushForce: readNumericField(block.fields, [fields.pushForce]) ?? 0,
       });
     }
     profile = {
@@ -5755,6 +6651,57 @@ export function extractSpecialPowerModules(self: GL, objectDef: ObjectDef | unde
   const visitBlock = (block: IniBlock): void => {
     if (block.type.toUpperCase() === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'SPYVISIONUPDATE') {
+        const moduleTag = block.name.split(/\s+/)[1]?.trim().toUpperCase() ?? null;
+        const syntheticPowerName = `__SPYVISIONUPDATE_${moduleTag ?? specialPowerModules.size}`;
+        specialPowerModules.set(syntheticPowerName, {
+          specialPowerTemplateName: syntheticPowerName,
+          moduleType,
+          moduleTag,
+          initiateSoundName: '',
+          updateModuleStartsAttack: false,
+          startsPaused: false,
+          availableOnFrame: 0,
+          pausedCount: 0,
+          pausedOnFrame: 0,
+          pausedPercent: 0,
+          spyVisionDeactivateFrame: 0,
+          spyVisionCurrentlyActive: false,
+          spyVisionResetTimersNextUpdate: false,
+          spyVisionDisabledUntilFrame: 0,
+          spyVisionNeedsUpgrade: readBooleanField(block.fields, ['NeedsUpgrade']) === true,
+          spyVisionSelfPowered: readBooleanField(block.fields, ['SelfPowered']) === true,
+          spyVisionSelfPoweredDurationMs: readNumericField(block.fields, ['SelfPoweredDuration']) ?? 0,
+          spyVisionSelfPoweredIntervalMs: readNumericField(block.fields, ['SelfPoweredInterval']) ?? 0,
+          spyVisionTriggeredBy: self.parseUpgradeNames(block.fields['TriggeredBy']),
+          spyVisionRequiresAllTriggers: readBooleanField(block.fields, ['RequiresAllTriggers']) === true,
+          spyVisionKindOf: readStringList(block.fields, ['SpyOnKindof'])
+            .map((kindOfName) => kindOfName.trim().toUpperCase())
+            .filter((kindOfName) => kindOfName.length > 0 && kindOfName !== 'NONE' && kindOfName !== 'ALL'),
+          cashHackMoneyAmount: 0,
+          cashHackUpgradeMoneyAmounts: [],
+          cashBountyPercent: 0,
+          spyVisionBaseDurationMs: 0,
+          spyVisionBonusDurationPerCapturedMs: 0,
+          spyVisionMaxDurationMs: 0,
+          fireWeaponMaxShots: 1,
+          cleanupMoveRange: 0,
+          oclName: '',
+          upgradeOCLs: [],
+          areaDamageRadius: 0,
+          areaDamageAmount: 0,
+          areaHealAmount: 0,
+          areaHealRadius: 0,
+          detonationObjectName: '',
+          scriptedSpecialPowerOnly: false,
+          oclAdjustPositionToPassable: false,
+          referenceObject: '',
+        });
+        for (const child of block.blocks) {
+          visitBlock(child);
+        }
+        return;
+      }
       if (!SPECIAL_POWER_BEHAVIOR_MODULE_TYPES.has(moduleType)) {
         for (const child of block.blocks) {
           visitBlock(child);
@@ -5770,6 +6717,7 @@ export function extractSpecialPowerModules(self: GL, objectDef: ObjectDef | unde
             specialPowerTemplateName: normalizedSpecialPowerTemplate,
             moduleType,
             moduleTag,
+            initiateSoundName: extractDynamicAudioEventName(self, block.fields, 'InitiateSound') ?? '',
             updateModuleStartsAttack: readBooleanField(block.fields, ['UpdateModuleStartsAttack']) === true,
             startsPaused: readBooleanField(block.fields, ['StartsPaused']) === true,
             availableOnFrame: 0,
@@ -5780,14 +6728,28 @@ export function extractSpecialPowerModules(self: GL, objectDef: ObjectDef | unde
             spyVisionCurrentlyActive: false,
             spyVisionResetTimersNextUpdate: false,
             spyVisionDisabledUntilFrame: 0,
+            spyVisionNeedsUpgrade: false,
+            spyVisionSelfPowered: false,
+            spyVisionSelfPoweredDurationMs: 0,
+            spyVisionSelfPoweredIntervalMs: 0,
+            spyVisionTriggeredBy: [],
+            spyVisionRequiresAllTriggers: false,
+            spyVisionKindOf: [],
             // Source parity: read module-specific INI parameters.
             cashHackMoneyAmount: readNumericField(block.fields, ['MoneyAmount']) ?? 0,
+            cashHackUpgradeMoneyAmounts: extractCashHackUpgradeMoneyAmounts(
+              self,
+              self.readIniFieldValue(block.fields, 'UpgradeMoneyAmount'),
+            ),
             cashBountyPercent: readNumericField(block.fields, ['Bounty']) ?? 0,
             spyVisionBaseDurationMs: readNumericField(block.fields, ['BaseDuration']) ?? 0,
+            spyVisionBonusDurationPerCapturedMs: readNumericField(block.fields, ['BonusDurationPerCaptured']) ?? 0,
+            spyVisionMaxDurationMs: readNumericField(block.fields, ['MaxDuration']) ?? 0,
             fireWeaponMaxShots: readNumericField(block.fields, ['MaxShotsToFire']) ?? 1,
             cleanupMoveRange: readNumericField(block.fields, ['MaxMoveDistanceFromLocation']) ?? 0,
             // Source parity: OCLSpecialPower OCL name.
             oclName: readStringField(block.fields, ['OCL']) ?? '',
+            upgradeOCLs: extractSpecialPowerUpgradeOCLs(self, self.readIniFieldValue(block.fields, 'UpgradeOCL')),
             // NOTE: In the original engine, area damage/heal parameters live on weapon templates
             // spawned via OCL, not on the special power module itself. These field names are
             // forward-looking placeholders for OCL-less parameter passing; real game INI files

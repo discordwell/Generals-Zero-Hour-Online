@@ -23,6 +23,52 @@ function createLogic(): GameLogicSubsystem {
 // ── TransportContain tests ──
 
 describe('TransportContain', () => {
+  it('honors HelixContain ShouldDrawPips when exposing container pip state', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('HiddenPipHelix', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
+          makeBlock('Behavior', 'HelixContain ModuleTag_Contain', {
+            ContainMax: 4,
+            Slots: 4,
+            ShouldDrawPips: 'No',
+          }),
+        ]),
+        makeObjectDef('VisiblePipHelix', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
+          makeBlock('Behavior', 'HelixContain ModuleTag_Contain', {
+            ContainMax: 4,
+            Slots: 4,
+            ShouldDrawPips: 'Yes',
+          }),
+        ]),
+        makeObjectDef('Passenger', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = createLogic();
+    logic.loadMapObjects(makeMap([
+      makeMapObject('HiddenPipHelix', 20, 20),
+      makeMapObject('VisiblePipHelix', 30, 20),
+      makeMapObject('Passenger', 20, 22),
+      makeMapObject('Passenger', 30, 22),
+    ]), makeRegistry(bundle), makeHeightmap());
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { transportContainerId: number | null }>;
+    };
+    priv.spawnedEntities.get(3)!.transportContainerId = 1;
+    priv.spawnedEntities.get(4)!.transportContainerId = 2;
+
+    const hiddenState = logic.getEntityState(1)!;
+    const visibleState = logic.getEntityState(2)!;
+    expect(hiddenState.containerPipCount).toBeNull();
+    expect(hiddenState.containerPipCapacity).toBeNull();
+    expect(visibleState.containerPipCount).toBe(1);
+    expect(visibleState.containerPipCapacity).toBe(4);
+  });
+
   it('enters infantry into a transport and hides them from the world', () => {
     const bundle = makeBundle({
       objects: [
@@ -1261,6 +1307,52 @@ describe('GarrisonContain', () => {
     expect(barracksState).toBeDefined();
     const flags = barracksState!.modelConditionFlags ?? [];
     expect(flags).toContain('LOADED');
+  });
+
+  it('routes infantry to a box garrison footprint when the center cell is blocked', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Bunker', 'America', ['STRUCTURE', 'IMMOBILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
+            ContainMax: 10,
+          }),
+        ], {
+          Geometry: 'BOX',
+          GeometryMajorRadius: 20,
+          GeometryMinorRadius: 16,
+          GeometryHeight: 12,
+        }),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL SoldierLoco', {}),
+        ], {
+          GeometryMajorRadius: 7,
+          GeometryMinorRadius: 7,
+          TransportSlotCount: 1,
+        }),
+      ],
+      locomotors: [makeLocomotorDef('SoldierLoco', 60)],
+    });
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Bunker', 160, 160),
+        makeMapObject('Soldier', 80, 160),
+      ], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 2, targetBuildingId: 1 });
+    for (let i = 0; i < 120; i++) logic.update(1 / 30);
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, { garrisonContainerId: number | null }>;
+    };
+    expect(privateApi.spawnedEntities.get(2)?.garrisonContainerId).toBe(1);
+    expect(logic.getEntityState(1)!.garrisonCount).toBe(1);
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('LOADED');
   });
 
   it('sets GARRISONED model condition on building when occupied', () => {

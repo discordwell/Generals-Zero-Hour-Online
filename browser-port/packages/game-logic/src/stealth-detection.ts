@@ -225,6 +225,13 @@ export function extractDetectorProfile(self: GL, objectDef: ObjectDef | undefine
         const initiallyDisabled = readBooleanField(block.fields, ['InitiallyDisabled']) ?? false;
         const canDetectWhileGarrisoned = readBooleanField(block.fields, ['CanDetectWhileGarrisoned']) ?? false;
         const canDetectWhileContained = readBooleanField(block.fields, ['CanDetectWhileContained']) ?? false;
+        const pingSoundName = readStringField(block.fields, ['PingSound']) ?? '';
+        const loudPingSoundName = readStringField(block.fields, ['LoudPingSound']) ?? '';
+        const irBeaconParticleSysName = readStringField(block.fields, ['IRBeaconParticleSysName']) ?? '';
+        const irParticleSysName = readStringField(block.fields, ['IRParticleSysName']) ?? '';
+        const irBrightParticleSysName = readStringField(block.fields, ['IRBrightParticleSysName']) ?? '';
+        const irGridParticleSysName = readStringField(block.fields, ['IRGridParticleSysName']) ?? '';
+        const irParticleSysBone = readStringField(block.fields, ['IRParticleSysBone']) ?? '';
 
         const extraRequiredKindOf = new Set<string>();
         const requiredStr = readStringField(block.fields, ['ExtraRequiredKindOf']) ?? '';
@@ -242,6 +249,13 @@ export function extractDetectorProfile(self: GL, objectDef: ObjectDef | undefine
           detectionRange,
           detectionRate,
           initiallyDisabled,
+          pingSoundName,
+          loudPingSoundName,
+          irBeaconParticleSysName,
+          irParticleSysName,
+          irBrightParticleSysName,
+          irGridParticleSysName,
+          irParticleSysBone,
           canDetectWhileGarrisoned,
           canDetectWhileContained,
           extraRequiredKindOf,
@@ -769,6 +783,7 @@ export function updateDetection(self: GL): void {
       ? profile.detectionRate + 1
       : DEFAULT_DETECTION_DURATION_FRAMES;
 
+    let foundSomeone = false;
     for (const target of self.spawnedEntities.values()) {
       if (target.destroyed || target === detector) continue;
       if (!target.objectStatusFlags.has('STEALTHED')) continue;
@@ -796,6 +811,7 @@ export function updateDetection(self: GL): void {
       const dx = target.x - detector.x;
       const dz = target.z - detector.z;
       if (dx * dx + dz * dz <= detRangeSq) {
+        foundSomeone = true;
         // Source parity: StealthUpdate.cpp:916-935 — markAsDetected checks
         // m_orderIdleEnemiesToAttackMeUponReveal. If true, iterates all enemy
         // players and calls setWakeupIfInRange on their idle units within
@@ -810,6 +826,52 @@ export function updateDetection(self: GL): void {
             && target.stealthProfile.orderIdleEnemiesToAttackMeUponReveal) {
           orderIdleEnemiesToAttack(self, target);
         }
+        if (profile?.irGridParticleSysName) {
+          self.visualEventBuffer.push({
+            type: 'NAMED_PARTICLE_SYSTEM',
+            x: Math.trunc(target.x / 12) * 12,
+            y: detector.y + 17,
+            z: Math.trunc(target.z / 12) * 12,
+            radius: 0,
+            sourceEntityId: detector.id,
+            projectileType: 'BULLET',
+            effectName: profile.irGridParticleSysName,
+          });
+        }
+      }
+    }
+
+    if (profile) {
+      const detectorParticleName = foundSomeone
+        ? profile.irBrightParticleSysName
+        : profile.irParticleSysName;
+      if (detectorParticleName) {
+        self.visualEventBuffer.push({
+          type: 'NAMED_PARTICLE_SYSTEM',
+          x: detector.x,
+          y: detector.y,
+          z: detector.z,
+          radius: 0,
+          sourceEntityId: detector.id,
+          projectileType: 'BULLET',
+          effectName: detectorParticleName,
+        });
+      }
+      if (profile.irBeaconParticleSysName) {
+        self.visualEventBuffer.push({
+          type: 'NAMED_PARTICLE_SYSTEM',
+          x: detector.x,
+          y: detector.y,
+          z: detector.z,
+          radius: 0,
+          sourceEntityId: detector.id,
+          projectileType: 'BULLET',
+          effectName: profile.irBeaconParticleSysName,
+        });
+      }
+      const pingSoundName = foundSomeone ? profile.loudPingSoundName : profile.pingSoundName;
+      if (pingSoundName) {
+        self.requestScriptSoundPlayFromNamed(pingSoundName, detector.id);
       }
     }
   }

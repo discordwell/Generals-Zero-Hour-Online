@@ -19,6 +19,8 @@ import {
   makeHeightmap,
   makeMap,
   makeMapObject,
+  makeObjectCreationListDef,
+  makeScienceDef,
   makeSpecialPowerDef,
 } from './test-helpers.js';
 
@@ -303,6 +305,88 @@ describe('OCLAdjustPositionToPassable (OCLSpecialPower.cpp:167-178)', () => {
 
     expect(moduleEnabled?.oclAdjustPositionToPassable).toBe(true);
     expect(moduleDisabled?.oclAdjustPositionToPassable).toBe(false);
+  });
+});
+
+describe('UpgradeOCL and InitiateSound (OCLSpecialPower.cpp:126-146, CommandXlat.cpp:671)', () => {
+  function runUpgradeOCLScenario(hasScience: boolean) {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('CommandCenter', 'America', ['STRUCTURE'], [
+          makeBlock('Behavior', 'OCLSpecialPower ModuleTag_SP', {
+            SpecialPowerTemplate: 'SPECIAL_SUPPLY_DROP',
+            InitiateSound: 'SupplyDropStart',
+            OCL: 'OCL_DefaultDrop',
+            UpgradeOCL: ['SCIENCE_SUPPLY_DROP_2', 'OCL_UpgradedDrop'],
+          }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 2000, InitialHealth: 2000 }),
+        ]),
+        makeObjectDef('DefaultDropCrate', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+        ]),
+        makeObjectDef('UpgradedDropCrate', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+        ]),
+      ],
+      objectCreationLists: [
+        makeObjectCreationListDef('OCL_DefaultDrop', [
+          makeBlock('CreateObject', 'CreateObject', { ObjectNames: 'DefaultDropCrate' }),
+        ]),
+        makeObjectCreationListDef('OCL_UpgradedDrop', [
+          makeBlock('CreateObject', 'CreateObject', { ObjectNames: 'UpgradedDropCrate' }),
+        ]),
+      ],
+      sciences: [
+        makeScienceDef('SCIENCE_SUPPLY_DROP_2', { IsGrantable: 'Yes' }),
+      ],
+      specialPowers: [
+        makeSpecialPowerDef('SPECIAL_SUPPLY_DROP', { ReloadTime: 0 }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('CommandCenter', 10, 10)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    if (hasScience) {
+      logic.grantSideScience('America', 'SCIENCE_SUPPLY_DROP_2');
+    }
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      specialPowerName: 'SPECIAL_SUPPLY_DROP',
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      commandOption: 0,
+      commandButtonId: 'CMD_SUPPLY_DROP',
+      targetEntityId: null,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+    return logic;
+  }
+
+  it('plays module InitiateSound when command is accepted', () => {
+    const logic = runUpgradeOCLScenario(false);
+    expect(logic.drainScriptAudioPlaybackRequests()).toContainEqual(expect.objectContaining({
+      audioName: 'SupplyDropStart',
+      playbackType: 'SOUND_EFFECT',
+      sourceEntityId: 1,
+    }));
+  });
+
+  it('selects the first UpgradeOCL whose science is owned', () => {
+    const defaultLogic = runUpgradeOCLScenario(false);
+    const defaultTemplates = [...getInternals(defaultLogic).spawnedEntities.values()].map((entity) => entity.templateName);
+    expect(defaultTemplates).toContain('DefaultDropCrate');
+    expect(defaultTemplates).not.toContain('UpgradedDropCrate');
+
+    const upgradedLogic = runUpgradeOCLScenario(true);
+    const upgradedTemplates = [...getInternals(upgradedLogic).spawnedEntities.values()].map((entity) => entity.templateName);
+    expect(upgradedTemplates).toContain('UpgradedDropCrate');
+    expect(upgradedTemplates).not.toContain('DefaultDropCrate');
   });
 });
 

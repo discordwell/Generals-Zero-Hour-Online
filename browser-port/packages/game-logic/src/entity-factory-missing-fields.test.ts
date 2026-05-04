@@ -209,6 +209,9 @@ describe('ParticleUplinkCannonProfile missing fields', () => {
     expect(profile!.beamTravelFrames).toBe(0);
     expect(profile!.manualDrivingSpeed).toBe(0);
     expect(profile!.manualFastDrivingSpeed).toBe(0);
+    expect(profile!.framesBetweenLaunchFXRefresh).toBe(30);
+    expect(profile!.doubleClickToFastDriveDelayFrames).toBe(15);
+    expect(profile!.scorchMarkScalar).toBe(1);
   });
 
   it('converts BeginChargeTime from ms to frames', () => {

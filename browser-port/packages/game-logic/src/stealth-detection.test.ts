@@ -80,6 +80,72 @@ describe('INI-driven stealth and detection', () => {
     logic.setTeamRelationship('China', 'America', 0);
   }
 
+  it('emits IR detector particle systems and loud ping when a stealthed enemy is found', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('StealthUnit', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'StealthUpdate ModuleTag_Stealth', {
+            StealthDelay: 0,
+            InnateStealth: 'Yes',
+          }),
+        ]),
+        makeObjectDef('DetectorUnit', 'China', ['INFANTRY', 'DETECTOR'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'StealthDetectorUpdate ModuleTag_Detector', {
+            DetectionRange: 200,
+            DetectionRate: 33,
+            PingSound: 'DetectorPing',
+            LoudPingSound: 'DetectorLoudPing',
+            IRBeaconParticleSysName: 'IRBeacon',
+            IRParticleSysName: 'IRDimSweep',
+            IRBrightParticleSysName: 'IRBrightSweep',
+            IRGridParticleSysName: 'IRGrid',
+            IRParticleSysBone: 'IRFX',
+          }),
+        ], { VisionRange: 200 }),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('StealthUnit', 105, 105),
+        makeMapObject('DetectorUnit', 115, 105),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    setupRelationships(logic);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        detectorProfile?: {
+          irParticleSysName: string;
+          irParticleSysBone: string;
+        } | null;
+        objectStatusFlags: Set<string>;
+      }>;
+    };
+    priv.spawnedEntities.get(1)!.objectStatusFlags.add('STEALTHED');
+    expect(priv.spawnedEntities.get(2)!.detectorProfile?.irParticleSysName).toBe('IRDimSweep');
+    expect(priv.spawnedEntities.get(2)!.detectorProfile?.irParticleSysBone).toBe('IRFX');
+
+    const visualEvents: Array<{ type: string; effectName?: string; sourceEntityId: number | null }> = [];
+    const audioNames: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      logic.update(1 / 30);
+      visualEvents.push(...logic.drainVisualEvents());
+      audioNames.push(...logic.drainScriptAudioPlaybackRequests().map((request) => request.audioName));
+    }
+
+    expect(visualEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'NAMED_PARTICLE_SYSTEM', effectName: 'IRGrid', sourceEntityId: 2 }),
+      expect.objectContaining({ type: 'NAMED_PARTICLE_SYSTEM', effectName: 'IRBrightSweep', sourceEntityId: 2 }),
+      expect.objectContaining({ type: 'NAMED_PARTICLE_SYSTEM', effectName: 'IRBeacon', sourceEntityId: 2 }),
+    ]));
+    expect(audioNames).toContain('DetectorLoudPing');
+  });
+
   it('innate stealth sets CAN_STEALTH on creation and enters stealth after delay', () => {
     const bundle = makeStealthBundle({ stealthDelay: 300 }); // 300ms = ~9 frames at 30fps
     const scene = new THREE.Scene();

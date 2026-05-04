@@ -23,6 +23,7 @@ export function extractFireSpreadProfile(self: GL, objectDef: ObjectDef | undefi
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'FIRESPREADUPDATE') {
         profile = {
+          oclEmbersName: readStringField(block.fields, ['OCLEmbers']) ?? '',
           minSpreadDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['MinSpreadDelay']) ?? 500),
           maxSpreadDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['MaxSpreadDelay']) ?? 1500),
           spreadTryRange: (readNumericField(block.fields, ['SpreadTryRange']) ?? 10) * MAP_XY_FACTOR,
@@ -265,6 +266,11 @@ export function updateFireSpread(self: GL): void {
 
     // Schedule next attempt.
     entity.fireSpreadNextFrame = self.frameCounter + calcFireSpreadDelay(self, prof);
+
+    const oclEmbersName = prof.oclEmbersName.trim();
+    if (oclEmbersName) {
+      self.executeOCL(oclEmbersName, entity);
+    }
 
     if (prof.spreadTryRange <= 0) continue;
 

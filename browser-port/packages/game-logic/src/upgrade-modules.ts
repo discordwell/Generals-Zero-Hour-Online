@@ -3,6 +3,7 @@ import type { IniBlock, IniValue } from '@generals/core';
 import {
   readBooleanField,
   readNumericField,
+  readStringList,
   readStringField,
 } from './ini-readers.js';
 
@@ -30,6 +31,7 @@ export interface ParsedUpgradeModuleProfile {
     | 'MODELCONDITIONUPGRADE'
     | 'OBJECTCREATIONUPGRADE'
     | 'ACTIVESHROUDUPGRADE'
+    | 'SUBOBJECTSUPGRADE'
     | 'REPLACEOBJECTUPGRADE';
   triggeredBy: Set<string>;
   conflictsWith: Set<string>;
@@ -52,6 +54,8 @@ export interface ParsedUpgradeModuleProfile {
   conditionFlag: string;
   upgradeObjectOCLName: string;
   newShroudRange: number;
+  showSubObjects: string[];
+  hideSubObjects: string[];
   replaceObjectName: string;
 }
 
@@ -101,6 +105,7 @@ function asSupportedUpgradeModuleType(
     || moduleType === 'MODELCONDITIONUPGRADE'
     || moduleType === 'OBJECTCREATIONUPGRADE'
     || moduleType === 'ACTIVESHROUDUPGRADE'
+    || moduleType === 'SUBOBJECTSUPGRADE'
     || moduleType === 'REPLACEOBJECTUPGRADE'
   ) {
     return moduleType;
@@ -180,6 +185,12 @@ export function extractUpgradeModulesFromBlocks(
         const newShroudRange = moduleType === 'ACTIVESHROUDUPGRADE'
           ? (readNumericField(block.fields, ['NewShroudRange']) ?? 0)
           : 0;
+        const showSubObjects = moduleType === 'SUBOBJECTSUPGRADE'
+          ? readStringList(block.fields, ['ShowSubObjects'])
+          : [];
+        const hideSubObjects = moduleType === 'SUBOBJECTSUPGRADE'
+          ? readStringList(block.fields, ['HideSubObjects'])
+          : [];
         const replaceObjectName = moduleType === 'REPLACEOBJECTUPGRADE'
           ? (readStringField(block.fields, ['ReplaceObject'])?.trim() ?? '')
           : '';
@@ -212,6 +223,8 @@ export function extractUpgradeModulesFromBlocks(
           conditionFlag,
           upgradeObjectOCLName,
           newShroudRange,
+          showSubObjects,
+          hideSubObjects,
           replaceObjectName,
         });
       }

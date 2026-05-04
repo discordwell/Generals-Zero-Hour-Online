@@ -16,6 +16,7 @@ import {
   makeScienceDef,
   makeAudioEventDef,
   makeSpecialPowerDef,
+  makeObjectCreationListDef,
   makeBundle,
   makeRegistry,
   makeHeightmap,
@@ -26,13 +27,14 @@ import {
 
 describe('Bridge System', () => {
   // Helper: create a bridge entity with BridgeBehavior
-  function makeBridgeObjectDef(): ObjectDef {
+  function makeBridgeObjectDef(bridgeFields: Record<string, unknown> = {}): ObjectDef {
     return makeObjectDef('TestBridge', 'civilian', ['BRIDGE', 'STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
       makeBlock('Behavior', 'BridgeBehavior ModuleTag_Bridge', {
         LateralScaffoldSpeed: 2.0,
         VerticalScaffoldSpeed: 1.5,
         ScaffoldObjectName: 'TestScaffold',
+        ...bridgeFields,
       }),
     ]);
   }
@@ -47,7 +49,10 @@ describe('Bridge System', () => {
 
   it('extracts BridgeBehaviorProfile from INI', () => {
     const bundle = makeBundle({
-      objects: [makeBridgeObjectDef()],
+      objects: [makeBridgeObjectDef({
+        BridgeDieFX: ['FX:FX_BridgeSplash', 'Delay:', '90', 'Bone:Splash01'],
+        BridgeDieOCL: 'OCL:OCL_BridgeDebris Delay:120 Bone:ParentObject',
+      })],
     });
     const scene = new THREE.Scene();
     const logic = new GameLogicSubsystem(scene);
@@ -59,7 +64,13 @@ describe('Bridge System', () => {
 
     const priv = logic as unknown as {
       spawnedEntities: Map<number, {
-        bridgeBehaviorProfile: { scaffoldLateralSpeed: number; scaffoldVerticalSpeed: number; scaffoldObjectName: string } | null;
+        bridgeBehaviorProfile: {
+          scaffoldLateralSpeed: number;
+          scaffoldVerticalSpeed: number;
+          scaffoldObjectName: string;
+          bridgeDieFX: Array<{ effectName: string; delayFrames: number; boneName: string }>;
+          bridgeDieOCL: Array<{ effectName: string; delayFrames: number; boneName: string }>;
+        } | null;
         bridgeBehaviorState: { towerIds: number[]; scaffoldIds: number[]; isBridgeDestroyed: boolean } | null;
       }>;
     };
@@ -69,6 +80,16 @@ describe('Bridge System', () => {
     expect(entity.bridgeBehaviorProfile!.scaffoldLateralSpeed).toBe(2.0);
     expect(entity.bridgeBehaviorProfile!.scaffoldVerticalSpeed).toBe(1.5);
     expect(entity.bridgeBehaviorProfile!.scaffoldObjectName).toBe('TESTSCAFFOLD');
+    expect(entity.bridgeBehaviorProfile!.bridgeDieFX).toEqual([{
+      effectName: 'FX_BridgeSplash',
+      delayFrames: 3,
+      boneName: 'Splash01',
+    }]);
+    expect(entity.bridgeBehaviorProfile!.bridgeDieOCL).toEqual([{
+      effectName: 'OCL_BridgeDebris',
+      delayFrames: 4,
+      boneName: 'ParentObject',
+    }]);
     expect(entity.bridgeBehaviorState).not.toBeNull();
     expect(entity.bridgeBehaviorState!.isBridgeDestroyed).toBe(false);
   });
@@ -94,6 +115,48 @@ describe('Bridge System', () => {
 
     expect(entity.bridgeTowerProfile).not.toBeNull();
     expect(entity.bridgeTowerProfile!._marker).toBe(true);
+  });
+
+  it('extracts BridgeScaffoldBehavior default constructor state from INI', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TestScaffold', 'civilian', [], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'BridgeScaffoldBehavior ModuleTag_Scaffold', {}),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestScaffold', 10, 10)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        bridgeScaffoldState: {
+          targetMotion: number;
+          createPos: { x: number; y: number; z: number };
+          riseToPos: { x: number; y: number; z: number };
+          buildPos: { x: number; y: number; z: number };
+          targetPos: { x: number; y: number; z: number };
+          lateralSpeed: number;
+          verticalSpeed: number;
+        } | null;
+      }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+
+    expect(entity.bridgeScaffoldState).toEqual({
+      targetMotion: 0,
+      createPos: { x: 0, y: 0, z: 0 },
+      riseToPos: { x: 0, y: 0, z: 0 },
+      buildPos: { x: 0, y: 0, z: 0 },
+      targetPos: { x: 0, y: 0, z: 0 },
+      lateralSpeed: 1,
+      verticalSpeed: 1,
+    });
   });
 
   it('propagates tower damage proportionally to sibling towers and bridge', () => {
@@ -272,6 +335,65 @@ describe('Bridge System', () => {
       expect(priv.navigationGrid.bridgePassable[idx2]).toBe(0);
       expect(state.isBridgeDestroyed).toBe(true);
     }
+  });
+
+  it('fires BridgeDieFX and BridgeDieOCL on the configured death delay', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeBridgeObjectDef({
+          BridgeDieFX: ['FX:FX_BridgeSplash', 'Delay:', '66', 'Bone:Splash01'],
+          BridgeDieOCL: ['OCL:OCL_BridgeDebris', 'Delay:', '66', 'Bone:ParentObject'],
+        }),
+        makeObjectDef('BridgeDebris', 'civilian', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+        ]),
+      ],
+      objectCreationLists: [
+        makeObjectCreationListDef('OCL_BridgeDebris', [
+          makeBlock('CreateObject', 'CreateObject', { ObjectNames: 'BridgeDebris' }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestBridge', 10, 10)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        id: number;
+        templateName: string;
+        health: number;
+        destroyed: boolean;
+        keepObjectOnDeath: boolean;
+      }>;
+      markEntityDestroyed: (entityId: number, attackerId: number) => void;
+    };
+
+    const bridge = priv.spawnedEntities.get(1)!;
+    bridge.health = 0;
+    priv.markEntityDestroyed(bridge.id, -1);
+    logic.drainVisualEvents();
+
+    logic.update(1 / 30);
+    expect(logic.drainVisualEvents().some((event) => event.effectName === 'FX_BridgeSplash')).toBe(false);
+    expect([...priv.spawnedEntities.values()].some((entity) => entity.templateName === 'BridgeDebris')).toBe(false);
+
+    logic.update(1 / 30);
+    const events = logic.drainVisualEvents();
+
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_BridgeSplash',
+      sourceEntityId: bridge.id,
+      sourceBoneName: 'Splash01',
+    }));
+    expect([...priv.spawnedEntities.values()].some((entity) => entity.templateName === 'BridgeDebris')).toBe(true);
+    expect(priv.spawnedEntities.get(bridge.id)).toBe(bridge);
+    expect(bridge.destroyed).toBe(true);
+    expect(bridge.keepObjectOnDeath).toBe(true);
   });
 
   it('scaffold motion state machine transitions RISE -> BUILD_ACROSS -> STILL', () => {

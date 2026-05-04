@@ -304,6 +304,7 @@ export const MODULE_TYPE_EFFECTS: Record<string, string> = {
   DEFECTORSPECIALPOWER: 'DEFECTOR',
   // Spy vision
   SPYVISIONSPECIALPOWER: 'SPY_VISION',
+  SPYVISIONUPDATE: 'SPY_VISION',
   // Cash bounty (passive, handled at game level)
   CASHBOUNTYPOWER: 'CASH_BOUNTY',
   // Cleanup area

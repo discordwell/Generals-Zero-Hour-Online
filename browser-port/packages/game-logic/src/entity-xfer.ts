@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 63;
+const ENTITY_XFER_VERSION = 67;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1885,6 +1885,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   } else {
     e.initialPayloadCreated = false;
   }
+  if (version >= 67) {
+    e.riderChangeScuttledFrame = xfer.xferUnsignedInt((e.riderChangeScuttledFrame as number | undefined) ?? 0);
+  } else {
+    e.riderChangeScuttledFrame = 0;
+  }
   e.helixPortableRiderId = xferNullableInt(xfer, e.helixPortableRiderId as number | null);
 
   // ── Slaves / Spawns ──
@@ -2208,6 +2213,14 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.autoHealStopped = false;
   }
   e.autoHealDamageDelayUntilFrame = xfer.xferInt(e.autoHealDamageDelayUntilFrame as number);
+  if (version >= 65) {
+    e.baseRegenerateUpdateProfile = xferNullableJsonObject(
+      xfer,
+      (e.baseRegenerateUpdateProfile as object | null | undefined) ?? null,
+    );
+  } else {
+    e.baseRegenerateUpdateProfile = null;
+  }
   e.baseRegenDelayUntilFrame = xfer.xferInt(e.baseRegenDelayUntilFrame as number);
   e.propagandaTowerProfile = xferNullableJsonObject(xfer, e.propagandaTowerProfile as object | null);
   e.propagandaTowerNextScanFrame = xfer.xferInt(e.propagandaTowerNextScanFrame as number);
@@ -2845,6 +2858,21 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.mobMemberState = xferNullableJsonObject(xfer, e.mobMemberState as object | null);
     e.boneFXProfile = xferNullableJsonObject(xfer, e.boneFXProfile as object | null);
     e.boneFXState = xferNullableJsonObject(xfer, e.boneFXState as object | null);
+    if (version >= 64) {
+      e.transitionDamageFXProfile = xferNullableJsonObject(xfer, e.transitionDamageFXProfile as object | null);
+    } else {
+      e.transitionDamageFXProfile = null;
+    }
+    if (version >= 66) {
+      e.animatedParticleSysBoneClientUpdateState = xferNullableJsonObject(
+        xfer,
+        e.animatedParticleSysBoneClientUpdateState as object | null,
+      );
+      e.swayClientUpdateState = xferNullableJsonObject(xfer, e.swayClientUpdateState as object | null);
+    } else {
+      e.animatedParticleSysBoneClientUpdateState = null;
+      e.swayClientUpdateState = null;
+    }
     e.radiusDecalStates = xferJsonObject(xfer, (e.radiusDecalStates as unknown[]) ?? []);
     if (version >= 29) {
       e.radiusDecalModuleStates = xferJsonObject(xfer, (e.radiusDecalModuleStates as unknown[]) ?? []);
@@ -2901,6 +2929,9 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.mobMemberState = null;
   e.boneFXProfile = null;
   e.boneFXState = null;
+  e.transitionDamageFXProfile = null;
+  e.animatedParticleSysBoneClientUpdateState = null;
+  e.swayClientUpdateState = null;
   e.radiusDecalStates = [];
   e.radiusDecalModuleStates = [];
   e.bridgeBehaviorProfile = null;

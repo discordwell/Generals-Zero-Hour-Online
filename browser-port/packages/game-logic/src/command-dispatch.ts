@@ -31,6 +31,7 @@ import {
   NAV_IMPASSABLE,
   NAV_BRIDGE_IMPASSABLE,
   NO_ATTACK_DISTANCE,
+  PATHFIND_CELL_SIZE,
 } from './index.js';
 type GL = any;
 
@@ -979,6 +980,12 @@ export function recordSpecialPowerDispatch(self: GL,
     targetZ,
   };
 
+  // Source parity: CommandXlat.cpp plays SpecialPowerModule::getInitiateSound()
+  // when a special-power command is accepted.
+  if (module.initiateSoundName?.trim()) {
+    self.requestScriptSoundPlayFromNamed(module.initiateSoundName, sourceEntityId);
+  }
+
   const normalizedSide = self.normalizeSide(sourceEntity.side);
   if (normalizedSide) {
     self.recordScriptTriggeredSpecialPowerEvent(
@@ -1131,6 +1138,7 @@ export function handleHackInternetCommand(self: GL, command: HackInternetCommand
   entity.hackInternetRuntimeState = {
     cashUpdateDelayFrames,
     cashAmountPerCycle,
+    xpPerCashUpdate: profile.xpPerCashUpdate,
     nextCashFrame: self.frameCounter + initialDelayFrames,
   };
 }
@@ -1472,7 +1480,7 @@ export function handleEnterObjectCommand(self: GL, command: EnterObjectCommand):
   // minimal action subset on contact.
   cancelEntityCommandPathActions(self, source.id);
   self.clearAttackTarget(source.id);
-  self.issueMoveTo(source.id, target.x, target.z);
+  self.issueMoveTo(source.id, target.x, target.z, self.resolveEntityInteractionDistance(source, target));
   self.setEntityPendingEnterState(source.id, {
     targetObjectId: target.id,
     action: command.action,
@@ -1662,6 +1670,27 @@ export function handleConstructBuildingCommand(self: GL, command: ConstructBuild
     // Source parity: BuildAssistant::isLocationLegalToBuild —
     // terrain tile restrictions and height flatness check.
     if (!isConstructTerrainLegal(self, objectDef, x, z, command.angle)) {
+      if (!isLineBuild && isConstructPlacementSearchable(self, x, z)) {
+        for (const [candidateX, candidateY, candidateZ] of resolveNearbyConstructPlacementCandidates(self, x, z)) {
+          const candidateResult = tryCreateConstructedObjectAtPlacement(
+            self,
+            constructor,
+            objectDef,
+            candidateX,
+            candidateY,
+            candidateZ,
+            command.angle,
+            side,
+            buildCost,
+            maxSimultaneousOfType,
+          );
+          if (candidateResult === 'created'
+            || candidateResult === 'blocked_funds'
+            || candidateResult === 'blocked_spawn') {
+            break;
+          }
+        }
+      }
       continue;
     }
 
@@ -1696,6 +1725,143 @@ export function handleConstructBuildingCommand(self: GL, command: ConstructBuild
       break;
     }
   }
+}
+
+type ConstructPlacementResult =
+  | 'created'
+  | 'blocked_location'
+  | 'blocked_terrain'
+  | 'blocked_limit'
+  | 'blocked_funds'
+  | 'blocked_spawn';
+
+function tryCreateConstructedObjectAtPlacement(
+  self: GL,
+  constructor: MapEntity,
+  objectDef: ObjectDef,
+  x: number,
+  y: number,
+  z: number,
+  angle: number,
+  side: string,
+  buildCost: number,
+  maxSimultaneousOfType: number,
+): ConstructPlacementResult {
+  clearRemovableForConstruction(self, 
+    objectDef,
+    x,
+    z,
+    angle,
+    constructor.id,
+  );
+  if (
+    !moveObjectsForConstruction(self, 
+      objectDef,
+      x,
+      z,
+      angle,
+      side,
+      constructor.id,
+    )
+  ) {
+    return 'blocked_location';
+  }
+
+  if (
+    !isConstructLocationClear(self, 
+      objectDef,
+      x,
+      z,
+      angle,
+      side,
+      constructor.id,
+    )
+  ) {
+    return 'blocked_location';
+  }
+
+  if (!isConstructTerrainLegal(self, objectDef, x, z, angle)) {
+    return 'blocked_terrain';
+  }
+
+  if (maxSimultaneousOfType > 0) {
+    const existingCount = self.countActiveEntitiesForMaxSimultaneousForSide(side, objectDef);
+    if (existingCount >= maxSimultaneousOfType) {
+      return 'blocked_limit';
+    }
+  }
+
+  if (buildCost > 0) {
+    const withdrawn = self.withdrawSideCredits(side, buildCost);
+    if (withdrawn < buildCost) {
+      if (withdrawn > 0) {
+        self.depositSideCredits(side, withdrawn);
+      }
+      self.emitEvaEvent('INSUFFICIENT_FUNDS', side, 'own');
+      return 'blocked_funds';
+    }
+  }
+
+  const created = self.spawnConstructedObject(
+    constructor,
+    objectDef,
+    [x, y, z],
+    angle,
+  );
+  if (!created) {
+    return 'blocked_spawn';
+  }
+
+  return 'created';
+}
+
+function isConstructPlacementSearchable(self: GL, worldX: number, worldZ: number): boolean {
+  const navGrid = self.navigationGrid;
+  if (!navGrid) {
+    return false;
+  }
+
+  const cellX = Math.floor(worldX / MAP_XY_FACTOR);
+  const cellZ = Math.floor(worldZ / MAP_XY_FACTOR);
+  if (cellX < 0 || cellX >= navGrid.width || cellZ < 0 || cellZ >= navGrid.height) {
+    return false;
+  }
+
+  const terrainCell = navGrid.terrainType[cellZ * navGrid.width + cellX]!;
+  return terrainCell !== NAV_WATER
+    && terrainCell !== NAV_CLIFF
+    && terrainCell !== NAV_IMPASSABLE
+    && terrainCell !== NAV_BRIDGE_IMPASSABLE;
+}
+
+function resolveNearbyConstructPlacementCandidates(
+  self: GL,
+  centerX: number,
+  centerZ: number,
+): Array<readonly [number, number, number]> {
+  const maxDistance = 20 * PATHFIND_CELL_SIZE;
+  const step = 2 * PATHFIND_CELL_SIZE;
+  const candidates: Array<readonly [number, number, number]> = [];
+
+  for (let positionOffset = step; positionOffset < 2 * maxDistance; positionOffset += step) {
+    const halfOffset = positionOffset * 0.5;
+    const minX = centerX - halfOffset;
+    const maxX = centerX + halfOffset;
+    const minZ = centerZ - halfOffset;
+    const maxZ = centerZ + halfOffset;
+
+    for (let x = minX; x <= maxX + 0.001; x += PATHFIND_CELL_SIZE) {
+      candidates.push([x, self.resolveGroundHeight(x, minZ), minZ]);
+      candidates.push([x, self.resolveGroundHeight(x, maxZ), maxZ]);
+    }
+
+    for (let z = minZ + PATHFIND_CELL_SIZE; z < maxZ - 0.001; z += PATHFIND_CELL_SIZE) {
+      candidates.push([minX, self.resolveGroundHeight(minX, z), z]);
+      candidates.push([maxX, self.resolveGroundHeight(maxX, z), z]);
+    }
+  }
+
+  return candidates;
 }
 
 export function clearRemovableForConstruction(self: GL, 
@@ -2323,7 +2489,7 @@ export function handleGarrisonBuildingCommand(self: GL, command: GarrisonBuildin
   const interactionDistance = self.resolveEntityInteractionDistance(infantry, building);
   const distance = Math.hypot(building.x - infantry.x, building.z - infantry.z);
   if (distance > interactionDistance) {
-    self.issueMoveTo(infantry.id, building.x, building.z);
+    self.issueMoveTo(infantry.id, building.x, building.z, interactionDistance);
     // Re-issue garrison when close enough via pending action.
     self.setEntityPendingEnterState(infantry.id, {
       targetObjectId: building.id,
@@ -2352,6 +2518,9 @@ export function updatePendingGarrisonActions(self: GL): void {
     const interactionDistance = self.resolveEntityInteractionDistance(infantry, building);
     const distance = Math.hypot(building.x - infantry.x, building.z - infantry.z);
     if (distance > interactionDistance) {
+      if (!infantry.moving) {
+        self.issueMoveTo(infantry.id, building.x, building.z, interactionDistance);
+      }
       continue;
     }
 
@@ -2393,7 +2562,7 @@ export function handleEnterTransportCommand(self: GL, command: EnterTransportCom
     const interactionDistance = self.resolveEntityInteractionDistance(passenger, transport);
     const distance = Math.hypot(transport.x - passenger.x, transport.z - passenger.z);
     if (distance > interactionDistance) {
-      self.issueMoveTo(passenger.id, transport.x, transport.z);
+      self.issueMoveTo(passenger.id, transport.x, transport.z, interactionDistance);
       self.setEntityPendingEnterState(passenger.id, {
         targetObjectId: transport.id,
         action: 'enterTunnel',
@@ -2407,7 +2576,8 @@ export function handleEnterTransportCommand(self: GL, command: EnterTransportCom
 
   const isTransportContain = containProfile.moduleType === 'TRANSPORT'
     || containProfile.moduleType === 'OVERLORD'
-    || containProfile.moduleType === 'HELIX';
+    || containProfile.moduleType === 'HELIX'
+    || containProfile.moduleType === 'RIDERCHANGE';
   const isOpenStyleContain = containProfile.moduleType === 'OPEN'
     || containProfile.moduleType === 'HEAL'
     || containProfile.moduleType === 'INTERNET_HACK';
@@ -2422,13 +2592,19 @@ export function handleEnterTransportCommand(self: GL, command: EnterTransportCom
     if (!self.isScriptContainKindAllowed(transport, validationPassenger)) return;
 
     const kindOf = self.resolveEntityKindOfSet(validationPassenger);
-    if (containProfile.moduleType === 'TRANSPORT') {
+    if (containProfile.moduleType === 'RIDERCHANGE') {
+      if (!kindOf.has('INFANTRY')) return;
+      if (transport.riderChangeScuttledFrame !== 0) return;
+      if (!self.findRiderChangeInfoForPassenger(transport, validationPassenger)) return;
+    } else if (containProfile.moduleType === 'TRANSPORT') {
       if (!kindOf.has('INFANTRY') && !kindOf.has('VEHICLE')) return;
     } else if (containProfile.moduleType === 'OVERLORD' || containProfile.moduleType === 'HELIX') {
       if (!kindOf.has('INFANTRY') && !kindOf.has('PORTABLE_STRUCTURE')) return;
     }
 
-    if (!ignoreCapacityCheck && !self.canScriptContainerFitEntity(transport, passenger)) return;
+    if (containProfile.moduleType !== 'RIDERCHANGE'
+        && !ignoreCapacityCheck
+        && !self.canScriptContainerFitEntity(transport, passenger)) return;
   } else {
     if (!self.isScriptContainRelationshipAllowed(transport, passenger)) return;
     if (!self.isScriptContainKindAllowed(transport, passenger)) return;
@@ -2440,7 +2616,7 @@ export function handleEnterTransportCommand(self: GL, command: EnterTransportCom
   const distance = Math.hypot(transport.x - passenger.x, transport.z - passenger.z);
   if (transport.chinookAIProfile && transport.chinookFlightStatus !== 'LANDED') {
     if (distance > interactionDistance) {
-      self.issueMoveTo(passenger.id, transport.x, transport.z);
+      self.issueMoveTo(passenger.id, transport.x, transport.z, interactionDistance);
     }
     self.setEntityPendingEnterState(passenger.id, {
       targetObjectId: transport.id,
@@ -2451,7 +2627,7 @@ export function handleEnterTransportCommand(self: GL, command: EnterTransportCom
     return;
   }
   if (distance > interactionDistance) {
-    self.issueMoveTo(passenger.id, transport.x, transport.z);
+    self.issueMoveTo(passenger.id, transport.x, transport.z, interactionDistance);
     self.setEntityPendingEnterState(passenger.id, {
       targetObjectId: transport.id,
       action: 'enterTransport',
@@ -2501,7 +2677,12 @@ export function updatePendingTransportActions(self: GL): void {
 
     const interactionDistance = self.resolveEntityInteractionDistance(passenger, transport);
     const distance = Math.hypot(transport.x - passenger.x, transport.z - passenger.z);
-    if (distance > interactionDistance) continue;
+    if (distance > interactionDistance) {
+      if (!passenger.moving) {
+        self.issueMoveTo(passenger.id, transport.x, transport.z, interactionDistance);
+      }
+      continue;
+    }
 
     // Close enough — check capacity again and enter.
     const containProfile = transport.containProfile;
@@ -2514,6 +2695,7 @@ export function updatePendingTransportActions(self: GL): void {
       containProfile.moduleType === 'TRANSPORT'
       || containProfile.moduleType === 'OVERLORD'
       || containProfile.moduleType === 'HELIX'
+      || containProfile.moduleType === 'RIDERCHANGE'
     ) {
       const validationPassenger = self.resolveScriptTransportValidationEntity(passenger);
       if (self.normalizeSide(validationPassenger.side) !== self.normalizeSide(transport.side)) {
@@ -2527,6 +2709,15 @@ export function updatePendingTransportActions(self: GL): void {
       if (!self.isScriptContainKindAllowed(transport, validationPassenger)) {
         self.setEntityPendingEnterState(passengerId, null);
         continue;
+      }
+      if (containProfile.moduleType === 'RIDERCHANGE') {
+        const kindOf = self.resolveEntityKindOfSet(validationPassenger);
+        if (!kindOf.has('INFANTRY')
+            || transport.riderChangeScuttledFrame !== 0
+            || !self.findRiderChangeInfoForPassenger(transport, validationPassenger)) {
+          self.setEntityPendingEnterState(passengerId, null);
+          continue;
+        }
       }
     } else if (
       containProfile.moduleType !== 'OPEN'
@@ -2543,7 +2734,9 @@ export function updatePendingTransportActions(self: GL): void {
       continue;
     }
 
-    if (!ignoreCapacityCheck && !self.canScriptContainerFitEntity(transport, passenger)) {
+    if (containProfile.moduleType !== 'RIDERCHANGE'
+        && !ignoreCapacityCheck
+        && !self.canScriptContainerFitEntity(transport, passenger)) {
       self.setEntityPendingEnterState(passengerId, null);
       continue;
     }

@@ -59,6 +59,7 @@ import { IniDataRegistry, type AudioEventDef, type IniDataBundle } from '@genera
 import { initializeNetworkClient } from '@generals/network';
 import {
   classifyCampaignReference,
+  FALLBACK_ZERO_HOUR_CAMPAIGN_INI,
   GameLogicSubsystem,
   isLiveCampaignLifecycle,
   resolveRenderAssetProfile,
@@ -398,6 +399,23 @@ function resolveFirstManifestOutputPathCase(
   return firstNormalized;
 }
 
+function normalizeSourceMapPath(pathValue: string | null | undefined): string | null {
+  const normalized = pathValue
+    ?.trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '') ?? '';
+  return normalized && /\.map$/i.test(normalized) ? normalized : null;
+}
+
+function sourceMapPathFromRuntimeMapPath(pathValue: string | null | undefined): string | null {
+  const normalized = normalizeRuntimeAssetPath(pathValue ?? null);
+  if (!normalized) {
+    return null;
+  }
+  const match = normalized.match(/^maps\/_extracted\/(?:Maps|MapsZH)\/(.+)\.json$/i);
+  return match?.[1] ? `${match[1]}.map` : null;
+}
+
 function encodeRuntimeSaveJsonFallback(value: unknown): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(value));
 }
@@ -421,9 +439,10 @@ async function resolveRuntimeSaveEmbeddedMapBytes(
     cache: 'no-cache',
   });
   if (!response.ok) {
-    throw new Error(
+    console.warn(
       `Failed to load retail map bytes for "${mapPath}" from "${entry.sourcePath}" (HTTP ${response.status})`,
     );
+    return encodeRuntimeSaveJsonFallback(mapData);
   }
   return new Uint8Array(await response.arrayBuffer());
 }
@@ -3519,6 +3538,20 @@ async function startGame(
     for (const event of events) {
       const pos = new THREE.Vector3(event.x, event.y, event.z);
 
+      if (event.type === 'NAMED_FX') {
+        if (event.effectName && fxListManager.hasFXList(event.effectName)) {
+          fxListManager.triggerFXList(event.effectName, pos);
+        }
+        continue;
+      }
+
+      if (event.type === 'NAMED_PARTICLE_SYSTEM') {
+        if (event.effectName) {
+          particleSystemManager.createSystem(event.effectName, pos);
+        }
+        continue;
+      }
+
       // Combat events trigger battle music.
       if (event.type === 'WEAPON_FIRED' || event.type === 'WEAPON_IMPACT' || event.type === 'ENTITY_DESTROYED') {
         musicManager.notifyCombat();
@@ -5699,10 +5732,34 @@ async function startGameFromRuntimeSave(
     }
 
     const { campaignManager, videoPlayer, localizedStrings, onReturnToShell } = campaignServices;
-    const restored = campaignManager.setCampaignAndMission(
+    const fallbackMapName = normalizeSourceMapPath(runtimeSave.sourcePristineMapPath)
+      ?? normalizeSourceMapPath(runtimeSave.metadata.missionMapName)
+      ?? sourceMapPathFromRuntimeMapPath(resolvedMapPath);
+    const restoreFromSaveSnapshot = (): boolean => {
+      if (!fallbackMapName) {
+        return false;
+      }
+      return campaignManager.restoreCampaignSaveSnapshot({
+        campaignName: runtimeSave.campaign!.campaignName,
+        missionName: runtimeSave.campaign!.missionName,
+        missionNumber: runtimeSave.campaign!.missionNumber,
+        mapName: fallbackMapName,
+        isChallengeCampaign: runtimeSave.campaign!.isChallengeCampaign,
+      });
+    };
+    let restored = campaignManager.setCampaignAndMission(
       runtimeSave.campaign.campaignName,
       runtimeSave.campaign.missionName,
     );
+    if (restored && fallbackMapName) {
+      const restoredMissionMapName = normalizeSourceMapPath(campaignManager.getCurrentMission()?.mapName);
+      if (restoredMissionMapName && restoredMissionMapName.toLowerCase() !== fallbackMapName.toLowerCase()) {
+        restored = restoreFromSaveSnapshot();
+      }
+    }
+    if (!restored) {
+      restored = restoreFromSaveSnapshot();
+    }
     if (!restored) {
       throw new Error(
         `Unable to restore campaign save for ${runtimeSave.campaign.campaignName}/` +
@@ -5797,9 +5854,16 @@ async function init(): Promise<void> {
     if (!campaignResp.ok) throw new Error(`HTTP ${campaignResp.status}`);
     const campaignIniText = await campaignResp.text();
     campaignManager.init(campaignIniText);
+    if (campaignManager.getCampaigns().length === 0) {
+      throw new Error('parsed 0 campaigns');
+    }
     console.log(`Campaign data loaded: ${campaignManager.getCampaigns().length} campaigns`);
   } catch (err) {
-    console.warn('Campaign.ini not available, campaign mode disabled:', err);
+    campaignManager.init(FALLBACK_ZERO_HOUR_CAMPAIGN_INI);
+    console.warn(
+      `Campaign.ini not available, using packaged campaign fallback (${campaignManager.getCampaigns().length} campaigns):`,
+      err,
+    );
   }
 
   // Load Video.ini and create VideoPlayer — fetch directly since raw INI isn't in manifest

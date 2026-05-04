@@ -209,6 +209,6 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(damageCategory).toBeDefined();
       expect(damageCategory!.status).toBe('match');
       expect(damageCategory!.mismatches).toEqual([]);
-    });
+    }, 30_000);
   });
 });

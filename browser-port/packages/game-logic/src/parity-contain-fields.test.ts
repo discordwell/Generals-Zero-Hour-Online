@@ -20,6 +20,7 @@ import {
 // Stub self with msToLogicFrames for extractContainProfile.
 const self = {
   msToLogicFrames: (ms: number) => Math.round(ms / (1000 / 30)),
+  readIniFieldValue: (fields: Record<string, unknown>, key: string) => fields[key],
 } as any;
 
 const LOGIC_FRAME_RATE = 30;
@@ -497,6 +498,7 @@ describe('TransportContain fields propagate to transport-derived module types', 
         DelayExitInAir: true,
         EnterSound: 'HelixLoad',
         ExitSound: 'HelixUnload',
+        ShouldDrawPips: false,
       }),
     ]);
     const profile = extractContainProfile(self, objectDef);
@@ -506,9 +508,23 @@ describe('TransportContain fields propagate to transport-derived module types', 
     expect(profile!.delayExitInAir).toBe(true);
     expect(profile!.enterSound).toBe('HelixLoad');
     expect(profile!.exitSound).toBe('HelixUnload');
+    expect(profile!.shouldDrawPips).toBe(false);
     // Defaults that weren't overridden.
     expect(profile!.scatterNearbyOnExit).toBe(true);
     expect(profile!.resetMoodCheckTimeOnExit).toBe(true);
+  });
+
+  it('HelixContain defaults ShouldDrawPips to true', () => {
+    const objectDef = makeObjectDef('Helix', 'China', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
+      makeBlock('Behavior', 'HelixContain ModuleTag_Contain', {
+        ContainMax: 5,
+      }),
+    ]);
+    const profile = extractContainProfile(self, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.moduleType).toBe('HELIX');
+    expect(profile!.shouldDrawPips).toBe(true);
   });
 
   it('InternetHackContain inherits TransportContain fields from INI', () => {
@@ -557,7 +573,7 @@ describe('Non-transport modules use TransportContain C++ defaults', () => {
     expect(profile!.delayExitInAir).toBe(false);
   });
 
-  it('ParachuteContain uses transport field defaults', () => {
+  it('ParachuteContain uses transport and parachute field defaults', () => {
     const objectDef = makeObjectDef('Chute', 'America', ['VEHICLE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
       makeBlock('Behavior', 'ParachuteContain ModuleTag_Contain', {
@@ -571,6 +587,39 @@ describe('Non-transport modules use TransportContain C++ defaults', () => {
     expect(profile!.orientLikeContainerOnExit).toBe(false);
     expect(profile!.exitPitchRate).toBe(0);
     expect(profile!.delayExitInAir).toBe(false);
+    expect(profile!.parachutePitchRateMax).toBe(0);
+    expect(profile!.parachuteRollRateMax).toBe(0);
+    expect(profile!.parachuteLowAltitudeDamping).toBe(0.2);
+    expect(profile!.parachuteOpenDist).toBe(0);
+    expect(profile!.parachuteKillWhenLandingInWaterSlop).toBe(10);
+    expect(profile!.parachuteFreeFallDamagePercent).toBe(0.5);
+    expect(profile!.parachuteOpenSoundName).toBe('');
+  });
+
+  it('ParachuteContain parses parachute module fields', () => {
+    const objectDef = makeObjectDef('Chute', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'ParachuteContain ModuleTag_Contain', {
+        ContainMax: 1,
+        PitchRateMax: 90,
+        RollRateMax: 180,
+        LowAltitudeDamping: 0.35,
+        ParachuteOpenDist: 25,
+        KillWhenLandingInWaterSlop: 12,
+        FreeFallDamagePercent: 25,
+        ParachuteOpenSound: 'ParachuteOpen',
+      }),
+    ]);
+    const profile = extractContainProfile(self, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.moduleType).toBe('PARACHUTE');
+    expect(profile!.parachutePitchRateMax).toBeCloseTo(90 * (Math.PI / 180) / LOGIC_FRAME_RATE, 10);
+    expect(profile!.parachuteRollRateMax).toBeCloseTo(180 * (Math.PI / 180) / LOGIC_FRAME_RATE, 10);
+    expect(profile!.parachuteLowAltitudeDamping).toBe(0.35);
+    expect(profile!.parachuteOpenDist).toBe(25);
+    expect(profile!.parachuteKillWhenLandingInWaterSlop).toBe(12);
+    expect(profile!.parachuteFreeFallDamagePercent).toBe(0.25);
+    expect(profile!.parachuteOpenSoundName).toBe('ParachuteOpen');
   });
 
   it('CaveContain uses transport field defaults', () => {

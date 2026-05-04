@@ -6540,11 +6540,13 @@ describe('source-owned game-logic core save-state', () => {
       }>;
     };
 
-    const module = privateLogic.spawnedEntities.get(70)!.specialPowerModules.get('SPYVISIONPOWER')!;
+    const entity = privateLogic.spawnedEntities.get(70)!;
+    const module = entity.specialPowerModules.get('__SPYVISIONUPDATE_MODULETAG_SPYUPDATE')!;
     expect(module.spyVisionDeactivateFrame).toBe(300);
     expect(module.spyVisionCurrentlyActive).toBe(true);
     expect(module.spyVisionResetTimersNextUpdate).toBe(true);
     expect(module.spyVisionDisabledUntilFrame).toBe(180);
+    expect(entity.specialPowerModules.get('SPYVISIONPOWER')!.spyVisionDeactivateFrame).toBe(0);
   });
 
   it('imports source SpecialAbilityUpdate runtime state', () => {
@@ -8976,6 +8978,7 @@ describe('source-owned game-logic core save-state', () => {
         hackInternetRuntimeState: {
           cashUpdateDelayFrames: number;
           cashAmountPerCycle: number;
+          xpPerCashUpdate: number;
           nextCashFrame: number;
         } | null;
         hackInternetPendingCommand: unknown;
@@ -8986,6 +8989,7 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedHacker.hackInternetRuntimeState).toEqual({
       cashUpdateDelayFrames: 60,
       cashAmountPerCycle: 5,
+      xpPerCashUpdate: 0,
       nextCashFrame: 237,
     });
     expect(importedHacker.hackInternetPendingCommand).toBeNull();
@@ -12348,10 +12352,12 @@ describe('source-owned game-logic core save-state', () => {
 
     const privateLogic = logic as unknown as {
       spawnedEntities: Map<number, {
+        baseRegenerateUpdateProfile: unknown;
         baseRegenDelayUntilFrame: number;
       }>;
     };
 
+    expect(privateLogic.spawnedEntities.get(107)!.baseRegenerateUpdateProfile).not.toBeNull();
     expect(privateLogic.spawnedEntities.get(107)!.baseRegenDelayUntilFrame).toBe(240);
   });
 

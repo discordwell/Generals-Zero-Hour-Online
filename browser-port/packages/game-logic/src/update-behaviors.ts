@@ -38,6 +38,114 @@ import {
 } from './index.js';
 type GL = any;
 
+function playSpecialAbilitySound(self: GL, entity: MapEntity, audioName: string | null | undefined): void {
+  const trimmedName = (audioName ?? '').trim();
+  if (!trimmedName) return;
+  self.requestScriptSoundPlayFromNamed(trimmedName, entity.id);
+}
+
+function removeSpecialAbilitySound(self: GL, audioName: string | null | undefined): void {
+  const trimmedName = (audioName ?? '').trim();
+  if (!trimmedName || typeof self.requestScriptAudioRemoveType !== 'function') return;
+  self.requestScriptAudioRemoveType(trimmedName);
+}
+
+function getBattlePlanPresentation(profile: BattlePlanProfile, plan: BattlePlanType): {
+  unpackSoundName: string;
+  packSoundName: string;
+  idleLoopSoundName: string;
+  messageLabel: string;
+  announcementName: string;
+} {
+  switch (plan) {
+    case 'BOMBARDMENT':
+      return {
+        unpackSoundName: profile.bombardmentPlanUnpackSoundName,
+        packSoundName: profile.bombardmentPlanPackSoundName,
+        idleLoopSoundName: '',
+        messageLabel: profile.bombardmentMessageLabel,
+        announcementName: profile.bombardmentAnnouncementName,
+      };
+    case 'HOLDTHELINE':
+      return {
+        unpackSoundName: profile.holdTheLinePlanUnpackSoundName,
+        packSoundName: profile.holdTheLinePlanPackSoundName,
+        idleLoopSoundName: '',
+        messageLabel: profile.holdTheLineMessageLabel,
+        announcementName: profile.holdTheLineAnnouncementName,
+      };
+    case 'SEARCHANDDESTROY':
+      return {
+        unpackSoundName: profile.searchAndDestroyPlanUnpackSoundName,
+        packSoundName: profile.searchAndDestroyPlanPackSoundName,
+        idleLoopSoundName: profile.searchAndDestroyPlanIdleLoopSoundName,
+        messageLabel: profile.searchAndDestroyMessageLabel,
+        announcementName: profile.searchAndDestroyAnnouncementName,
+      };
+    default:
+      return { unpackSoundName: '', packSoundName: '', idleLoopSoundName: '', messageLabel: '', announcementName: '' };
+  }
+}
+
+function enqueueBattlePlanMessage(self: GL, messageLabel: string | null | undefined): void {
+  const text = (messageLabel ?? '').trim();
+  if (!text) return;
+  self.scriptDisplayMessages.push({
+    messageType: 'DISPLAY_TEXT',
+    text,
+    duration: null,
+    frame: self.frameCounter,
+  });
+}
+
+function emitBattlePlanUnpackPresentation(self: GL, entity: MapEntity, profile: BattlePlanProfile, plan: BattlePlanType): void {
+  const presentation = getBattlePlanPresentation(profile, plan);
+  playSpecialAbilitySound(self, entity, presentation.unpackSoundName);
+  enqueueBattlePlanMessage(self, presentation.messageLabel);
+  playSpecialAbilitySound(self, entity, presentation.announcementName);
+}
+
+function emitBattlePlanActivePresentation(self: GL, entity: MapEntity, profile: BattlePlanProfile, plan: BattlePlanType): void {
+  const presentation = getBattlePlanPresentation(profile, plan);
+  playSpecialAbilitySound(self, entity, presentation.idleLoopSoundName);
+}
+
+function emitBattlePlanPackPresentation(self: GL, entity: MapEntity, profile: BattlePlanProfile, plan: BattlePlanType): void {
+  const presentation = getBattlePlanPresentation(profile, plan);
+  if (!presentation.unpackSoundName.trim()) return;
+  playSpecialAbilitySound(self, entity, presentation.packSoundName);
+}
+
+function applyBattlePlanMaxHealthChange(entity: MapEntity, newMaxHealth: number, changeType: MaxHealthChangeTypeName): void {
+  const previousMaxHealth = Math.max(1, entity.maxHealth);
+  const normalizedMaxHealth = Math.max(1, newMaxHealth);
+  const previousHealth = entity.health;
+  const deltaMaxHealth = normalizedMaxHealth - previousMaxHealth;
+
+  entity.maxHealth = normalizedMaxHealth;
+  entity.initialHealth = normalizedMaxHealth;
+
+  switch (changeType) {
+    case 'PRESERVE_RATIO':
+      entity.health = normalizedMaxHealth * (previousHealth / previousMaxHealth);
+      break;
+    case 'ADD_CURRENT_HEALTH_TOO':
+      entity.health = previousHealth + deltaMaxHealth;
+      break;
+    case 'FULLY_HEAL':
+      entity.health = normalizedMaxHealth;
+      break;
+    case 'SAME_CURRENTHEALTH':
+    default:
+      entity.health = previousHealth;
+      break;
+  }
+
+  if (entity.health > normalizedMaxHealth) {
+    entity.health = normalizedMaxHealth;
+  }
+}
+
 
 export function updateHackInternet(self: GL): void {
     for (const entity of self.spawnedEntities.values()) {
@@ -56,6 +164,17 @@ export function updateHackInternet(self: GL): void {
       }
 
       self.depositSideCredits(entity.side, hackState.cashAmountPerCycle);
+      if (hackState.xpPerCashUpdate > 0 && entity.experienceProfile) {
+        const xpResult = addExperiencePointsImpl(
+          entity.experienceState,
+          entity.experienceProfile,
+          hackState.xpPerCashUpdate,
+          true,
+        );
+        if (xpResult.didLevelUp) {
+          self.onEntityLevelUp(entity, xpResult.oldLevel, xpResult.newLevel);
+        }
+      }
       const cycleDelay = Math.max(1, hackState.cashUpdateDelayFrames);
       hackState.nextCashFrame = self.frameCounter + cycleDelay;
     }
@@ -519,6 +638,33 @@ export function executeGeneralCrateBehavior(self: GL, crate: MapEntity, collecto
         break;
     }
     if (success) {
+      if (prof.executeFXName) {
+        self.visualEventBuffer.push({
+          type: 'NAMED_FX',
+          x: collector.x,
+          y: collector.y,
+          z: collector.z,
+          radius: 0,
+          sourceEntityId: collector.id,
+          projectileType: 'BULLET',
+          effectName: prof.executeFXName,
+        });
+      }
+      if (prof.executeAnimationName) {
+        self.visualEventBuffer.push({
+          type: 'WORLD_ANIMATION',
+          x: crate.x,
+          y: crate.y,
+          z: crate.z,
+          radius: 0,
+          sourceEntityId: crate.id,
+          projectileType: 'BULLET',
+          effectName: prof.executeAnimationName,
+          lifetimeFrames: Math.max(1, Math.round(prof.executeAnimationTimeSeconds * LOGIC_FRAME_RATE)),
+          zRisePerSecond: prof.executeAnimationZRisePerSecond,
+          fades: prof.executeAnimationFades,
+        });
+      }
       self.markEntityDestroyed(crate.id, collector.id);
     }
 }
@@ -1638,6 +1784,7 @@ export function updateSpecialAbility(self: GL): void {
             const abortTarget = self.spawnedEntities.get(state.targetEntityId);
             if (abortTarget) abortTarget.capturePercent = -1;
           }
+          removeSpecialAbilitySound(self, profile.prepSoundLoopName);
           self.startSpecialAbilityPacking(entity, profile, state, false);
           continue;
         }
@@ -1676,6 +1823,7 @@ export function updateSpecialAbility(self: GL): void {
           }
 
           // Non-persistent: start packing.
+          removeSpecialAbilitySound(self, profile.prepSoundLoopName);
           self.startSpecialAbilityPacking(entity, profile, state, true);
         }
         continue;
@@ -1711,6 +1859,7 @@ export function updateSpecialAbility(self: GL): void {
       if (state.packingState === 'UNPACKED') {
         // Source parity: IS_USING_ABILITY is set at start of preparation, not initiation.
         entity.objectStatusFlags.add('IS_USING_ABILITY');
+        playSpecialAbilitySound(self, entity, profile.prepSoundLoopName);
         state.prepFrames = profile.preparationFrames > 0 ? profile.preparationFrames : 1;
         continue;
       }
@@ -1794,6 +1943,7 @@ export function startSpecialAbilityUnpacking(self: GL,
       ? 1.0 + (self.gameRandom.nextFloat() * 2 - 1) * profile.packUnpackVariationFactor
       : 1.0;
     state.animFrames = Math.max(1, Math.round(profile.unpackTimeFrames * variation));
+    playSpecialAbilitySound(self, entity, profile.unpackSoundName);
     // Stop movement during unpack.
     entity.moving = false;
     entity.movePath = [];
@@ -1821,6 +1971,7 @@ export function startSpecialAbilityPacking(self: GL,
       ? 1.0 + (self.gameRandom.nextFloat() * 2 - 1) * profile.packUnpackVariationFactor
       : 1.0;
     state.animFrames = Math.max(1, Math.round(profile.packTimeFrames * variation));
+    playSpecialAbilitySound(self, entity, profile.packSoundName);
 }
 
 
@@ -1873,6 +2024,8 @@ export function triggerSpecialAbilityEffect(self: GL,
       }
     }
 
+    playSpecialAbilitySound(self, entity, profile.triggerSoundName);
+
     // Execute the effect based on the last dispatch record.
     const dispatch = entity.lastSpecialPowerDispatch;
     if (!dispatch) return;
@@ -1895,8 +2048,7 @@ export function triggerSpecialAbilityEffect(self: GL,
             sourceEntityId: entity.id,
             sourceSide,
             targetEntityId: state.targetEntityId,
-            amountToSteal: module.cashHackMoneyAmount > 0
-              ? module.cashHackMoneyAmount : DEFAULT_CASH_HACK_AMOUNT,
+            amountToSteal: self.resolveCashHackAmountToSteal(entity, module),
           }, effectContext);
           break;
         case 'DEFECTOR':
@@ -1926,8 +2078,24 @@ export function triggerSpecialAbilityEffect(self: GL,
               break;
             }
             self.setDisabledHackedStatusUntil(target, self.frameCounter + profile.effectDurationFrames);
+            let durationInterleaveFactor = 1;
             if (target.kindOf.has('STRUCTURE') && resolveEntityFootprintArea(target) < 300) {
               state.doDisableFxParticles = !(state.doDisableFxParticles ?? true);
+              durationInterleaveFactor = 2;
+            }
+            const disableFXParticleSystemName = (profile.disableFXParticleSystemName ?? '').trim();
+            if ((state.doDisableFxParticles ?? true) && disableFXParticleSystemName.length > 0) {
+              self.visualEventBuffer.push({
+                type: 'NAMED_PARTICLE_SYSTEM',
+                x: target.x,
+                y: target.y,
+                z: target.z,
+                radius: 0,
+                sourceEntityId: target.id,
+                projectileType: 'BULLET',
+                effectName: disableFXParticleSystemName,
+                lifetimeFrames: profile.effectDurationFrames * durationInterleaveFactor,
+              });
             }
             break;
           }
@@ -1989,6 +2157,10 @@ export function finishSpecialAbility(self: GL, entity: MapEntity, _success: bool
     const profile = entity.specialAbilityProfile;
     const state = entity.specialAbilityState;
     if (!state) return;
+
+    if (profile) {
+      removeSpecialAbilitySound(self, profile.prepSoundLoopName);
+    }
 
     // Clear capture progress on the target building when ability finishes/aborts.
     if (state.targetEntityId !== null) {
@@ -2110,6 +2282,16 @@ export function updateDeployStyleEntities(self: GL): void {
         }
       }
 
+      entity.deployManualAnimationFrame = null;
+      if (profile.manualDeployAnimations) {
+        const framesLeft = Math.max(0, entity.deployFrameToWait - self.frameCounter);
+        if (entity.deployState === 'DEPLOY') {
+          entity.deployManualAnimationFrame = Math.max(0, profile.packTimeFrames - framesLeft);
+        } else if (entity.deployState === 'UNDEPLOY') {
+          entity.deployManualAnimationFrame = framesLeft;
+        }
+      }
+
       // Source parity: Block movement during DEPLOY/UNDEPLOY/READY_TO_ATTACK.
       if (entity.deployState !== 'READY_TO_MOVE') {
         entity.moving = false;
@@ -2207,6 +2389,16 @@ export function updateBoneFX(self: GL): void {
               positionZ: entity.z,
               entityId: entity.id,
             });
+            self.visualEventBuffer.push({
+              type: 'NAMED_FX',
+              x: entity.x,
+              y: entity.y,
+              z: entity.z,
+              radius: 0,
+              sourceEntityId: entity.id,
+              projectileType: 'BULLET',
+              effectName: entry.effectName,
+            });
             if (entry.onlyOnce) {
               fxRow[i] = -1;
             } else {
@@ -2231,6 +2423,9 @@ export function updateBoneFX(self: GL): void {
               positionZ: entity.z,
               entityId: entity.id,
             });
+            if (typeof self.executeOCL === 'function') {
+              self.executeOCL(entry.effectName, entity, undefined, entity.x, entity.z);
+            }
             if (entry.onlyOnce) {
               oclRow[i] = -1;
             } else {
@@ -2254,6 +2449,16 @@ export function updateBoneFX(self: GL): void {
               positionY: entity.y,
               positionZ: entity.z,
               entityId: entity.id,
+            });
+            self.visualEventBuffer.push({
+              type: 'NAMED_PARTICLE_SYSTEM',
+              x: entity.x,
+              y: entity.y,
+              z: entity.z,
+              radius: 0,
+              sourceEntityId: entity.id,
+              projectileType: 'BULLET',
+              effectName: entry.effectName,
             });
             if (entry.onlyOnce) {
               psRow[i] = -1;
@@ -2342,6 +2547,7 @@ export function updateBattlePlan(self: GL): void {
             state.transitionStatus = 'UNPACKING';
             state.transitionFinishFrame = self.frameCounter
               + self.getBattlePlanAnimationFrames(profile, state.currentPlan);
+            emitBattlePlanUnpackPresentation(self, entity, profile, state.currentPlan);
           }
           break;
 
@@ -2353,6 +2559,7 @@ export function updateBattlePlan(self: GL): void {
             state.currentPlan = currentPlan;
             state.activePlan = currentPlan;
             self.applyBattlePlanBonuses(entity, state.activePlan, true);
+            emitBattlePlanActivePresentation(self, entity, profile, state.activePlan);
           }
           break;
 
@@ -2369,6 +2576,7 @@ export function updateBattlePlan(self: GL): void {
             state.transitionStatus = 'PACKING';
             state.transitionFinishFrame = self.frameCounter
               + self.getBattlePlanAnimationFrames(profile, packingPlan);
+            emitBattlePlanPackPresentation(self, entity, profile, packingPlan);
           }
           break;
 
@@ -2503,11 +2711,11 @@ export function applyBattlePlanBonuses(self: GL, source: MapEntity, plan: Battle
         const scalar = apply
           ? profile.strategyCenterHoldTheLineMaxHealthScalar
           : (1.0 / Math.max(0.01, profile.strategyCenterHoldTheLineMaxHealthScalar));
-        const newMaxHealth = Math.max(1, Math.round(source.maxHealth * scalar));
-        const ratio = source.maxHealth > 0 ? source.health / source.maxHealth : 1;
-        source.maxHealth = newMaxHealth;
-        source.initialHealth = newMaxHealth;
-        source.health = Math.round(newMaxHealth * ratio);
+        applyBattlePlanMaxHealthChange(
+          source,
+          source.maxHealth * scalar,
+          profile.strategyCenterHoldTheLineMaxHealthChangeType,
+        );
       }
     }
 

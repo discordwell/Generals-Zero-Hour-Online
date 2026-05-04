@@ -89,12 +89,14 @@ export function extractProductionPrerequisiteGroups(
   };
 
   const parsePrereqValueWithPrefix = (prefix: 'OBJECT' | 'SCIENCE', value: IniValue | undefined): void => {
-    for (const tokens of extractIniValueTokens(value)) {
-      if (prefix === 'OBJECT') {
-        addObjectGroup(tokens);
-      } else {
-        addScienceGroup(tokens);
-      }
+    const tokens = extractIniValueTokens(value).flatMap((group) => group);
+    if (tokens.length === 0) {
+      return;
+    }
+    if (prefix === 'OBJECT') {
+      addObjectGroup(tokens);
+    } else {
+      addScienceGroup(tokens);
     }
   };
 

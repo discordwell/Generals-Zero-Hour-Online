@@ -37,6 +37,7 @@ import {
   makeBlock,
   makeObjectDef,
   makeWeaponDef,
+  makeWeaponBlock,
   makeArmorDef,
   makeLocomotorDef,
   makeBundle,
@@ -44,6 +45,7 @@ import {
   makeHeightmap,
   makeMap,
   makeMapObject,
+  makeUpgradeDef,
 } from './test-helpers.js';
 import {
   extractContainProfile,
@@ -200,6 +202,62 @@ describe('PropagandaTowerBehavior ZH fields', () => {
     expect(profile).not.toBeNull();
     expect(profile!.affectsSelf).toBe(true);
   });
+
+  it('extracts PulseFX and UpgradedPulseFX names', () => {
+    const objectDef = makeSimpleObjectDef('TestPropTower', [
+      makeBlock('Behavior', 'PropagandaTowerBehavior ModuleTag_PT', {
+        Radius: 200,
+        PulseFX: 'FX_PropagandaPulse',
+        UpgradedPulseFX: 'FX_PropagandaPulseUpgraded',
+      }),
+    ]);
+    const profile = extractPropagandaTowerProfile(makeSelf(), objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.pulseFXName).toBe('FX_PropagandaPulse');
+    expect(profile!.upgradedPulseFXName).toBe('FX_PropagandaPulseUpgraded');
+  });
+
+  it('emits normal and upgraded pulse FX on scan', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TestPropTower', 'China', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('Behavior', 'PropagandaTowerBehavior ModuleTag_PT', {
+            Radius: 200,
+            DelayBetweenUpdates: 1,
+            UpgradeRequired: 'Upgrade_Nationalism',
+            PulseFX: 'FX_PropagandaPulse',
+            UpgradedPulseFX: 'FX_PropagandaPulseUpgraded',
+            AffectsSelf: true,
+          }),
+        ]),
+      ],
+      upgrades: [
+        makeUpgradeDef('Upgrade_Nationalism', { Type: 'OBJECT' }),
+      ],
+    });
+    const logic = new GameLogicSubsystem();
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestPropTower', 10, 10)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+
+    logic.update(1 / 30);
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_PropagandaPulse',
+      sourceEntityId: 1,
+    }));
+
+    logic.submitCommand({ type: 'applyUpgrade', entityId: 1, upgradeName: 'Upgrade_Nationalism' });
+    logic.update(1 / 30);
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_PropagandaPulseUpgraded',
+      sourceEntityId: 1,
+    }));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -321,6 +379,81 @@ describe('Weapon ZH fields', () => {
     expect(profile!.laserBoneName).toBe('YOURBONE02');
   });
 
+  it('extracts LaserUpdate particle system fields from the LaserName object', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TestLaserBeam', 'America', ['PROJECTILE'], [
+          makeBlock('ClientUpdate', 'LaserUpdate ModuleTag_Laser', {
+            MuzzleParticleSystem: 'LaserMuzzleFlare',
+            TargetParticleSystem: 'LaserTargetSpark',
+            PunchThroughScalar: 1.3,
+          }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('TestLaser', {
+          PrimaryDamage: 25,
+          AttackRange: 200,
+          LaserName: 'TestLaserBeam',
+        }),
+      ],
+    });
+    const logic = new GameLogicSubsystem();
+    logic.loadMapObjects(makeMap([], 64, 64), makeRegistry(bundle), makeHeightmap(64, 64));
+    const profile = resolveWeaponProfileFromDef(logic as any, bundle.weapons[0]! as any);
+    expect(profile).not.toBeNull();
+    expect(profile!.laserMuzzleParticleSystemName).toBe('LaserMuzzleFlare');
+    expect(profile!.laserTargetParticleSystemName).toBe('LaserTargetSpark');
+    expect(profile!.laserPunchThroughScalar).toBe(1.3);
+  });
+
+  it('emits LaserUpdate muzzle and target particle systems when firing a laser weapon', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('LaserTank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+          makeWeaponBlock('TestLaser'),
+        ]),
+        makeObjectDef('LaserTarget', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+        ]),
+        makeObjectDef('TestLaserBeam', 'America', ['PROJECTILE'], [
+          makeBlock('ClientUpdate', 'LaserUpdate ModuleTag_Laser', {
+            MuzzleParticleSystem: 'LaserMuzzleFlare',
+            TargetParticleSystem: 'LaserTargetSpark',
+          }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('TestLaser', {
+          PrimaryDamage: 25,
+          DamageType: 'LASER',
+          AttackRange: 200,
+          LaserName: 'TestLaserBeam',
+        }),
+      ],
+    });
+    const logic = new GameLogicSubsystem();
+    logic.loadMapObjects(
+      makeMap([makeMapObject('LaserTank', 10, 10), makeMapObject('LaserTarget', 30, 10)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2, commandSource: 'PLAYER' });
+    for (let frame = 0; frame < 5; frame++) {
+      logic.update(1 / 30);
+    }
+
+    const particleEvents = Array.from(new Set(logic.drainVisualEvents()
+      .filter((event) => event.type === 'NAMED_PARTICLE_SYSTEM')
+      .map((event) => event.effectName)
+      .sort()));
+    expect(particleEvents).toEqual(['LaserMuzzleFlare', 'LaserTargetSpark']);
+  });
+
   it('extracts MissileCallsOnDie = true', () => {
     const weaponDef = makeWeaponDef('TestMissile', {
       PrimaryDamage: 50,
@@ -408,6 +541,25 @@ describe('SpecialPowerModule ZH fields', () => {
     const entry = modules.values().next().value;
     expect(entry.oclAdjustPositionToPassable).toBe(true);
     expect(entry.referenceObject).toBe('SupplyDropZone');
+  });
+
+  it('extracts InitiateSound and UpgradeOCL pairs', () => {
+    const objectDef = makeSimpleObjectDef('TestPower', [
+      makeBlock('Behavior', 'OCLSpecialPower ModuleTag_SP', {
+        SpecialPowerTemplate: 'SupplyDropPower',
+        InitiateSound: 'SupplyDropStart',
+        OCL: 'OCL_SupplyDrop1',
+        UpgradeOCL: ['SCIENCE_SUPPLY_DROP_2', 'OCL_SupplyDrop2'],
+      }),
+    ]);
+    const modules = extractSpecialPowerModules(makeSelf(), objectDef);
+    expect(modules.size).toBe(1);
+    const entry = modules.values().next().value;
+    expect(entry.initiateSoundName).toBe('SupplyDropStart');
+    expect(entry.upgradeOCLs).toEqual([{
+      scienceName: 'SCIENCE_SUPPLY_DROP_2',
+      oclName: 'OCL_SupplyDrop2',
+    }]);
   });
 });
 

@@ -337,22 +337,27 @@ export function extractJetSlowDeathProfiles(self: GL, objectDef: ObjectDef | und
     const fallHowFast = (readNumericField(block.fields, ['FallHowFast']) ?? 50) / 100;
 
     // FX/OCL timeline.
+    const fxOnGroundDeathName = readStringField(block.fields, ['FXOnGroundDeath']) ?? '';
     const oclOnGroundDeath: string[] = [];
     const ogStr = readStringField(block.fields, ['OCLOnGroundDeath']);
     if (ogStr) oclOnGroundDeath.push(ogStr);
+    const fxInitialDeathName = readStringField(block.fields, ['FXInitialDeath']) ?? '';
     const oclInitialDeath: string[] = [];
     const idStr = readStringField(block.fields, ['OCLInitialDeath']);
     if (idStr) oclInitialDeath.push(idStr);
     const delaySecondaryFromInitialDeath = self.msToLogicFrames(
       readNumericField(block.fields, ['DelaySecondaryFromInitialDeath']) ?? 0);
+    const fxSecondaryName = readStringField(block.fields, ['FXSecondary']) ?? '';
     const oclSecondary: string[] = [];
     const secStr = readStringField(block.fields, ['OCLSecondary']);
     if (secStr) oclSecondary.push(secStr);
+    const fxHitGroundName = readStringField(block.fields, ['FXHitGround']) ?? '';
     const oclHitGround: string[] = [];
     const hgStr = readStringField(block.fields, ['OCLHitGround']);
     if (hgStr) oclHitGround.push(hgStr);
     const delayFinalBlowUpFromHitGround = self.msToLogicFrames(
       readNumericField(block.fields, ['DelayFinalBlowUpFromHitGround']) ?? 0);
+    const fxFinalBlowUpName = readStringField(block.fields, ['FXFinalBlowUp']) ?? '';
     const oclFinalBlowUp: string[] = [];
     const fbStr = readStringField(block.fields, ['OCLFinalBlowUp']);
     if (fbStr) oclFinalBlowUp.push(fbStr);
@@ -360,8 +365,11 @@ export function extractJetSlowDeathProfiles(self: GL, objectDef: ObjectDef | und
     profiles.push({
       moduleTag,
       deathTypes, veterancyLevels, exemptStatus, requiredStatus,
+      fxOnGroundDeathName,
       oclOnGroundDeath, oclInitialDeath, delaySecondaryFromInitialDeath,
-      oclSecondary, oclHitGround, delayFinalBlowUpFromHitGround, oclFinalBlowUp,
+      fxInitialDeathName, fxSecondaryName,
+      oclSecondary, fxHitGroundName, oclHitGround, delayFinalBlowUpFromHitGround,
+      fxFinalBlowUpName, oclFinalBlowUp,
       rollRate, rollRateDelta, pitchRate, fallHowFast,
     });
   };

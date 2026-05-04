@@ -7261,6 +7261,46 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     expect(allowed.producedCounts).toEqual([0, 0, 1, 1]);
   });
 
+  it('treats object array fields inside one prerequisite block as alternatives', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('WarFactory', 'America', ['STRUCTURE'], [
+          makeBlock('Behavior', 'ProductionUpdate ModuleTag_Production', {
+            MaxQueueEntries: 4,
+          }),
+          makeBlock('Behavior', 'QueueProductionExitUpdate ModuleTag_Exit', {
+            UnitCreatePoint: [8, 0, 0],
+            ExitDelay: 0,
+          }),
+        ]),
+        makeObjectDef('TechA', 'America', ['STRUCTURE'], []),
+        makeObjectDef('TechB', 'America', ['STRUCTURE'], []),
+        makeObjectDef('AdvancedUnit', 'America', ['VEHICLE'], [
+          makeBlock('Prerequisites', '', {
+            Object: ['TechA', 'TechB'],
+          }),
+        ], {
+          BuildTime: 0.1,
+          BuildCost: 150,
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('WarFactory', 10, 10), makeMapObject('TechA', 20, 10)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    logic.submitCommand({ type: 'setSideCredits', side: 'America', amount: 1000 });
+    logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'AdvancedUnit' });
+
+    logic.update(1 / 30);
+
+    expect(logic.getSideCredits('America')).toBe(850);
+    expect(logic.getProductionState(1)?.queueEntryCount).toBe(1);
+  });
+
   it('enforces Science prerequisites and unlocks production after grantSideScience', () => {
     const timeline = runSciencePrerequisiteTimeline({ grantAtFrame: 1 });
     expect(timeline.credits).toEqual([500, 350, 350, 350, 350]);
@@ -7536,6 +7576,7 @@ describe('GameLogicSubsystem combat + upgrades', () => {
           makeBlock('Behavior', 'DefaultProductionExitUpdate ModuleTag_Exit', {
             UnitCreatePoint: [30, 0, 0],
             NaturalRallyPoint: [60, 35, 0],
+            UseSpawnRallyPoint: true,
           }),
         ]),
       ],
@@ -7552,6 +7593,12 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     const ccId = logic.getRenderableEntityStates()[0]!.id;
     const info = logic.getSelectedEntityInfoById(ccId);
     expect(info?.hasAutoRallyPoint).toBe(true);
+    const internal = logic as unknown as {
+      spawnedEntities: Map<number, {
+        queueProductionExitProfile: { useSpawnRallyPoint: boolean } | null;
+      }>;
+    };
+    expect(internal.spawnedEntities.get(ccId)!.queueProductionExitProfile!.useSpawnRallyPoint).toBe(true);
   });
 
   it('dozer constructs building with full CommandSet data', () => {
@@ -8092,6 +8139,60 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     // Construction should fail — cliff terrain blocks placement.
     expect(logic.getSideCredits('America')).toBe(1000);
     expect(logic.getEntityIdsByTemplateAndSide('PowerPlant', 'America')).toEqual([]);
+  });
+
+  it('searches nearby when a clear construction center has an illegal footprint edge', () => {
+    const sz = 32;
+    const heightData = new Uint8Array(sz * sz).fill(0);
+    for (let x = 0; x < sz; x++) {
+      heightData[17 * sz + x] = 200;
+    }
+
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Dozer', 'America', ['VEHICLE', 'DOZER'], [], {
+          GeometryMajorRadius: 2,
+          GeometryMinorRadius: 2,
+        }),
+        makeObjectDef('PowerPlant', 'America', ['STRUCTURE'], [], {
+          BuildCost: 200,
+          GeometryMajorRadius: 30,
+          GeometryMinorRadius: 30,
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const mapData: MapDataJSON = {
+      heightmap: {
+        width: sz,
+        height: sz,
+        borderSize: 0,
+        data: uint8ArrayToBase64(heightData),
+      },
+      objects: [makeMapObject('Dozer', 5, 5)],
+      triggers: [],
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    logic.loadMapObjects(mapData, makeRegistry(bundle), HeightmapGrid.fromJSON(mapData.heightmap));
+    logic.submitCommand({ type: 'setSideCredits', side: 'America', amount: 1000 });
+    logic.submitCommand({
+      type: 'constructBuilding',
+      entityId: 1,
+      templateName: 'PowerPlant',
+      targetPosition: [150, 0, 130],
+      angle: 0,
+      lineEndPosition: null,
+    });
+
+    logic.update(1 / 30);
+
+    const [building] = logic.getRenderableEntityStates().filter((entity) => entity.templateName === 'PowerPlant');
+    expect(building).toBeDefined();
+    expect(logic.getSideCredits('America')).toBe(800);
+    expect(Math.hypot(building!.x - 150, building!.z - 130)).toBeGreaterThan(1);
   });
 
   it('allows construction on flat valid terrain', () => {
@@ -8916,8 +9017,9 @@ describe('GameLogicSubsystem combat + upgrades', () => {
             UnpackTime: 0,
             CashUpdateDelay: 0,
             RegularCashAmount: 25,
+            XpPerCashUpdate: 2,
           }),
-        ]),
+        ], { IsTrainable: 'Yes', ExperienceRequired: [0, 10, 20, 40] }),
       ],
     });
 
@@ -8932,6 +9034,11 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     }
 
     expect(logic.getSideCredits('China')).toBe(75);
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, { experienceState: { currentExperience: number } }>;
+    };
+    const hacker = privateApi.spawnedEntities.get(1);
+    expect(hacker?.experienceState.currentExperience).toBe(6);
   });
 
   it('allows HackInternet on non-mobile objects', () => {
@@ -14172,6 +14279,77 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     expect(spyVision?.expiryFrame).toBeGreaterThan(0);
   });
 
+  it('extends and caps SpyVisionSpecialPower duration using contained captures', () => {
+    const logic = new GameLogicSubsystem();
+
+    const sourceDef = makeObjectDef('SpySource', 'America', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+        ContainMax: 4,
+        Slots: 4,
+      }),
+      makeBlock('Behavior', 'SpyVisionSpecialPower SpyModule', {
+        SpecialPowerTemplate: 'SpecialPowerSpyVisionCaptured',
+        BaseDuration: 1000,
+        BonusDurationPerCaptured: 1000,
+        MaxDuration: 2500,
+      }),
+    ], {
+      VisionRange: 30,
+    });
+
+    const passengerDef = makeObjectDef('Passenger', 'America', ['INFANTRY'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+    ]);
+
+    const registry = makeRegistry(makeBundle({
+      objects: [sourceDef, passengerDef],
+      specialPowers: [
+        makeSpecialPowerDef('SpecialPowerSpyVisionCaptured', {
+          ReloadTime: 0,
+          Enum: 'SPECIAL_CHANGE_BATTLE_PLANS',
+        }),
+      ],
+    }));
+
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('SpySource', 40, 50),
+        makeMapObject('Passenger', 42, 50),
+        makeMapObject('Passenger', 44, 50),
+      ], 256, 256),
+      registry,
+      makeHeightmap(256, 256),
+    );
+    logic.update(1 / 30);
+
+    const priv = logic as unknown as {
+      frameCounter: number;
+      activeSpyVisions: Array<{ spyingSide: string; expiryFrame: number }>;
+      spawnedEntities: Map<number, { transportContainerId: number | null }>;
+    };
+    priv.spawnedEntities.get(2)!.transportContainerId = 1;
+    priv.spawnedEntities.get(3)!.transportContainerId = 1;
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_SPY_CAPTURED',
+      specialPowerName: 'SpecialPowerSpyVisionCaptured',
+      commandOption: 0,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+
+    const spyVision = priv.activeSpyVisions.at(-1);
+    expect(spyVision?.spyingSide).toBe('america');
+    // Base 1000ms + two contained units * 1000ms = 3000ms, capped at 2500ms = 75 frames.
+    expect((spyVision?.expiryFrame ?? 0) - priv.frameCounter).toBe(75);
+  });
+
   it('executes cash hack special power to steal enemy credits', () => {
     const logic = new GameLogicSubsystem();
 
@@ -14226,6 +14404,89 @@ describe('GameLogicSubsystem combat + upgrades', () => {
 
     // America should have lost credits.
     expect(logic.getSideCredits('America')).toBeLessThan(5000);
+  });
+
+  it('uses CashHackSpecialPower UpgradeMoneyAmount when the hacker side owns the science', () => {
+    const logic = new GameLogicSubsystem();
+
+    const hackerDef = makeObjectDef('Hacker', 'China', ['INFANTRY'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+      makeBlock('Behavior', 'CashHackSpecialPower HackModule', {
+        SpecialPowerTemplate: 'SpecialPowerCashHack',
+        MoneyAmount: 1000,
+        UpgradeMoneyAmount: ['SCIENCE_CashHack2', '2000'],
+      }),
+    ]);
+
+    const enemyBuildingDef = makeObjectDef('EnemyHQ', 'America', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+    ]);
+
+    const registry = makeRegistry(makeBundle({
+      objects: [hackerDef, enemyBuildingDef],
+      sciences: [
+        makeScienceDef('SCIENCE_CashHack2', { IsGrantable: 'Yes' }),
+      ],
+      specialPowers: [
+        makeSpecialPowerDef('SpecialPowerCashHack', { ReloadTime: 0 }),
+      ],
+    }));
+
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Hacker', 10, 10),
+        makeMapObject('EnemyHQ', 20, 10),
+      ], 64, 64),
+      registry,
+      makeHeightmap(64, 64),
+    );
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.submitCommand({ type: 'setSidePlayerType', side: 'China', playerType: 'COMPUTER' });
+    logic.update(0);
+
+    const hacker = (logic as any).spawnedEntities.get(1)!;
+    const module = hacker.specialPowerModules.get('SPECIALPOWERCASHHACK');
+    expect(module.cashHackMoneyAmount).toBe(1000);
+    expect(module.cashHackUpgradeMoneyAmounts).toEqual([
+      { scienceName: 'SCIENCE_CASHHACK2', amountToSteal: 2000 },
+    ]);
+
+    logic.setSideCredits('China', 0);
+    logic.setSideCredits('America', 5000);
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_HACK',
+      specialPowerName: 'SpecialPowerCashHack',
+      commandOption: 0x01,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: 2,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+    expect(logic.getSideCredits('China')).toBe(1000);
+    expect(logic.getSideCredits('America')).toBe(4000);
+
+    logic.submitCommand({ type: 'grantSideScience', side: 'China', scienceName: 'SCIENCE_CashHack2' });
+    logic.update(0);
+    logic.setSideCredits('China', 0);
+    logic.setSideCredits('America', 5000);
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_HACK',
+      specialPowerName: 'SpecialPowerCashHack',
+      commandOption: 0x01,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: 2,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+    expect(logic.getSideCredits('China')).toBe(2000);
+    expect(logic.getSideCredits('America')).toBe(3000);
   });
 
   it('executes defector special power to convert enemy unit', () => {
@@ -24610,8 +24871,8 @@ describe('Script condition groundwork', () => {
     const constructedId = privateApi.pendingConstructionActions.get(1);
     expect(constructedId).toBeDefined();
     expect(privateApi.spawnedEntities.get(constructedId!)?.templateName).toBe('USASupplyCenter');
-    expect(privateApi.spawnedEntities.get(constructedId!)?.x).toBeCloseTo(70, 6);
-    expect(privateApi.spawnedEntities.get(constructedId!)?.z).toBeCloseTo(40, 6);
+    expect(privateApi.spawnedEntities.get(constructedId!)?.x).toBeCloseTo(60, 6);
+    expect(privateApi.spawnedEntities.get(constructedId!)?.z).toBeCloseTo(10, 6);
 
     expect(logic.executeScriptAction({
       actionType: 285, // MOVIE_PLAY_FULLSCREEN when 1 param
@@ -31936,6 +32197,16 @@ describe('Script condition groundwork', () => {
 
     expect(logic.executeScriptAction({
       actionType: 132, // CAMERA_STOP_FOLLOW (raw id)
+    })).toBe(true);
+    expect(logic.getScriptCameraFollowState()).toBeNull();
+
+    expect(logic.executeScriptAction({
+      actionType: 119,
+      params: [1, 0],
+    })).toBe(true);
+    expect(logic.executeScriptAction({
+      actionType: 325, // CAMERA_STOP_FOLLOW (Generals campaign map id)
+      params: [],
     })).toBe(true);
     expect(logic.getScriptCameraFollowState()).toBeNull();
 

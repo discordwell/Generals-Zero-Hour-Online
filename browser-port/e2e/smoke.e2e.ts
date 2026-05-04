@@ -38,7 +38,8 @@ test('main menu loads when no map specified', async ({ page }) => {
 
   // Main menu buttons should be visible
   await expect(page.getByRole('button', { name: 'Single Player' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Skirmish' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Multiplayer' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Replay' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Options' })).toBeVisible();
 
   // No uncaught JS errors

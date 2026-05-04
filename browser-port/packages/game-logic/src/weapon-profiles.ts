@@ -181,6 +181,7 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
   // Source parity: Weapon::isLaser() — weapon is a laser if LaserName is non-empty.
   const laserNameRaw = readStringField(weaponDef.fields, ['LaserName'])?.trim() ?? '';
   const laserName = laserNameRaw && laserNameRaw.toUpperCase() !== 'NONE' ? laserNameRaw : null;
+  const laserUpdateProfile = laserName ? self.extractLaserUpdateProfile(laserName) : null;
 
   // Source parity: WeaponTemplate::m_damageStatusType — object status applied to damaged targets.
   // Parsed via ObjectStatusMaskType::parseSingleBitFromINI. Default is OBJECT_STATUS_NONE → "NONE".
@@ -286,6 +287,9 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
     continuousFireMeanRateOfFire,
     continuousFireFastRateOfFire,
     laserName,
+    laserMuzzleParticleSystemName: laserUpdateProfile?.muzzleParticleSystemName ?? '',
+    laserTargetParticleSystemName: laserUpdateProfile?.targetParticleSystemName ?? '',
+    laserPunchThroughScalar: laserUpdateProfile?.punchThroughScalar ?? 0,
     projectileArcFirstHeight: bezierArc?.firstHeight ?? 0,
     projectileArcSecondHeight: bezierArc?.secondHeight ?? 0,
     projectileArcFirstPercentIndent: bezierArc?.firstPercentIndent ?? 0,

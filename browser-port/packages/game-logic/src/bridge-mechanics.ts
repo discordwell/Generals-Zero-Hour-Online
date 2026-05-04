@@ -49,6 +49,8 @@ export function extractBridgeBehaviorProfile(self: GL, objectDef: ObjectDef | un
           scaffoldLateralSpeed: readNumericField(block.fields, ['LateralScaffoldSpeed']) ?? 1.0,
           scaffoldVerticalSpeed: readNumericField(block.fields, ['VerticalScaffoldSpeed']) ?? 1.0,
           scaffoldObjectName: (readStringField(block.fields, ['ScaffoldObjectName']) ?? '').toUpperCase(),
+          bridgeDieFX: parseBridgeDeathEffectEntries(self, block.fields, 'BridgeDieFX', 'FX'),
+          bridgeDieOCL: parseBridgeDeathEffectEntries(self, block.fields, 'BridgeDieOCL', 'OCL'),
         };
       }
     }
@@ -61,6 +63,110 @@ export function extractBridgeBehaviorProfile(self: GL, objectDef: ObjectDef | un
     visitBlock(block);
   }
   return profile;
+}
+
+function bridgeEffectTokens(value: unknown): string[] {
+  if (typeof value === 'string') {
+    return value
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean);
+  }
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((entry) => bridgeEffectTokens(entry))
+      .filter(Boolean);
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return [String(value)];
+  }
+  return [];
+}
+
+function splitBridgeEffectEntries(tokens: string[], effectKey: 'FX' | 'OCL'): string[][] {
+  const entries: string[][] = [];
+  let current: string[] = [];
+  for (const token of tokens) {
+    const parsed = parseBridgeEffectToken(token);
+    if (parsed.key === effectKey && current.length > 0) {
+      entries.push(current);
+      current = [];
+    }
+    current.push(token);
+  }
+  if (current.length > 0) {
+    entries.push(current);
+  }
+  return entries;
+}
+
+function parseBridgeEffectToken(token: string): { key: string; value: string } {
+  const idx = token.indexOf(':');
+  if (idx < 0) {
+    return { key: token.trim().toUpperCase(), value: '' };
+  }
+  return {
+    key: token.slice(0, idx).trim().toUpperCase(),
+    value: token.slice(idx + 1).trim(),
+  };
+}
+
+function readBridgeEffectTokenValue(tokens: string[], index: number): string {
+  const parsed = parseBridgeEffectToken(tokens[index] ?? '');
+  if (parsed.value.length > 0) return parsed.value;
+  const next = tokens[index + 1];
+  if (next && !next.includes(':')) return next.trim();
+  return '';
+}
+
+function parseBridgeDeathEffectEntries(
+  self: GL,
+  fields: Record<string, unknown>,
+  fieldName: 'BridgeDieFX' | 'BridgeDieOCL',
+  effectKey: 'FX' | 'OCL',
+): BridgeDeathEffectEntry[] {
+  const tokens = bridgeEffectTokens(fields[fieldName]);
+  if (tokens.length === 0) return [];
+  return splitBridgeEffectEntries(tokens, effectKey)
+    .map((entryTokens) => parseBridgeDeathEffectEntry(self, entryTokens, effectKey))
+    .filter((entry): entry is BridgeDeathEffectEntry => entry !== null);
+}
+
+function parseBridgeDeathEffectEntry(
+  self: GL,
+  tokens: string[],
+  effectKey: 'FX' | 'OCL',
+): BridgeDeathEffectEntry | null {
+  let effectName = '';
+  let delayFrames = 0;
+  let boneName = '';
+
+  for (let i = 0; i < tokens.length; i++) {
+    const parsed = parseBridgeEffectToken(tokens[i]!);
+    switch (parsed.key) {
+      case 'FX':
+      case 'OCL':
+        if (parsed.key === effectKey) {
+          effectName = readBridgeEffectTokenValue(tokens, i);
+        }
+        break;
+      case 'DELAY': {
+        const delayMs = Number.parseFloat(readBridgeEffectTokenValue(tokens, i));
+        delayFrames = Number.isFinite(delayMs) ? self.msToLogicFrames(delayMs) : 0;
+        break;
+      }
+      case 'BONE':
+        boneName = readBridgeEffectTokenValue(tokens, i);
+        break;
+    }
+  }
+
+  if (!effectName) return null;
+  return {
+    effectName,
+    delayFrames,
+    boneName,
+  };
 }
 
 export function extractBridgeTowerProfile(self: GL, objectDef: ObjectDef | undefined): BridgeTowerProfile | null {
@@ -527,6 +633,106 @@ export function updateBridgeScaffolds(self: GL): void {
   }
 }
 
+export function updateBridgeDeathEffects(self: GL): void {
+  for (const entity of self.spawnedEntities.values()) {
+    const profile = entity.bridgeBehaviorProfile;
+    const state = entity.bridgeBehaviorState;
+    if (!profile || !state || !state.isBridgeDestroyed) {
+      continue;
+    }
+
+    const deathTime = self.frameCounter - state.deathFrame;
+    if (deathTime < 0) {
+      continue;
+    }
+
+    for (const entry of profile.bridgeDieFX) {
+      if (entry.delayFrames !== deathTime) {
+        continue;
+      }
+      const pos = resolveBridgeDeathEffectPosition(self, entity, entry.boneName);
+      self.visualEventBuffer.push({
+        type: 'NAMED_FX',
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
+        radius: 0,
+        sourceEntityId: entity.id,
+        projectileType: 'BULLET',
+        effectName: entry.effectName,
+        sourceBoneName: entry.boneName || undefined,
+      });
+    }
+
+    for (const entry of profile.bridgeDieOCL) {
+      if (entry.delayFrames !== deathTime) {
+        continue;
+      }
+      if (typeof self.executeOCL !== 'function') {
+        continue;
+      }
+      if ((entry.boneName ?? '').trim().toUpperCase() === 'PARENTOBJECT') {
+        self.executeOCL(entry.effectName, entity);
+      } else {
+        const pos = resolveBridgeDeathEffectPosition(self, entity, entry.boneName);
+        self.executeOCL(entry.effectName, entity, undefined, pos.x, pos.z);
+      }
+    }
+  }
+}
+
+function resolveBridgeDeathEffectPosition(
+  self: GL,
+  entity: MapEntity,
+  boneName: string | null | undefined,
+): { x: number; y: number; z: number } {
+  if ((boneName ?? '').trim()) {
+    return {
+      x: entity.x,
+      y: entity.y,
+      z: entity.z,
+    };
+  }
+
+  const surface = resolveRandomBridgeSurfacePosition(self, entity);
+  if (surface) {
+    return surface;
+  }
+
+  return {
+    x: entity.x,
+    y: entity.y,
+    z: entity.z,
+  };
+}
+
+function resolveRandomBridgeSurfacePosition(self: GL, entity: MapEntity): { x: number; y: number; z: number } | null {
+  const segmentId = self.bridgeSegmentByControlEntity?.get(entity.id);
+  const segment = segmentId !== undefined ? self.bridgeSegments?.get(segmentId) : null;
+  if (!segment) {
+    return null;
+  }
+  const startX = segment.startWorldX;
+  const startZ = segment.startWorldZ;
+  const endX = segment.endWorldX;
+  const endZ = segment.endWorldZ;
+  const startY = segment.startSurfaceY;
+  const endY = segment.endSurfaceY;
+  if (
+    !Number.isFinite(startX) || !Number.isFinite(startZ)
+    || !Number.isFinite(endX) || !Number.isFinite(endZ)
+  ) {
+    return null;
+  }
+  const t = self.gameRandom.nextFloat();
+  const x = startX + (endX - startX) * t;
+  const z = startZ + (endZ - startZ) * t;
+  const y = Number.isFinite(startY) && Number.isFinite(endY)
+    ? startY + (endY - startY) * t
+    : self.resolveGroundHeight(x, z);
+  return { x, y, z };
+}
+
 export function advanceScaffoldMotion(self: GL, entity: MapEntity, st: BridgeScaffoldState): void {
   switch (st.targetMotion) {
     case STM_RISE:
@@ -647,6 +853,7 @@ export function bridgeBehaviorOnDie(self: GL, bridge: MapEntity): void {
   }
 
   // Record death frame for timed FX.
+  bridge.keepObjectOnDeath = true;
   state.isBridgeDestroyed = true;
   state.deathFrame = self.frameCounter;
 }

@@ -113,6 +113,20 @@ function findEntities(logic: GameLogicSubsystem, templateName: string, side: str
   );
 }
 
+const USA_BUILD_OFFSETS = {
+  powerPlant: [120, -140],
+  barracks: [120, 140],
+  supplyCenter: [260, 40],
+  warFactory: [-130, 170],
+  strategyCenter: [-300, 260],
+  particleCannon: [260, -180],
+  recoveryPowerPlant: [-220, 340],
+} as const;
+
+function offsetFromCommandCenter(cc: { x: number; z: number }, offset: readonly [number, number]): [number, number] {
+  return [cc.x + offset[0], cc.z + offset[1]];
+}
+
 function buildStructure(
   logic: GameLogicSubsystem,
   dozerId: number,
@@ -122,6 +136,9 @@ function buildStructure(
   anomalies: string[],
   buildFrames = 900,
 ) {
+  const existingIds = new Set(
+    findEntities(logic, templateName, 'America').map(e => e.id),
+  );
   logic.submitCommand({
     type: 'constructBuilding',
     entityId: dozerId,
@@ -131,9 +148,27 @@ function buildStructure(
     lineEndPosition: null,
   });
   runFrames(logic, buildFrames, anomalies, `build-${templateName}`);
-  return logic.getRenderableEntityStates().find(e =>
-    e.templateName === templateName && e.side?.toUpperCase() === 'AMERICA',
+  const created = logic.getRenderableEntityStates().find(e =>
+    e.templateName === templateName
+      && e.side?.toUpperCase() === 'AMERICA'
+      && !existingIds.has(e.id),
   ) ?? null;
+
+  if (!created) {
+    return null;
+  }
+
+  for (let i = 0; i < 1800; i++) {
+    const state = logic.getEntityState(created.id);
+    if (!state || !state.alive || state.constructionPercent < 0) {
+      break;
+    }
+    if (!runFrames(logic, 1, anomalies, `complete-${templateName}`)) {
+      break;
+    }
+  }
+
+  return logic.getRenderableEntityStates().find(e => e.id === created.id) ?? created;
 }
 
 /** Build PP + Barracks. Hard-fails if either building fails. */
@@ -143,10 +178,12 @@ function buildPPAndBarracks(logic: GameLogicSubsystem, anomalies: string[]) {
   expect(dozer).toBeDefined();
   expect(cc).toBeDefined();
 
-  const pp = buildStructure(logic, dozer.id, 'AmericaPowerPlant', cc.x + 120, cc.z, anomalies);
+  const [ppX, ppZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.powerPlant);
+  const pp = buildStructure(logic, dozer.id, 'AmericaPowerPlant', ppX, ppZ, anomalies);
   expect(pp).not.toBeNull();
 
-  const barracks = buildStructure(logic, dozer.id, 'AmericaBarracks', cc.x + 120, cc.z + 120, anomalies);
+  const [barracksX, barracksZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.barracks);
+  const barracks = buildStructure(logic, dozer.id, 'AmericaBarracks', barracksX, barracksZ, anomalies);
   expect(barracks).not.toBeNull();
 
   return { dozer, cc, pp: pp!, barracks: barracks! };
@@ -176,13 +213,22 @@ describe.skipIf(!hasRetailData)('wet test round 7: campaign/special features', (
     expect(cc).toBeDefined();
 
     // Prerequisite chain: PP -> SupplyCenter -> WarFactory -> StrategyCenter -> ParticleCannon
-    // Build Power Plant
-    const pp = buildStructure(logic, dozer.id, 'AmericaPowerPlant', cc.x + 120, cc.z, anomalies);
+    const [ppX, ppZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.powerPlant);
+    const pp = buildStructure(logic, dozer.id, 'AmericaPowerPlant', ppX, ppZ, anomalies);
     expect(pp).not.toBeNull();
     console.log('SUPERWEAPON: Power Plant built');
 
     // Build Supply Center (prerequisite for War Factory)
-    const supplyCenter = buildStructure(logic, dozer.id, 'AmericaSupplyCenter', cc.x + 200, cc.z + 50, anomalies, 900);
+    const [supplyCenterX, supplyCenterZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.supplyCenter);
+    const supplyCenter = buildStructure(
+      logic,
+      dozer.id,
+      'AmericaSupplyCenter',
+      supplyCenterX,
+      supplyCenterZ,
+      anomalies,
+      900,
+    );
     if (supplyCenter) {
       console.log('SUPERWEAPON: Supply Center built');
     } else {
@@ -190,7 +236,16 @@ describe.skipIf(!hasRetailData)('wet test round 7: campaign/special features', (
     }
 
     // Build War Factory (prerequisite for Strategy Center)
-    const warFactory = buildStructure(logic, dozer.id, 'AmericaWarFactory', cc.x - 120, cc.z, anomalies, 1200);
+    const [warFactoryX, warFactoryZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.warFactory);
+    const warFactory = buildStructure(
+      logic,
+      dozer.id,
+      'AmericaWarFactory',
+      warFactoryX,
+      warFactoryZ,
+      anomalies,
+      1200,
+    );
     if (warFactory) {
       console.log('SUPERWEAPON: War Factory built');
     } else {
@@ -198,7 +253,16 @@ describe.skipIf(!hasRetailData)('wet test round 7: campaign/special features', (
     }
 
     // Build Strategy Center (prerequisite for Particle Cannon)
-    const stratCenter = buildStructure(logic, dozer.id, 'AmericaStrategyCenter', cc.x - 120, cc.z + 140, anomalies, 1800);
+    const [stratCenterX, stratCenterZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.strategyCenter);
+    const stratCenter = buildStructure(
+      logic,
+      dozer.id,
+      'AmericaStrategyCenter',
+      stratCenterX,
+      stratCenterZ,
+      anomalies,
+      1800,
+    );
     if (stratCenter) {
       console.log('SUPERWEAPON: Strategy Center built');
     } else {
@@ -206,7 +270,16 @@ describe.skipIf(!hasRetailData)('wet test round 7: campaign/special features', (
     }
 
     // Build Particle Cannon (the superweapon)
-    const cannon = buildStructure(logic, dozer.id, 'AmericaParticleCannonUplink', cc.x + 120, cc.z - 140, anomalies, 3000);
+    const [cannonX, cannonZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.particleCannon);
+    const cannon = buildStructure(
+      logic,
+      dozer.id,
+      'AmericaParticleCannonUplink',
+      cannonX,
+      cannonZ,
+      anomalies,
+      3000,
+    );
 
     if (!cannon) {
       console.log('SUPERWEAPON: Particle Cannon not built — prerequisite chain may be incomplete');
@@ -588,7 +661,8 @@ describe.skipIf(!hasRetailData)('wet test round 7: campaign/special features', (
     console.log(`SELL-REFUND: Credits before build: ${creditsBeforeBuild}`);
 
     // Build PP
-    const pp = buildStructure(logic, dozer.id, 'AmericaPowerPlant', cc.x + 120, cc.z, anomalies);
+    const [ppX, ppZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.powerPlant);
+    const pp = buildStructure(logic, dozer.id, 'AmericaPowerPlant', ppX, ppZ, anomalies);
     expect(pp).not.toBeNull();
 
     // Record credits after building (should be reduced by PP cost)
@@ -661,18 +735,22 @@ describe.skipIf(!hasRetailData)('wet test round 7: campaign/special features', (
     expect(cc).toBeDefined();
 
     // Build PP (produces +5 energy)
-    const pp = buildStructure(logic, dozer.id, 'AmericaPowerPlant', cc.x + 120, cc.z, anomalies);
+    const [ppX, ppZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.powerPlant);
+    const pp = buildStructure(logic, dozer.id, 'AmericaPowerPlant', ppX, ppZ, anomalies);
     expect(pp).not.toBeNull();
 
     // Build Barracks (no power consumption — but needed as prereq info)
-    const barracks = buildStructure(logic, dozer.id, 'AmericaBarracks', cc.x + 120, cc.z + 120, anomalies);
+    const [barracksX, barracksZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.barracks);
+    const barracks = buildStructure(logic, dozer.id, 'AmericaBarracks', barracksX, barracksZ, anomalies);
     expect(barracks).not.toBeNull();
 
     // Build Supply Center (consumes -1 energy, has KINDOF_POWERED)
-    const supplyCenter = buildStructure(logic, dozer.id, 'AmericaSupplyCenter', cc.x + 200, cc.z + 50, anomalies, 900);
+    const [supplyCenterX, supplyCenterZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.supplyCenter);
+    const supplyCenter = buildStructure(logic, dozer.id, 'AmericaSupplyCenter', supplyCenterX, supplyCenterZ, anomalies, 900);
 
     // Build War Factory (consumes -1 energy, requires Supply Center)
-    const warFactory = buildStructure(logic, dozer.id, 'AmericaWarFactory', cc.x - 120, cc.z, anomalies, 1200);
+    const [warFactoryX, warFactoryZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.warFactory);
+    const warFactory = buildStructure(logic, dozer.id, 'AmericaWarFactory', warFactoryX, warFactoryZ, anomalies, 1200);
 
     // Check power state before destroying PP
     const powerBefore = logic.getSidePowerState('america');
@@ -732,7 +810,8 @@ describe.skipIf(!hasRetailData)('wet test round 7: campaign/special features', (
     }
 
     // === RECOVERY: Rebuild PP ===
-    const pp2 = buildStructure(logic, dozer.id, 'AmericaPowerPlant', cc.x - 120, cc.z + 140, anomalies, 1200);
+    const [recoveryPpX, recoveryPpZ] = offsetFromCommandCenter(cc, USA_BUILD_OFFSETS.recoveryPowerPlant);
+    const pp2 = buildStructure(logic, dozer.id, 'AmericaPowerPlant', recoveryPpX, recoveryPpZ, anomalies, 1200);
     if (pp2) {
       console.log(`BROWNOUT: New PP built (id=${pp2.id})`);
 

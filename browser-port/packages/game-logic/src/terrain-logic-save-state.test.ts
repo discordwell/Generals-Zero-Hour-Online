@@ -6,6 +6,11 @@ import { makeBundle, makeHeightmap, makeMap, makeObjectDef, makeRegistry } from 
 
 function makeTerrainLogicMap() {
   const map = makeMap([], 128, 128);
+  map.heightmap.boundaries = [
+    { x: 64, y: 64 },
+    { x: 96, y: 96 },
+    { x: 128, y: 128 },
+  ];
   map.triggers = [{
     id: 9,
     name: 'WaterAreaA',

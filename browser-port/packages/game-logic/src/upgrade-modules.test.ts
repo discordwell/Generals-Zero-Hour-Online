@@ -57,6 +57,12 @@ const helpers: UpgradeModuleParsingHelpers = {
   },
 };
 
+const specialPowerExtractionSelf = {
+  readIniFieldValue(fields: Record<string, IniValue>, fieldName: string): IniValue | undefined {
+    return fields[fieldName];
+  },
+};
+
 // ── GrantScienceUpgrade ────────────────────────────────────────────────────
 
 describe('GrantScienceUpgrade', () => {
@@ -179,6 +185,38 @@ describe('ModelConditionUpgrade', () => {
 
 // ── FireWeaponPower (special power module extraction) ──────────────────────
 
+describe('SubObjectsUpgrade', () => {
+  it('extracts ShowSubObjects and HideSubObjects vectors', () => {
+    const blocks = [
+      makeBlock('Behavior', 'SubObjectsUpgrade ModuleTag_SubObjects', {
+        TriggeredBy: 'Upgrade_BombLoad',
+        ShowSubObjects: 'Bombload02 BombWing',
+        HideSubObjects: ['Bombload01', 'Bombload03'],
+      }),
+    ];
+    const modules = extractUpgradeModulesFromBlocks(blocks, null, helpers);
+    expect(modules).toHaveLength(1);
+    expect(modules[0].moduleType).toBe('SUBOBJECTSUPGRADE');
+    expect(modules[0].showSubObjects).toEqual(['Bombload02', 'BombWing']);
+    expect(modules[0].hideSubObjects).toEqual(['Bombload01', 'Bombload03']);
+  });
+
+  it('leaves sub-object vectors empty on other upgrade modules', () => {
+    const blocks = [
+      makeBlock('Behavior', 'ModelConditionUpgrade ModuleTag_MCU', {
+        TriggeredBy: 'Upgrade_Visual',
+        ShowSubObjects: 'Bombload02',
+        HideSubObjects: 'Bombload01',
+      }),
+    ];
+    const modules = extractUpgradeModulesFromBlocks(blocks, null, helpers);
+    expect(modules).toHaveLength(1);
+    expect(modules[0].moduleType).toBe('MODELCONDITIONUPGRADE');
+    expect(modules[0].showSubObjects).toEqual([]);
+    expect(modules[0].hideSubObjects).toEqual([]);
+  });
+});
+
 describe('FireWeaponPower MaxShotsToFire field', () => {
   // FireWeaponPower is a SpecialPowerModule, not an UpgradeModule, so it is
   // extracted via extractSpecialPowerModules (entity-factory.ts), not
@@ -209,8 +247,7 @@ describe('FireWeaponPower MaxShotsToFire field', () => {
       ],
       resolved: true,
     };
-    // extractSpecialPowerModules takes a GL self (unused for field reading) and an ObjectDef.
-    const result = extractSpecialPowerModules(null as any, objectDef as any);
+    const result = extractSpecialPowerModules(specialPowerExtractionSelf as any, objectDef as any);
     expect(result.size).toBe(1);
     const module = result.get('SUPERWEAPONNEUTRONMISSILE');
     expect(module).toBeDefined();
@@ -231,7 +268,7 @@ describe('FireWeaponPower MaxShotsToFire field', () => {
       ],
       resolved: true,
     };
-    const result = extractSpecialPowerModules(null as any, objectDef as any);
+    const result = extractSpecialPowerModules(specialPowerExtractionSelf as any, objectDef as any);
     const module = result.get('SUPERWEAPONNEUTRONMISSILE');
     expect(module).toBeDefined();
     expect(module!.fireWeaponMaxShots).toBe(1);

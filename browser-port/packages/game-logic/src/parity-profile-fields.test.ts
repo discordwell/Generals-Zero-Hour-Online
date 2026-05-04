@@ -103,6 +103,19 @@ describe('extractDeployStyleProfile — new fields', () => {
     expect(profile!.turretsMustCenterBeforePacking).toBe(false);
   });
 
+  it('parses ManualDeployAnimations when set to true', () => {
+    const objectDef = makeObjectDef([
+      makeBlock('Behavior', 'DeployStyleAIUpdate ModuleTag_Deploy', {
+        UnpackTime: 1000,
+        PackTime: 500,
+        ManualDeployAnimations: true,
+      }),
+    ]);
+    const profile = extractDeployStyleProfile(mockGL, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.manualDeployAnimations).toBe(true);
+  });
+
   it('returns null when no DeployStyleAIUpdate block exists', () => {
     const objectDef = makeObjectDef([
       makeBlock('Behavior', 'SomeOtherUpdate ModuleTag_Other', {}),

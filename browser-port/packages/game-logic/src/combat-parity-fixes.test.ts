@@ -196,4 +196,95 @@ describe('ATTACK_RANGE_FUDGE constants (Weapon.cpp:472, 2114)', () => {
     expect(lastIssueMoveTo!.attackDistance).toBeCloseTo(attackRange * ATTACK_RANGE_APPROACH_FUDGE);
     expect(lastIssueMoveTo!.attackDistance).toBeCloseTo(180);
   });
+
+  it('skips attack-status validation for idle entities with no combat order', () => {
+    const makeEntity = (id: number) => ({
+      id,
+      x: 0,
+      z: 0,
+      destroyed: false,
+      canMove: false,
+      moving: false,
+      moveTarget: null,
+      movePath: [] as { x: number; z: number }[],
+      pathIndex: 0,
+      pathfindGoalCell: null,
+      preAttackFinishFrame: 0,
+      attackTargetEntityId: null as number | null,
+      attackTargetPosition: null as { x: number; z: number } | null,
+      attackWeapon: null as {
+        minAttackRange: number;
+        attackRange: number;
+        clipSize: number;
+        autoReloadWhenIdleFrames: number;
+        clipReloadFrames: number;
+        leechRangeWeapon: boolean;
+      } | null,
+      attackCommandSource: 'AI',
+      attackOriginalVictimPosition: null,
+      nextAttackFrame: 0,
+      lastShotFrame: 0,
+      lastShotFrameBySlot: [0, 0, 0] as [number, number, number],
+      attackWeaponSlotIndex: 0,
+      attackAmmoInClip: 0,
+      attackReloadFinishFrame: 0,
+      attackForceReloadFrame: 0,
+      attackNeedsLineOfSight: false,
+      maxShotsRemaining: 0,
+      category: 'vehicle',
+      leechRangeActive: false,
+    });
+
+    const activeAttacker = makeEntity(1);
+    activeAttacker.attackTargetEntityId = 2;
+    activeAttacker.attackWeapon = {
+      minAttackRange: 0,
+      attackRange: 200,
+      clipSize: 0,
+      autoReloadWhenIdleFrames: 0,
+      clipReloadFrames: 0,
+      leechRangeWeapon: false,
+    };
+    const target = makeEntity(2);
+    target.x = 10;
+    const idleProp = makeEntity(3);
+    const entities = [activeAttacker, target, idleProp];
+    let statusChecks = 0;
+
+    updateCombat({
+      entities,
+      frameCounter: 0,
+      constants: {
+        attackMinRangeDistanceSqrFudge: 0.5,
+        pathfindCellSize: 10,
+        attackRangeApproachFudge: ATTACK_RANGE_APPROACH_FUDGE,
+      },
+      findEntityById: (id) => entities.find((e) => e.id === id) ?? null,
+      findFireWeaponTargetForPosition: () => null,
+      canEntityAttackFromStatus: () => {
+        statusChecks++;
+        return true;
+      },
+      canAttackerTargetEntity: () => true,
+      setEntityAttackStatus: () => {},
+      setEntityAimingWeaponStatus: () => {},
+      setEntityFiringWeaponStatus: () => {},
+      setEntityIgnoringStealthStatus: () => {},
+      refreshEntitySneakyMissWindow: () => {},
+      issueMoveTo: () => {},
+      computeAttackRetreatTarget: () => null,
+      rebuildEntityScatterTargets: () => {},
+      resolveWeaponPreAttackDelayFrames: () => 0,
+      queueWeaponDamageEvent: () => {},
+      recordConsecutiveAttackShot: () => {},
+      resolveWeaponDelayFrames: () => 5,
+      resolveClipReloadFrames: () => 30,
+      resolveTargetAnchorPosition: (entity) => ({ x: entity.x, z: entity.z }),
+      isAttackLineOfSightBlocked: () => false,
+      clearMaxShotsAttackState: () => {},
+      isTurretAlignedForFiring: () => true,
+    });
+
+    expect(statusChecks).toBe(1);
+  });
 });

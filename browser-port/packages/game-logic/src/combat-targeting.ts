@@ -493,19 +493,6 @@ export function issueFireWeapon(self: GL,
 
   const [targetX, , targetZ] = targetPosition;
   attacker.attackTargetPosition = { x: targetX, z: targetZ };
-
-  // Source behavior for MSG_DO_WEAPON_AT_LOCATION sends a target location while some
-  // commands also append an object ID for obstacle awareness. We only have positional
-  // targeting here and select a victim dynamically from command-local state.
-  const targetEntity = findFireWeaponTargetForPosition(self, attacker, targetX, targetZ);
-  if (!targetEntity) {
-    const attackRange = Math.max(0, weapon.attackRange);
-    if (attacker.canMove) {
-      self.issueMoveTo(entityId, targetX, targetZ, attackRange);
-    }
-    return;
-  }
-  issueAttackEntity(self, entityId, targetEntity.id, 'PLAYER');
 }
 
 export function issueFireWeaponAtPosition(self: GL, 
@@ -1098,7 +1085,14 @@ export function recruitRetaliationFriends(self: GL,
   }
 }
 
-export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: MapEntity, weapon: AttackWeaponProfile, inflictDamage: boolean = true): void {
+export function queueWeaponDamageEvent(
+  self: GL,
+  attacker: MapEntity,
+  target: MapEntity,
+  weapon: AttackWeaponProfile,
+  inflictDamage: boolean = true,
+  forcePosition: boolean = false,
+): void {
   // Source parity: Object::getLastShotFiredFrame() — track last normal weapon fire for ExclusiveWeaponDelay.
   attacker.lastShotFiredFrame = self.frameCounter;
   let sourceX = attacker.x;
@@ -1132,9 +1126,9 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
 
   let aimX = targetX;
   let aimZ = targetZ;
-  let primaryVictimEntityId = weapon.damageDealtAtSelfPosition ? null : target.id;
+  let primaryVictimEntityId = (forcePosition || weapon.damageDealtAtSelfPosition) ? null : target.id;
 
-  const sneakyOffset = self.resolveEntitySneakyTargetingOffset(target);
+  const sneakyOffset = forcePosition ? null : self.resolveEntitySneakyTargetingOffset(target);
   if (sneakyOffset && primaryVictimEntityId !== null) {
     aimX += sneakyOffset.x;
     aimZ += sneakyOffset.z;
@@ -1172,7 +1166,9 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
     // We represent this as a deterministic delayed impact without spawning a full
     // projectile object graph yet.
 
-    const scatterRadius = self.resolveProjectileScatterRadiusForTarget(weapon, target);
+    const scatterRadius = forcePosition
+      ? Math.max(0, weapon.scatterRadius)
+      : self.resolveProjectileScatterRadiusForTarget(weapon, target);
     if (scatterRadius > 0) {
       const randomizedScatterRadius = scatterRadius * self.gameRandom.nextFloat();
       const scatterAngleRadians = self.gameRandom.nextFloat() * (2 * Math.PI);
@@ -1430,6 +1426,14 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
     { x: impactX, y: impactY, z: impactZ },
     sourceOverride,
   );
+  if (delivery === 'LASER') {
+    self.emitLaserParticleSystemVisualEvents(
+      weapon,
+      attacker.id,
+      sourceOverride ?? { x: attacker.x, y: attacker.y + 1.5, z: attacker.z },
+      { x: impactX, y: impactY, z: impactZ },
+    );
+  }
   if (delivery === 'PROJECTILE') {
     self.registerActiveWeaponProjectileState(
       projectileVisualId,
@@ -1489,9 +1493,28 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
   }
 
   // Source parity: RequestAssistRange — rally idle allies to attack same target.
-  if (weapon.requestAssistRange > 0 && target && !target.destroyed) {
+  if (!forcePosition && weapon.requestAssistRange > 0 && target && !target.destroyed) {
     requestAssistFromNearbyAllies(self, attacker, target, weapon.requestAssistRange);
   }
+}
+
+export function queueWeaponDamageEventAtPosition(
+  self: GL,
+  attacker: MapEntity,
+  targetX: number,
+  targetZ: number,
+  weapon: AttackWeaponProfile,
+  inflictDamage: boolean = true,
+): void {
+  const target = {
+    id: 0,
+    x: targetX,
+    y: self.mapHeightmap ? self.mapHeightmap.getInterpolatedHeight(targetX, targetZ) : 0,
+    z: targetZ,
+    category: 'ground',
+    destroyed: false,
+  };
+  queueWeaponDamageEvent(self, attacker, target, weapon, inflictDamage, true);
 }
 
 export function requestAssistFromNearbyAllies(self: GL, attacker: MapEntity, target: MapEntity, range: number): void {

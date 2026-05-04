@@ -21,6 +21,51 @@ type GL = any;
 
 // ---- Entity lifecycle implementations ----
 
+function emitNamedFX(self: GL, entity: MapEntity, effectName: string | null | undefined): void {
+  const trimmedName = (effectName ?? '').trim();
+  if (!trimmedName) return;
+  self.visualEventBuffer.push({
+    type: 'NAMED_FX',
+    x: entity.x,
+    y: entity.y,
+    z: entity.z,
+    radius: 0,
+    sourceEntityId: entity.id,
+    projectileType: 'BULLET',
+    effectName: trimmedName,
+  });
+}
+
+function playEntitySound(self: GL, entity: MapEntity, audioName: string | null | undefined): void {
+  const trimmedName = (audioName ?? '').trim();
+  if (!trimmedName) return;
+  self.requestScriptSoundPlayFromNamed(trimmedName, entity.id);
+}
+
+function resolveCrushDieSound(profile: CrushDieProfile, crushType: 'TOTAL' | 'FRONT' | 'BACK'): {
+  soundName: string;
+  percent: number;
+} {
+  switch (crushType) {
+    case 'FRONT':
+      return {
+        soundName: profile.frontEndCrushSoundName,
+        percent: profile.frontEndCrushSoundPercent,
+      };
+    case 'BACK':
+      return {
+        soundName: profile.backEndCrushSoundName,
+        percent: profile.backEndCrushSoundPercent,
+      };
+    case 'TOTAL':
+    default:
+      return {
+        soundName: profile.totalCrushSoundName,
+        percent: profile.totalCrushSoundPercent,
+      };
+  }
+}
+
 export function createCraterInTerrain(self: GL, entity: MapEntity): void {
   const heightmap = self.mapHeightmap;
   if (!heightmap) {
@@ -599,6 +644,7 @@ export function tryBeginSlowDeath(self: GL, entity: MapEntity, _attackerId: numb
       if (heightAbove <= 9.0 || hasDeckOffset) {
         // On ground: instant destroy with ground OCL (C++ line 157-169).
         // C++ calls destroyObject directly — does NOT go through SlowDeathBehavior.
+        emitNamedFX(self, entity, jetProfile.fxOnGroundDeathName);
         for (const oclName of jetProfile.oclOnGroundDeath) {
           self.executeOCL(oclName, entity, undefined, entity.x, entity.z);
         }
@@ -622,7 +668,8 @@ export function tryBeginSlowDeath(self: GL, entity: MapEntity, _attackerId: numb
           profileIndex: jpi,
         };
 
-        // Execute initial death OCLs (C++ line 193-194).
+        // Execute initial death FX/OCLs.
+        emitNamedFX(self, entity, jetProfile.fxInitialDeathName);
         for (const oclName of jetProfile.oclInitialDeath) {
           self.executeOCL(oclName, entity, undefined, entity.x, entity.z);
         }
@@ -1170,6 +1217,7 @@ export function updateJetSlowDeath(self: GL): void {
       // Secondary OCL timer (C++ line 292-301). Delay of 0 fires on first frame.
       if (!js.secondaryExecuted
         && self.frameCounter - js.deathFrame >= profile.delaySecondaryFromInitialDeath) {
+        emitNamedFX(self, entity, profile.fxSecondaryName);
         for (const oclName of profile.oclSecondary) {
           self.executeOCL(oclName, entity, undefined, entity.x, entity.z);
         }
@@ -1182,7 +1230,8 @@ export function updateJetSlowDeath(self: GL): void {
         entity.y = terrainY;
         js.groundFrame = self.frameCounter;
 
-        // Execute ground hit OCLs (C++ line 276-277).
+        // Execute ground hit FX/OCLs.
+        emitNamedFX(self, entity, profile.fxHitGroundName);
         for (const oclName of profile.oclHitGround) {
           self.executeOCL(oclName, entity, undefined, entity.x, entity.z);
         }
@@ -1199,7 +1248,8 @@ export function updateJetSlowDeath(self: GL): void {
       js.pitchAngle += profile.pitchRate;
 
       if (self.frameCounter - js.groundFrame >= profile.delayFinalBlowUpFromHitGround) {
-        // Execute final explosion OCLs (C++ line 306-307).
+        // Execute final explosion FX/OCLs.
+        emitNamedFX(self, entity, profile.fxFinalBlowUpName);
         for (const oclName of profile.oclFinalBlowUp) {
           self.executeOCL(oclName, entity, undefined, entity.x, entity.z);
         }
@@ -1737,6 +1787,11 @@ export function executeCrushDie(self: GL, entity: MapEntity, attackerId: number)
       : 'TOTAL';
 
     if (crushType === 'NONE') continue;
+
+    const { soundName, percent } = resolveCrushDieSound(profile, crushType);
+    if ((soundName ?? '').trim() && self.gameRandom.nextRange(0, 99) < Math.trunc(percent)) {
+      playEntitySound(self, entity, soundName);
+    }
 
     // Source parity: CrushDie.cpp lines 195-204.
     entity.frontCrushed = crushType === 'TOTAL' || crushType === 'FRONT';

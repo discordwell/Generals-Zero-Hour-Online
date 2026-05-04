@@ -17,6 +17,7 @@ interface QueueProductionExitProfileLike {
   unitCreatePoint: UnitCreatePoint;
   naturalRallyPoint: NaturalRallyPoint | null;
   allowAirborneCreation: boolean;
+  useSpawnRallyPoint?: boolean;
 }
 
 interface ProducerForSpawnResolution {

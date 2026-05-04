@@ -82,10 +82,11 @@ interface CombatUpdateContext<TEntity extends CombatUpdateEntityLike> {
   rebuildEntityScatterTargets(entity: TEntity): void;
   resolveWeaponPreAttackDelayFrames(
     attacker: TEntity,
-    target: TEntity,
+    targetEntityId: number,
     weapon: CombatUpdateWeaponLike,
   ): number;
   queueWeaponDamageEvent(attacker: TEntity, target: TEntity, weapon: CombatUpdateWeaponLike): void;
+  queueWeaponDamageAtPosition(attacker: TEntity, targetPosition: VectorXZLike, weapon: CombatUpdateWeaponLike): void;
   recordConsecutiveAttackShot(attacker: TEntity, targetEntityId: number): void;
   resolveWeaponDelayFrames(attacker: TEntity, weapon: CombatUpdateWeaponLike): number;
   /** Source parity: Weapon::getClipReloadTime(bonus) — divide clipReloadFrames by ROF bonus. */
@@ -119,11 +120,6 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
     }
 
     context.setEntityFiringWeaponStatus(attacker, false);
-    if (!context.canEntityAttackFromStatus(attacker)) {
-      clearImmediateCombatState(attacker, context);
-      continue;
-    }
-
     const targetId = attacker.attackTargetEntityId;
     const targetPosition = attacker.attackTargetPosition;
     const weapon = attacker.attackWeapon;
@@ -132,32 +128,24 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
       continue;
     }
 
-    let target = targetId === null ? null : context.findEntityById(targetId);
-    if (!target && targetPosition !== null) {
-      target = context.findFireWeaponTargetForPosition(attacker, targetPosition.x, targetPosition.z);
-      if (!target) {
-        clearImmediateCombatState(attacker, context);
-        if (attacker.canMove) {
-          const attackRange = Math.max(0, weapon.attackRange);
-          context.issueMoveTo(attacker.id, targetPosition.x, targetPosition.z, attackRange);
-        }
-        continue;
-      }
-
-      attacker.attackTargetEntityId = target.id;
-      const targetAnchor = context.resolveTargetAnchorPosition(target);
-      attacker.attackOriginalVictimPosition = {
-        x: targetAnchor.x,
-        z: targetAnchor.z,
-      };
+    if (!context.canEntityAttackFromStatus(attacker)) {
+      clearImmediateCombatState(attacker, context);
+      continue;
     }
 
-    if (!target || !context.canAttackerTargetEntity(attacker, target, attacker.attackCommandSource)) {
+    const target = targetId === null ? null : context.findEntityById(targetId);
+    const targetPoint = target ? context.resolveTargetAnchorPosition(target) : targetPosition;
+    if (!targetPoint) {
       attacker.attackTargetEntityId = null;
       attacker.attackOriginalVictimPosition = null;
-      if (!targetPosition) {
-        attacker.attackCommandSource = 'AI';
-      }
+      attacker.attackCommandSource = 'AI';
+      clearImmediateCombatState(attacker, context);
+      continue;
+    }
+
+    if (target && !context.canAttackerTargetEntity(attacker, target, attacker.attackCommandSource)) {
+      attacker.attackTargetEntityId = null;
+      attacker.attackOriginalVictimPosition = null;
       clearImmediateCombatState(attacker, context);
       continue;
     }
@@ -165,8 +153,11 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
     context.setEntityAttackStatus(attacker, true);
     context.refreshEntitySneakyMissWindow(attacker);
 
-    const dx = target.x - attacker.x;
-    const dz = target.z - attacker.z;
+    const targetX = targetPoint.x;
+    const targetZ = targetPoint.z;
+    const targetEntityId = target?.id ?? 0;
+    const dx = targetX - attacker.x;
+    const dz = targetZ - attacker.z;
     const distanceSqr = dx * dx + dz * dz;
     const minAttackRange = Math.max(0, weapon.minAttackRange);
     const minAttackRangeSqr = minAttackRange * minAttackRange;
@@ -174,7 +165,7 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
     const attackRangeSqr = attackRange * attackRange;
     if (distanceSqr < Math.max(0, minAttackRangeSqr - context.constants.attackMinRangeDistanceSqrFudge)) {
       context.setEntityAimingWeaponStatus(attacker, false);
-      if (attacker.canMove && minAttackRange > context.constants.pathfindCellSize) {
+      if (target && attacker.canMove && minAttackRange > context.constants.pathfindCellSize) {
         const retreatTarget = context.computeAttackRetreatTarget(attacker, target, weapon);
         if (retreatTarget) {
           context.issueMoveTo(attacker.id, retreatTarget.x, retreatTarget.z);
@@ -197,15 +188,15 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
         // Squared threshold: (0.5 * range)^2 = 0.25 * range^2.
         const CHASE_REPATH_THRESHOLD_SQR_FACTOR = 0.25;
         const origPos = attacker.attackOriginalVictimPosition;
-        const targetMoved = origPos
-          ? (target.x - origPos.x) * (target.x - origPos.x)
-            + (target.z - origPos.z) * (target.z - origPos.z) > attackRangeSqr * CHASE_REPATH_THRESHOLD_SQR_FACTOR
+        const targetMoved = target && origPos
+          ? (targetX - origPos.x) * (targetX - origPos.x)
+            + (targetZ - origPos.z) * (targetZ - origPos.z) > attackRangeSqr * CHASE_REPATH_THRESHOLD_SQR_FACTOR
           : false;
         if (!attacker.moving || targetMoved) {
           // Source parity: Weapon.cpp:2114 — approach to attackRange * 0.9 to avoid
           // teetering at the edge of firing range.
-          context.issueMoveTo(attacker.id, target.x, target.z, attackRange * context.constants.attackRangeApproachFudge);
-          attacker.attackOriginalVictimPosition = { x: target.x, z: target.z };
+          context.issueMoveTo(attacker.id, targetX, targetZ, attackRange * context.constants.attackRangeApproachFudge);
+          attacker.attackOriginalVictimPosition = { x: targetX, z: targetZ };
         }
       }
       attacker.preAttackFinishFrame = 0;
@@ -217,10 +208,10 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
     // Source parity: AIStates.cpp:1139 — leech range weapons bypass LOS check (locked on).
     if (attacker.attackNeedsLineOfSight && attacker.category !== 'air'
       && !(weapon.leechRangeWeapon && attacker.leechRangeActive)) {
-      if (context.isAttackLineOfSightBlocked(attacker.x, attacker.z, target.x, target.z)) {
+      if (context.isAttackLineOfSightBlocked(attacker.x, attacker.z, targetX, targetZ)) {
         context.setEntityAimingWeaponStatus(attacker, false);
         if (attacker.canMove && !attacker.moving) {
-          context.issueMoveTo(attacker.id, target.x, target.z, attackRange * 0.5);
+          context.issueMoveTo(attacker.id, targetX, targetZ, attackRange * 0.5);
         }
         attacker.preAttackFinishFrame = 0;
         continue;
@@ -253,7 +244,7 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
     }
 
     if (attacker.preAttackFinishFrame === 0) {
-      const preAttackDelay = context.resolveWeaponPreAttackDelayFrames(attacker, target, weapon);
+      const preAttackDelay = context.resolveWeaponPreAttackDelayFrames(attacker, targetEntityId, weapon);
       if (preAttackDelay > 0) {
         attacker.preAttackFinishFrame = context.frameCounter + preAttackDelay;
         // Source parity: Weapon::preFireWeapon (Weapon.cpp:2708) — activate leech range at pre-attack start.
@@ -276,7 +267,11 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
     // Source parity: Weapon.cpp — fire ShotsPerBarrel damage events per firing cycle.
     const shotsPerBarrel = Math.max(1, weapon.shotsPerBarrel ?? 1);
     for (let shotIdx = 0; shotIdx < shotsPerBarrel; shotIdx++) {
-      context.queueWeaponDamageEvent(attacker, target, weapon);
+      if (target) {
+        context.queueWeaponDamageEvent(attacker, target, weapon);
+      } else {
+        context.queueWeaponDamageAtPosition(attacker, targetPoint, weapon);
+      }
     }
     context.setEntityIgnoringStealthStatus(attacker, false);
     attacker.preAttackFinishFrame = 0;
@@ -288,7 +283,7 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
     if (weapon.leechRangeWeapon) {
       attacker.leechRangeActive = true;
     }
-    context.recordConsecutiveAttackShot(attacker, target.id);
+    context.recordConsecutiveAttackShot(attacker, targetEntityId);
 
     // Source parity: Weapon::fire decrements m_maxShotCount; when exhausted, attack ends.
     if (attacker.maxShotsRemaining > 0) {

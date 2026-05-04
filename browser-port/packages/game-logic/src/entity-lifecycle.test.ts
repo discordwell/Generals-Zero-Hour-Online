@@ -806,7 +806,14 @@ describe('CrushDie', () => {
     const objects = [
       makeObjectDef('CrushVictim', 'China', ['VEHICLE'], [
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
-        makeBlock('Behavior', 'CrushDie ModuleTag_CrushDie1', {}),
+        makeBlock('Behavior', 'CrushDie ModuleTag_CrushDie1', {
+          TotalCrushSound: 'CrushTotal',
+          TotalCrushSoundPercent: 25,
+          BackEndCrushSound: 'CrushBack',
+          BackEndCrushSoundPercent: 50,
+          FrontEndCrushSound: 'CrushFront',
+          FrontEndCrushSoundPercent: 75,
+        }),
         makeBlock('Behavior', 'CrushDie ModuleTag_CrushDie2', {
           DeathTypes: 'CRUSHED',
           ExemptStatus: 'SOLD',
@@ -820,13 +827,28 @@ describe('CrushDie', () => {
 
     const priv = logic as unknown as {
       spawnedEntities: Map<number, {
-        crushDieProfiles: Array<{ deathTypes: Set<string>; exemptStatus: Set<string> }>;
+        crushDieProfiles: Array<{
+          deathTypes: Set<string>;
+          exemptStatus: Set<string>;
+          totalCrushSoundName: string;
+          totalCrushSoundPercent: number;
+          backEndCrushSoundName: string;
+          backEndCrushSoundPercent: number;
+          frontEndCrushSoundName: string;
+          frontEndCrushSoundPercent: number;
+        }>;
       }>;
     };
     const unit = priv.spawnedEntities.get(1)!;
     expect(unit.crushDieProfiles.length).toBe(2);
     // First profile: no filtering (empty sets).
     expect(unit.crushDieProfiles[0]!.deathTypes.size).toBe(0);
+    expect(unit.crushDieProfiles[0]!.totalCrushSoundName).toBe('CrushTotal');
+    expect(unit.crushDieProfiles[0]!.totalCrushSoundPercent).toBe(25);
+    expect(unit.crushDieProfiles[0]!.backEndCrushSoundName).toBe('CrushBack');
+    expect(unit.crushDieProfiles[0]!.backEndCrushSoundPercent).toBe(50);
+    expect(unit.crushDieProfiles[0]!.frontEndCrushSoundName).toBe('CrushFront');
+    expect(unit.crushDieProfiles[0]!.frontEndCrushSoundPercent).toBe(75);
     // Second profile: CRUSHED death type, SOLD exempt status.
     expect(unit.crushDieProfiles[1]!.deathTypes.has('CRUSHED')).toBe(true);
     expect(unit.crushDieProfiles[1]!.exemptStatus.has('SOLD')).toBe(true);
@@ -837,7 +859,14 @@ describe('CrushDie', () => {
     const objects = [
       makeObjectDef('CrushVictim', 'China', ['VEHICLE'], [
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
-        makeBlock('Behavior', 'CrushDie ModuleTag_CrushDie', {}),
+        makeBlock('Behavior', 'CrushDie ModuleTag_CrushDie', {
+          TotalCrushSound: 'CrushTotal',
+          BackEndCrushSound: 'CrushBack',
+          FrontEndCrushSound: 'CrushFront',
+          TotalCrushSoundPercent: 100,
+          BackEndCrushSoundPercent: 100,
+          FrontEndCrushSoundPercent: 100,
+        }),
         makeBlock('Collide', 'SquishCollide ModuleTag_Squish', {}),
       ], { CrushableLevel: 0 }),
       makeObjectDef('CrusherTank', 'America', ['VEHICLE'], [
@@ -876,8 +905,10 @@ describe('CrushDie', () => {
     logic.submitCommand({ type: 'moveTo', entityId: 2, targetX: 255, targetZ: 205 });
 
     let foundCrush = false;
+    const playedSounds: string[] = [];
     for (let i = 0; i < 20; i++) {
       logic.update(1 / 30);
+      playedSounds.push(...logic.drainScriptAudioPlaybackRequests().map((request: any) => request.audioName));
       // Keep a direct reference: finalizeDestroyedEntities removes dead entities from
       // spawnedEntities in the same update tick.
       if (victim.destroyed && !foundCrush) {
@@ -893,6 +924,7 @@ describe('CrushDie', () => {
       }
     }
     expect(foundCrush).toBe(true);
+    expect(playedSounds.some((soundName) => ['CrushTotal', 'CrushBack', 'CrushFront'].includes(soundName))).toBe(true);
     expect(priv.spawnedEntities.has(1)).toBe(false);
   });
 
@@ -953,6 +985,8 @@ describe('ToppleUpdate', () => {
     initialVelocityPercent?: number;
     initialAccelPercent?: number | null;
     bounceVelocityPercent?: number;
+    toppleFXName?: string;
+    bounceFXName?: string;
   } = {}) {
     return makeBundle({
       objects: [
@@ -964,6 +998,8 @@ describe('ToppleUpdate', () => {
             BounceVelocityPercent: opts.bounceVelocityPercent ?? 30,
             KillWhenFinishedToppling: opts.killWhenFinished ?? true,
             KillWhenStartToppling: opts.killWhenStart ?? false,
+            ToppleFX: opts.toppleFXName ?? '',
+            BounceFX: opts.bounceFXName ?? '',
           }),
         ]),
       ],
@@ -992,6 +1028,7 @@ describe('ToppleUpdate', () => {
         toppleAngularVelocity: number;
         toppleAngularAccumulation: number;
         toppleSpeed: number;
+        toppleOptions: number;
         blocksPath: boolean;
       }>;
       applyTopplingForce(entity: unknown, dirX: number, dirZ: number, speed: number): void;
@@ -1025,6 +1062,62 @@ describe('ToppleUpdate', () => {
     expect(tree.toppleAngularVelocity).toBeGreaterThan(0);
     // Source parity: blocksPath cleared on topple start.
     expect(tree.blocksPath).toBe(false);
+  });
+
+  it('emits ToppleFX when toppling starts', () => {
+    const { logic, tree, applyTopple } = makeToppleSetup({
+      toppleFXName: 'FX_TreeToppleStart',
+      killWhenFinished: false,
+    });
+    applyTopple(tree, 1, 0, 1.0);
+
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_TreeToppleStart',
+      sourceEntityId: tree.id,
+    }));
+  });
+
+  it('emits BounceFX on a sufficiently fast bounce', () => {
+    const { logic, tree, applyTopple } = makeToppleSetup({
+      killWhenFinished: false,
+      initialVelocityPercent: 80,
+      bounceVelocityPercent: 50,
+      bounceFXName: 'FX_TreeBounce',
+    });
+    applyTopple(tree, 1, 0, 1.0);
+    logic.drainVisualEvents();
+
+    let sawBounceFX = false;
+    for (let i = 0; i < 20; i++) {
+      logic.update(1 / 30);
+      sawBounceFX = sawBounceFX || logic.drainVisualEvents().some((event) =>
+        event.type === 'NAMED_FX' && event.effectName === 'FX_TreeBounce');
+      if (sawBounceFX) break;
+    }
+
+    expect(sawBounceFX).toBe(true);
+  });
+
+  it('suppresses BounceFX when toppling options include NO_FX', () => {
+    const { logic, tree, applyTopple } = makeToppleSetup({
+      killWhenFinished: false,
+      initialVelocityPercent: 80,
+      bounceVelocityPercent: 50,
+      bounceFXName: 'FX_TreeBounce',
+    });
+    applyTopple(tree, 1, 0, 1.0);
+    tree.toppleOptions = 0x00000002;
+    logic.drainVisualEvents();
+
+    for (let i = 0; i < 20; i++) {
+      logic.update(1 / 30);
+    }
+
+    expect(logic.drainVisualEvents()).not.toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_TreeBounce',
+    }));
   });
 
   it('ignores second topple force while already toppling', () => {
@@ -3124,6 +3217,11 @@ describe('JetSlowDeathBehavior', () => {
             FallHowFast: 60,                     // 60% gravity (parsePercentToReal)
             DelaySecondaryFromInitialDeath: 500, // 500ms → 15 frames
             DelayFinalBlowUpFromHitGround: 300,  // 300ms → 9 frames
+            FXOnGroundDeath: 'FX_JetOnGroundDeath',
+            FXInitialDeath: 'FX_JetInitialDeath',
+            FXSecondary: 'FX_JetSecondary',
+            FXHitGround: 'FX_JetHitGround',
+            FXFinalBlowUp: 'FX_JetFinalBlowUp',
           }),
         ]),
         makeObjectDef('AAGun', 'GLA', ['VEHICLE'], [
@@ -3144,6 +3242,14 @@ describe('JetSlowDeathBehavior', () => {
     });
   }
 
+  function collectNamedFX(logic: GameLogicSubsystem, seen: Set<string>): void {
+    for (const event of logic.drainVisualEvents()) {
+      if (event.type === 'NAMED_FX' && event.effectName) {
+        seen.add(event.effectName);
+      }
+    }
+  }
+
   it('extracts jet slow death profiles from INI', () => {
     const bundle = makeJetBundle();
     const scene = new THREE.Scene();
@@ -3156,7 +3262,17 @@ describe('JetSlowDeathBehavior', () => {
 
     const priv = logic as unknown as {
       spawnedEntities: Map<number, {
-        jetSlowDeathProfiles: { rollRate: number; fallHowFast: number; rollRateDelta: number; deathTypes: Set<string> }[];
+        jetSlowDeathProfiles: {
+          rollRate: number;
+          fallHowFast: number;
+          rollRateDelta: number;
+          deathTypes: Set<string>;
+          fxOnGroundDeathName: string;
+          fxInitialDeathName: string;
+          fxSecondaryName: string;
+          fxHitGroundName: string;
+          fxFinalBlowUpName: string;
+        }[];
       }>;
     };
 
@@ -3169,6 +3285,11 @@ describe('JetSlowDeathBehavior', () => {
     expect(p.rollRateDelta).toBeCloseTo(0.95, 4);
     // FallHowFast: 60% → 0.6
     expect(p.fallHowFast).toBeCloseTo(0.6, 4);
+    expect(p.fxOnGroundDeathName).toBe('FX_JetOnGroundDeath');
+    expect(p.fxInitialDeathName).toBe('FX_JetInitialDeath');
+    expect(p.fxSecondaryName).toBe('FX_JetSecondary');
+    expect(p.fxHitGroundName).toBe('FX_JetHitGround');
+    expect(p.fxFinalBlowUpName).toBe('FX_JetFinalBlowUp');
   });
 
   it('initializes jet death state when killed airborne', () => {
@@ -3291,6 +3412,7 @@ describe('JetSlowDeathBehavior', () => {
     );
     logic.setTeamRelationship('America', 'GLA', 0);
     logic.setTeamRelationship('GLA', 'America', 0);
+    const seenFX = new Set<string>();
 
     const priv = logic as unknown as {
       spawnedEntities: Map<number, {
@@ -3302,21 +3424,24 @@ describe('JetSlowDeathBehavior', () => {
 
     const jet = [...priv.spawnedEntities.values()].find(e =>
       (e as { jetSlowDeathProfiles: unknown[] }).jetSlowDeathProfiles.length > 0)!;
-    jet.y = 30; // Start low — will hit ground quickly.
+    jet.y = 120; // High enough for secondary FX before impact, still hits ground within the loop.
 
     // Kill it.
     logic.submitCommand({ type: 'attackEntity', entityId: 2, targetEntityId: 1 });
     for (let i = 0; i < 10; i++) {
       logic.update(1 / 30);
+      collectNamedFX(logic, seenFX);
       if (jet.health <= 0) break;
     }
 
     expect(jet.jetSlowDeathState).not.toBeNull();
+    expect(seenFX).toContain('FX_JetInitialDeath');
 
     // Run frames until it hits the ground.
     let hitGround = false;
     for (let i = 0; i < 200; i++) {
       logic.update(1 / 30);
+      collectNamedFX(logic, seenFX);
       if (jet.jetSlowDeathState?.groundFrame && jet.jetSlowDeathState.groundFrame > 0) {
         hitGround = true;
         break;
@@ -3324,21 +3449,26 @@ describe('JetSlowDeathBehavior', () => {
       if (jet.destroyed) break;
     }
     expect(hitGround || jet.destroyed).toBe(true);
+    expect(seenFX).toContain('FX_JetSecondary');
+    expect(seenFX).toContain('FX_JetHitGround');
 
     // If it hit ground but isn't destroyed yet, run a frame so the else branch
     // (ground phase) executes, then check pitch accumulation.
     // C++ parity: ground-hit frame sets groundFrame; pitch starts next frame.
     if (!jet.destroyed) {
       logic.update(1 / 30);
+      collectNamedFX(logic, seenFX);
       if (!jet.destroyed) {
         expect(jet.jetSlowDeathState!.pitchAngle).not.toBe(0);
       }
       for (let i = 0; i < 15; i++) {
         logic.update(1 / 30);
+        collectNamedFX(logic, seenFX);
         if (jet.destroyed) break;
       }
       expect(jet.destroyed).toBe(true);
     }
+    expect(seenFX).toContain('FX_JetFinalBlowUp');
   });
 
   it('skips jet slow death if killed on ground', () => {
@@ -3355,6 +3485,7 @@ describe('JetSlowDeathBehavior', () => {
     );
     logic.setTeamRelationship('America', 'GLA', 0);
     logic.setTeamRelationship('GLA', 'America', 0);
+    const seenFX = new Set<string>();
 
     const priv = logic as unknown as {
       spawnedEntities: Map<number, {
@@ -3373,11 +3504,13 @@ describe('JetSlowDeathBehavior', () => {
     logic.submitCommand({ type: 'attackEntity', entityId: 2, targetEntityId: 1 });
     for (let i = 0; i < 10; i++) {
       logic.update(1 / 30);
+      collectNamedFX(logic, seenFX);
       if (jet.health <= 0) break;
     }
 
     // Jet slow death state should NOT be initialized (killed on ground).
     expect(jet.jetSlowDeathState).toBeNull();
+    expect(seenFX).toContain('FX_JetOnGroundDeath');
   });
 });
 
@@ -3393,6 +3526,11 @@ describe('StructureToppleUpdate', () => {
         StructuralIntegrity: 0.5,
         StructuralDecay: 0.98,
         CrushingWeaponName: 'StructureCrush',
+        ToppleStartFX: 'FX_ToppleStart',
+        ToppleDelayFX: 'FX_ToppleDelay',
+        ToppleDoneFX: 'FX_ToppleDone',
+        CrushingFX: 'FX_ToppleCrush',
+        AngleFX: ['20.0', 'FX_ToppleAngle20'],
       }),
     ]);
     const bundle = makeBundle({ objects: [building] });
@@ -3404,11 +3542,26 @@ describe('StructureToppleUpdate', () => {
       makeHeightmap(),
     );
     const entity = (logic as unknown as { spawnedEntities: Map<number, unknown> }).spawnedEntities.get(1)! as unknown as {
-      structureToppleProfile: { structuralIntegrity: number; structuralDecay: number };
+      structureToppleProfile: {
+        structuralIntegrity: number;
+        structuralDecay: number;
+        toppleStartFXName: string;
+        toppleDelayFXName: string;
+        toppleDoneFXName: string;
+        crushingFXName: string;
+        angleFX: Array<{ angleRadians: number; effectName: string }>;
+      };
     };
     expect(entity.structureToppleProfile).not.toBeNull();
     expect(entity.structureToppleProfile.structuralIntegrity).toBe(0.5);
     expect(entity.structureToppleProfile.structuralDecay).toBe(0.98);
+    expect(entity.structureToppleProfile.toppleStartFXName).toBe('FX_ToppleStart');
+    expect(entity.structureToppleProfile.toppleDelayFXName).toBe('FX_ToppleDelay');
+    expect(entity.structureToppleProfile.toppleDoneFXName).toBe('FX_ToppleDone');
+    expect(entity.structureToppleProfile.crushingFXName).toBe('FX_ToppleCrush');
+    expect(entity.structureToppleProfile.angleFX).toEqual([
+      { angleRadians: 20 * (Math.PI / 180), effectName: 'FX_ToppleAngle20' },
+    ]);
   });
 
   it('topple state machine progresses through states', () => {
@@ -3450,6 +3603,70 @@ describe('StructureToppleUpdate', () => {
     // Tick until done (structural integrity 0 = fast topple).
     for (let i = 0; i < 200; i++) logic.update(0);
     expect(entity.structureToppleState!.state).toBe('DONE');
+  });
+
+  it('emits configured topple FX during start, delay, angle, crushing, and done phases', () => {
+    const building = makeObjectDef('GLAScudStorm', 'GLA', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'StructureToppleUpdate ModuleTag_Topple', {
+        MinToppleDelay: 0,
+        MaxToppleDelay: 0,
+        MinToppleBurstDelay: 0,
+        MaxToppleBurstDelay: 0,
+        StructuralIntegrity: 0.0,
+        StructuralDecay: 0.0,
+        CrushingWeaponName: 'StructureCrush',
+        ToppleStartFX: 'FX_ToppleStart',
+        ToppleDelayFX: 'FX_ToppleDelay',
+        ToppleDoneFX: 'FX_ToppleDone',
+        CrushingFX: 'FX_ToppleCrush',
+        AngleFX: ['1.0', 'FX_ToppleAngle1'],
+      }),
+    ], { GeometryMajorRadius: 30, GeometryMinorRadius: 30 });
+    const bundle = makeBundle({
+      objects: [building],
+      weapons: [
+        makeWeaponDef('StructureCrush', {
+          PrimaryDamage: 1,
+          PrimaryDamageRadius: 5,
+          DamageType: 'CRUSH',
+          AttackRange: 5,
+          DelayBetweenShots: 33,
+        }),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('GLAScudStorm', 5, 5)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const privateApi = logic as unknown as {
+      beginStructureTopple: (entity: unknown, attacker: unknown) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    const entity = privateApi.spawnedEntities.get(1)! as any;
+    privateApi.beginStructureTopple(entity, { x: entity.x - 30, z: entity.z });
+
+    const events = logic.drainVisualEvents();
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'NAMED_FX', effectName: 'FX_ToppleStart', sourceEntityId: entity.id }),
+    ]));
+
+    const observedFX = new Set<string>(events.map((event) => event.effectName).filter(Boolean));
+    for (let i = 0; i < 240 && entity.structureToppleState?.state !== 'DONE'; i++) {
+      logic.update(0);
+      for (const event of logic.drainVisualEvents()) {
+        if (event.effectName) observedFX.add(event.effectName);
+      }
+    }
+
+    expect(observedFX.has('FX_ToppleDelay')).toBe(true);
+    expect(observedFX.has('FX_ToppleAngle1')).toBe(true);
+    expect(observedFX.has('FX_ToppleCrush')).toBe(true);
+    expect(observedFX.has('FX_ToppleDone')).toBe(true);
   });
 
   it('dying rubble render state persists for 10 seconds with RUBBLE flag for topple buildings', () => {

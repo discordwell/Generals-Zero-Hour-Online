@@ -1010,6 +1010,7 @@ describe('deploy style AI update', () => {
   function makeDeploySetup(opts: {
     unpackTime?: number;
     packTime?: number;
+    manualDeployAnimations?: boolean;
     turretsMustCenterBeforePacking?: boolean;
   } = {}) {
     const artilleryBlocks = [
@@ -1017,6 +1018,7 @@ describe('deploy style AI update', () => {
       makeBlock('Behavior', 'DeployStyleAIUpdate ModuleTag_Deploy', {
         UnpackTime: opts.unpackTime ?? 300,
         PackTime: opts.packTime ?? 300,
+        ManualDeployAnimations: opts.manualDeployAnimations === true,
         TurretsMustCenterBeforePacking: opts.turretsMustCenterBeforePacking === true,
       }),
       makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'ArtilleryGun'] }),
@@ -1156,6 +1158,44 @@ describe('deploy style AI update', () => {
     expect(afterReversal).not.toBeNull();
     // Even if not moved far, at least the entity should be alive and not stuck.
     expect(afterReversal!.health).toBe(200);
+  });
+
+  it('tracks ManualDeployAnimations frame while deploying and undeploying', () => {
+    const { logic } = makeDeploySetup({
+      unpackTime: 300,
+      packTime: 300,
+      manualDeployAnimations: true,
+    });
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        deployStyleProfile: { manualDeployAnimations: boolean } | null;
+        deployState: string;
+        deployFrameToWait: number;
+        deployManualAnimationFrame: number | null;
+        moveTarget: { x: number; z: number } | null;
+        attackTargetEntityId: number | null;
+        attackTargetPosition: { x: number; z: number } | null;
+      }>;
+    };
+    const artillery = privateLogic.spawnedEntities.get(1)!;
+
+    logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    expect(artillery.deployStyleProfile?.manualDeployAnimations).toBe(true);
+    expect(artillery.deployManualAnimationFrame).toBeGreaterThan(0);
+    expect(artillery.deployManualAnimationFrame).toBeLessThan(9);
+
+    artillery.deployState = 'READY_TO_ATTACK';
+    artillery.deployFrameToWait = 0;
+    artillery.deployManualAnimationFrame = null;
+    artillery.attackTargetEntityId = null;
+    artillery.attackTargetPosition = null;
+    artillery.moveTarget = { x: 10, z: 50 };
+    logic.update(1 / 30);
+
+    expect(artillery.deployManualAnimationFrame).toBeGreaterThan(0);
+    expect(artillery.deployManualAnimationFrame).toBeLessThanOrEqual(9);
   });
 
   it('aligns turrets before packing when source requires natural turret position', () => {
@@ -3143,6 +3183,7 @@ describe('BattlePlanUpdate', () => {
     strategyCenterSightRangeScalar?: number;
     strategyCenterDetectsStealth?: boolean;
     strategyCenterHealthScalar?: number;
+    strategyCenterHealthChangeType?: string;
   }) {
     const animMs = opts?.animationMs ?? 300;
     const paraMs = opts?.paralyzeMs ?? 300;
@@ -3165,6 +3206,20 @@ describe('BattlePlanUpdate', () => {
         StrategyCenterSearchAndDestroySightRangeScalar: opts?.strategyCenterSightRangeScalar ?? 2.0,
         StrategyCenterSearchAndDestroyDetectsStealth: opts?.strategyCenterDetectsStealth ?? false,
         StrategyCenterHoldTheLineMaxHealthScalar: opts?.strategyCenterHealthScalar ?? 1.0,
+        StrategyCenterHoldTheLineMaxHealthChangeType: opts?.strategyCenterHealthChangeType ?? 'PRESERVE_RATIO',
+        BombardmentPlanUnpackSoundName: 'BattlePlanBombardmentUnpack',
+        BombardmentPlanPackSoundName: 'BattlePlanBombardmentPack',
+        BombardmentMessageLabel: 'GUI:BattlePlanBombardment',
+        BombardmentAnnouncementName: 'BattlePlanBombardmentAnnouncement',
+        HoldTheLinePlanUnpackSoundName: 'BattlePlanHoldTheLineUnpack',
+        HoldTheLinePlanPackSoundName: 'BattlePlanHoldTheLinePack',
+        HoldTheLineMessageLabel: 'GUI:BattlePlanHoldTheLine',
+        HoldTheLineAnnouncementName: 'BattlePlanHoldTheLineAnnouncement',
+        SearchAndDestroyPlanUnpackSoundName: 'BattlePlanSearchAndDestroyUnpack',
+        SearchAndDestroyPlanIdleLoopSoundName: 'BattlePlanSearchAndDestroyIdle',
+        SearchAndDestroyPlanPackSoundName: 'BattlePlanSearchAndDestroyPack',
+        SearchAndDestroyMessageLabel: 'GUI:BattlePlanSearchAndDestroy',
+        SearchAndDestroyAnnouncementName: 'BattlePlanSearchAndDestroyAnnouncement',
         ValidMemberKindOf: opts?.validMemberKindOf ?? '',
         InvalidMemberKindOf: opts?.invalidMemberKindOf ?? '',
       }),
@@ -3245,6 +3300,63 @@ describe('BattlePlanUpdate', () => {
   const PARALYZE_FRAMES = 9;
   const IDLE_FRAMES = 9;
 
+  it('emits configured battle plan sounds and messages during transitions', () => {
+    const { logic } = makeBattlePlanSetup({ animationMs: 0, transitionIdleMs: 0 });
+
+    issueBattlePlan(logic, 1, 'BOMBARDMENT');
+    logic.update(0);
+    expect(logic.drainScriptDisplayMessages()).toContainEqual(expect.objectContaining({
+      messageType: 'DISPLAY_TEXT',
+      text: 'GUI:BattlePlanBombardment',
+    }));
+    expect(logic.drainScriptAudioPlaybackRequests().map((request) => request.audioName)).toEqual([
+      'BattlePlanBombardmentUnpack',
+      'BattlePlanBombardmentAnnouncement',
+    ]);
+
+    logic.update(0);
+    logic.drainScriptAudioPlaybackRequests();
+    issueBattlePlan(logic, 1, 'HOLDTHELINE');
+    logic.update(0);
+    expect(logic.drainScriptAudioPlaybackRequests().map((request) => request.audioName)).toEqual([
+      'BattlePlanBombardmentPack',
+    ]);
+
+    logic.update(0);
+    logic.update(0);
+    expect(logic.drainScriptDisplayMessages()).toContainEqual(expect.objectContaining({
+      text: 'GUI:BattlePlanHoldTheLine',
+    }));
+    expect(logic.drainScriptAudioPlaybackRequests().map((request) => request.audioName)).toEqual([
+      'BattlePlanHoldTheLineUnpack',
+      'BattlePlanHoldTheLineAnnouncement',
+    ]);
+
+    logic.update(0);
+    logic.drainScriptAudioPlaybackRequests();
+    issueBattlePlan(logic, 1, 'SEARCHANDDESTROY');
+    logic.update(0);
+    expect(logic.drainScriptAudioPlaybackRequests().map((request) => request.audioName)).toEqual([
+      'BattlePlanHoldTheLinePack',
+    ]);
+
+    logic.update(0);
+    logic.update(0);
+    expect(logic.drainScriptDisplayMessages()).toContainEqual(expect.objectContaining({
+      text: 'GUI:BattlePlanSearchAndDestroy',
+    }));
+    expect(logic.drainScriptAudioPlaybackRequests().map((request) => request.audioName)).toEqual([
+      'BattlePlanSearchAndDestroyUnpack',
+      'BattlePlanSearchAndDestroyAnnouncement',
+    ]);
+
+    logic.update(0);
+    expect(logic.drainScriptAudioPlaybackRequests()).toContainEqual(expect.objectContaining({
+      audioName: 'BattlePlanSearchAndDestroyIdle',
+      sourceEntityId: 1,
+    }));
+  });
+
   it('activates Bombardment plan and sets WEAPON_BONUS_BOMBARDMENT on allied troops', () => {
     const { logic } = makeBattlePlanSetup();
 
@@ -3279,6 +3391,33 @@ describe('BattlePlanUpdate', () => {
     const rangerState = logic.getEntityState(2)!;
     expect(rangerState.weaponBonusConditionFlags & (1 << 13)).toBe(1 << 13);
     expect(rangerState.battlePlanDamageScalar).toBeCloseTo(0.5, 5);
+  });
+
+  it('applies StrategyCenterHoldTheLineMaxHealthChangeType when scaling Strategy Center health', () => {
+    const { logic } = makeBattlePlanSetup({
+      animationMs: 0,
+      strategyCenterHealthScalar: 2,
+      strategyCenterHealthChangeType: 'SAME_CURRENTHEALTH',
+    });
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, { health: number; maxHealth: number; battlePlanProfile: { strategyCenterHoldTheLineMaxHealthChangeType: string } | null }>;
+    };
+    const strategyCenter = privateApi.spawnedEntities.get(1)!;
+    strategyCenter.health = 500;
+
+    issueBattlePlan(logic, 1, 'HOLDTHELINE');
+    logic.update(0);
+    logic.update(0);
+
+    expect(strategyCenter.battlePlanProfile?.strategyCenterHoldTheLineMaxHealthChangeType).toBe('SAME_CURRENTHEALTH');
+    expect(strategyCenter.maxHealth).toBe(2000);
+    expect(strategyCenter.health).toBe(500);
+
+    issueBattlePlan(logic, 1, 'BOMBARDMENT');
+    logic.update(0);
+
+    expect(strategyCenter.maxHealth).toBe(1000);
+    expect(strategyCenter.health).toBe(500);
   });
 
   it('activates Search and Destroy plan and increases vision range', () => {
@@ -4705,6 +4844,7 @@ describe('AutoDepositUpdate', () => {
     depositTimingMs?: number;
     depositAmount?: number;
     initialCaptureBonus?: number;
+    actualMoney?: boolean;
     startCredits?: number;
   }) {
     const timingMs = opts?.depositTimingMs ?? 1000; // 1s = 30 frames
@@ -4720,6 +4860,7 @@ describe('AutoDepositUpdate', () => {
           DepositTiming: timingMs,
           DepositAmount: amount,
           InitialCaptureBonus: captureBonus,
+          ...(opts?.actualMoney === undefined ? {} : { ActualMoney: opts.actualMoney }),
         }),
       ]),
     ];
@@ -4756,6 +4897,25 @@ describe('AutoDepositUpdate', () => {
     // Frame 30 triggers the first deposit.
     logic.update(1 / 30);
     expect(logic.getSideCredits('gla')).toBe(startCredits + 50);
+  });
+
+  it('honors ActualMoney=false by withholding periodic credit deposits', () => {
+    const { logic, startCredits } = makeAutoDepositSetup({
+      depositTimingMs: 100,
+      depositAmount: 75,
+      actualMoney: false,
+    });
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, { autoDepositProfile: { actualMoney: boolean } | null }>;
+    };
+    expect(privateApi.spawnedEntities.get(1)?.autoDepositProfile?.actualMoney).toBe(false);
+
+    for (let i = 0; i < 30; i++) {
+      logic.update(1 / 30);
+    }
+
+    expect(logic.getSideCredits('gla')).toBe(startCredits);
   });
 
   it('deposits repeatedly at each interval', () => {
@@ -5343,6 +5503,10 @@ describe('SlavedUpdate', () => {
     oneShot?: boolean;
     initialBurst?: number;
     distToTargetToGrantRangeBonus?: number;
+    repairWeldingSysName?: string;
+    repairWeldingFXBone?: string;
+    repairMinWeldTime?: number;
+    repairMaxWeldTime?: number;
   }) {
     const guardRange = opts?.guardMaxRange ?? 50;
     const attackRange = opts?.attackRange ?? 0;
@@ -5354,6 +5518,8 @@ describe('SlavedUpdate', () => {
     const spawnCount = opts?.spawnNumber ?? 1;
     const initialBurst = opts?.initialBurst ?? spawnCount;
     const droneSpottingDist = opts?.distToTargetToGrantRangeBonus ?? 0;
+    const repairWeldingSysName = opts?.repairWeldingSysName ?? '';
+    const repairWeldingFXBone = opts?.repairWeldingFXBone ?? '';
     const sz = 128;
 
     const objects = [
@@ -5383,6 +5549,10 @@ describe('SlavedUpdate', () => {
           DistToTargetToGrantRangeBonus: droneSpottingDist,
           RepairRatePerSecond: repairRate,
           'RepairWhenBelowHealth%': repairBelow,
+          ...(opts?.repairMinWeldTime !== undefined ? { RepairMinWeldTime: opts.repairMinWeldTime } : {}),
+          ...(opts?.repairMaxWeldTime !== undefined ? { RepairMaxWeldTime: opts.repairMaxWeldTime } : {}),
+          ...(repairWeldingSysName ? { RepairWeldingSys: repairWeldingSysName } : {}),
+          ...(repairWeldingFXBone ? { RepairWeldingFXBone: repairWeldingFXBone } : {}),
         }),
         makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'DroneGun'] }),
       ]),
@@ -5626,7 +5796,38 @@ describe('SlavedUpdate', () => {
     expect(master!.health).toBeGreaterThan(400);
   });
 
-  it('extracts 7 repair fields (RepairRange, altitude, ready/weld times) from SlavedUpdate INI data', () => {
+  it('emits RepairWeldingSys particles from the configured repair bone while healing', () => {
+    const { logic } = makeSlavedSetup({
+      repairRatePerSecond: 30,
+      repairBelowHealthPercent: 100,
+      repairWeldingSysName: 'BattleDroneRepairSparks',
+      repairWeldingFXBone: 'WELDERFX',
+      repairMinWeldTime: 500,
+      repairMaxWeldTime: 500,
+    });
+    logic.update(0);
+
+    const master = getEntity(logic, 1);
+    expect(master).toBeDefined();
+    master!.health = 400;
+    logic.drainVisualEvents();
+
+    const events: any[] = [];
+    for (let i = 0; i < 30; i++) {
+      logic.update(1 / 30);
+      events.push(...logic.drainVisualEvents());
+    }
+
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'NAMED_PARTICLE_SYSTEM',
+      effectName: 'BattleDroneRepairSparks',
+      sourceEntityId: 3,
+      sourceBoneName: 'WELDERFX',
+      lifetimeFrames: 15,
+    }));
+  });
+
+  it('extracts SlavedUpdate repair fields from INI data', () => {
     const sz = 128;
     const objects = [
       makeObjectDef('RepairMaster', 'America', ['VEHICLE'], [
@@ -5653,6 +5854,8 @@ describe('SlavedUpdate', () => {
           RepairMaxReadyTime: 2000,  // 2000ms = 60 frames
           RepairMinWeldTime: 500,    // 500ms  = 15 frames
           RepairMaxWeldTime: 1500,   // 1500ms = 45 frames
+          RepairWeldingSys: 'BattleDroneRepairSparks',
+          RepairWeldingFXBone: 'WELDERFX',
         }),
       ]),
     ];
@@ -5680,6 +5883,8 @@ describe('SlavedUpdate', () => {
       repairMaxReadyFrames: number;
       repairMinWeldFrames: number;
       repairMaxWeldFrames: number;
+      repairWeldingSysName: string;
+      repairWeldingFXBone: string;
     } }).slavedUpdateProfile;
 
     expect(profile).not.toBeNull();
@@ -5691,6 +5896,8 @@ describe('SlavedUpdate', () => {
     expect(profile.repairMaxReadyFrames).toBe(60);
     expect(profile.repairMinWeldFrames).toBe(15);
     expect(profile.repairMaxWeldFrames).toBe(45);
+    expect(profile.repairWeldingSysName).toBe('BattleDroneRepairSparks');
+    expect(profile.repairWeldingFXBone).toBe('WELDERFX');
   });
 
   it('defaults repair fields to 0 when absent from INI', () => {
@@ -5736,6 +5943,8 @@ describe('SlavedUpdate', () => {
       repairMaxReadyFrames: number;
       repairMinWeldFrames: number;
       repairMaxWeldFrames: number;
+      repairWeldingSysName: string;
+      repairWeldingFXBone: string;
     } }).slavedUpdateProfile;
 
     expect(profile.repairRange).toBe(0);
@@ -5745,6 +5954,8 @@ describe('SlavedUpdate', () => {
     expect(profile.repairMaxReadyFrames).toBe(0);
     expect(profile.repairMinWeldFrames).toBe(0);
     expect(profile.repairMaxWeldFrames).toBe(0);
+    expect(profile.repairWeldingSysName).toBe('');
+    expect(profile.repairWeldingFXBone).toBe('');
   });
 });
 
@@ -6178,7 +6389,12 @@ describe('SpecialAbilityUpdate', () => {
       PreparationTime: 1000,
       PackTime: 500,
       UnpackTime: 750,
+      PackSound: 'AbilityPackSound',
+      UnpackSound: 'AbilityUnpackSound',
+      PrepSoundLoop: 'AbilityPrepLoop',
+      TriggerSound: 'AbilityTriggerSound',
       SkipPackingWithNoTarget: true,
+      DisableFXParticleSystem: 'PsysDisable',
       FleeRangeAfterCompletion: 40,
       FlipOwnerAfterUnpacking: true,
       NeedToFaceTarget: false,
@@ -6197,6 +6413,11 @@ describe('SpecialAbilityUpdate', () => {
     expect(internal.specialAbilityProfile.doCaptureFX).toBe(true);
     expect(internal.specialAbilityProfile.approachRequiresLOS).toBe(false);
     expect(internal.specialAbilityProfile.persistenceRequiresRecharge).toBe(true);
+    expect(internal.specialAbilityProfile.packSoundName).toBe('AbilityPackSound');
+    expect(internal.specialAbilityProfile.unpackSoundName).toBe('AbilityUnpackSound');
+    expect(internal.specialAbilityProfile.prepSoundLoopName).toBe('AbilityPrepLoop');
+    expect(internal.specialAbilityProfile.triggerSoundName).toBe('AbilityTriggerSound');
+    expect(internal.specialAbilityProfile.disableFXParticleSystemName).toBe('PsysDisable');
   });
 
   it('initiates ability and sets IS_USING_ABILITY status flag', () => {
@@ -6258,6 +6479,51 @@ describe('SpecialAbilityUpdate', () => {
     }
 
     expect(abilityCleared).toBe(true);
+  });
+
+  it('queues pack, unpack, prep loop, and trigger sounds during lifecycle', () => {
+    const { logic } = makeSpecialAbilitySetup(
+      {
+        UnpackTime: 100,
+        PreparationTime: 100,
+        PackTime: 100,
+        SkipPackingWithNoTarget: false,
+        NeedToFaceTarget: false,
+        PackSound: 'AbilityPackSound',
+        UnpackSound: 'AbilityUnpackSound',
+        PrepSoundLoop: 'AbilityPrepLoop',
+        TriggerSound: 'AbilityTriggerSound',
+      },
+    );
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_ABILITY',
+      specialPowerName: 'TestAbilityPower',
+      commandOption: 0,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX: null,
+      targetZ: null,
+    });
+
+    const playedSounds: string[] = [];
+    for (let frame = 0; frame < 30; frame++) {
+      logic.update(1 / 30);
+      playedSounds.push(...logic.drainScriptAudioPlaybackRequests().map((request: any) => request.audioName));
+      const entity = (logic as any).spawnedEntities.get(1);
+      if (entity?.specialAbilityState && !entity.specialAbilityState.active && frame > 2) {
+        break;
+      }
+    }
+
+    expect(playedSounds).toContain('AbilityUnpackSound');
+    expect(playedSounds).toContain('AbilityPrepLoop');
+    expect(playedSounds).toContain('AbilityTriggerSound');
+    expect(playedSounds).toContain('AbilityPackSound');
+    expect(logic.drainScriptAudioRemovalRequests().map((request: any) => request.eventName))
+      .toContain('AbilityPrepLoop');
   });
 
   it('skips packing with SkipPackingWithNoTarget and no-target command', () => {
@@ -6481,6 +6747,7 @@ describe('SpecialAbilityUpdate', () => {
             UnpackTime: 0,
             NeedToFaceTarget: false,
             EffectDuration: 2000,
+            DisableFXParticleSystem: 'PsysDisableBuilding',
           }),
           makeBlock('LocomotorSet', 'LocomotorSet', { Locomotor: ['SET_NORMAL', 'TestLoco'] }),
         ], { CommandSet: 'AbilityUserCS', BuildCost: 500 }),
@@ -6567,6 +6834,37 @@ describe('SpecialAbilityUpdate', () => {
     expect(target?.objectStatusFlags.has('DISABLED_HACKED')).toBe(true);
     expect(target?.disabledHackedUntilFrame ?? 0).toBeGreaterThan(privateApi.frameCounter);
     expect(source?.specialAbilityState?.doDisableFxParticles).toBe(false);
+    expect(logic.drainVisualEvents()).not.toContainEqual(expect.objectContaining({
+      type: 'NAMED_PARTICLE_SYSTEM',
+      effectName: 'PsysDisableBuilding',
+    }));
+
+    source!.specialAbilityState!.active = true;
+    source!.specialAbilityState!.packingState = 'UNPACKED';
+    source!.specialAbilityState!.prepFrames = 1;
+    source!.specialAbilityState!.targetEntityId = 2;
+    source!.specialAbilityState!.withinStartAbilityRange = true;
+    source!.objectStatusFlags.add('IS_USING_ABILITY');
+    source!.lastSpecialPowerDispatch = {
+      specialPowerTemplateName: 'DISABLEBUILDINGPOWER',
+      moduleType: 'SPECIALABILITYUPDATE',
+      dispatchType: 'OBJECT',
+      commandOption: 0x01,
+      commandButtonId: 'CMD_DISABLE_BUILDING',
+      targetEntityId: 2,
+      targetX: null,
+      targetZ: null,
+    };
+
+    logic.update(1 / 30);
+
+    expect(source?.specialAbilityState?.doDisableFxParticles).toBe(true);
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_PARTICLE_SYSTEM',
+      effectName: 'PsysDisableBuilding',
+      sourceEntityId: 2,
+      lifetimeFrames: 120,
+    }));
   });
 
   it('aborts ability when target entity dies during preparation', () => {
@@ -7747,6 +8045,11 @@ describe('CrateCollideSystem', () => {
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
           makeBlock('Behavior', 'MoneyCrateCollide ModuleTag_Collide', {
             MoneyProvided: 2000,
+            ExecuteFX: 'FX_CratePickup',
+            ExecuteAnimation: 'MoneyCratePickupAnim',
+            ExecuteAnimationTime: 2.5,
+            ExecuteAnimationZRise: 1.25,
+            ExecuteAnimationFades: true,
           }),
         ], { Geometry: 'CYLINDER', GeometryMajorRadius: 5 }),
         makeObjectDef('Tank', 'America', ['VEHICLE'], [
@@ -7769,8 +8072,25 @@ describe('CrateCollideSystem', () => {
     const priv = logic as unknown as {
       sideCredits: Map<string, number>;
       normalizeSide(s: string): string;
+      spawnedEntities: Map<number, {
+        crateCollideProfile: {
+          executeFXName: string;
+          executeAnimationName: string;
+          executeAnimationTimeSeconds: number;
+          executeAnimationZRisePerSecond: number;
+          executeAnimationFades: boolean;
+        } | null;
+      }>;
     };
     const creditsBefore = priv.sideCredits.get(priv.normalizeSide('America')) ?? 0;
+    const crate = priv.spawnedEntities.get(1)!;
+    expect(crate.crateCollideProfile).toMatchObject({
+      executeFXName: 'FX_CratePickup',
+      executeAnimationName: 'MoneyCratePickupAnim',
+      executeAnimationTimeSeconds: 2.5,
+      executeAnimationZRisePerSecond: 1.25,
+      executeAnimationFades: true,
+    });
 
     logic.update(1 / 30);
     logic.update(1 / 30);
@@ -7779,6 +8099,21 @@ describe('CrateCollideSystem', () => {
 
     // Should have gained 2000 credits.
     expect(creditsAfter - creditsBefore).toBe(2000);
+    expect(logic.drainVisualEvents()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'NAMED_FX',
+        effectName: 'FX_CratePickup',
+        sourceEntityId: 2,
+      }),
+      expect.objectContaining({
+        type: 'WORLD_ANIMATION',
+        effectName: 'MoneyCratePickupAnim',
+        sourceEntityId: 1,
+        lifetimeFrames: 75,
+        zRisePerSecond: 1.25,
+        fades: true,
+      }),
+    ]));
   });
 
   it('VeterancyCrateCollide grants veterancy level to collector', () => {
@@ -9253,6 +9588,79 @@ describe('FirestormDynamicGeometryInfoUpdate', () => {
     expect(newRadius).toBeGreaterThan(initialRadius);
   });
 
+  it('starts configured particle systems and FXList when geometry activates', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('FirestormSmall', 'America', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'FirestormDynamicGeometryInfoUpdate ModuleTag_Firestorm', {
+            InitialDelay: 0,
+            InitialHeight: 5,
+            InitialMajorRadius: 10,
+            InitialMinorRadius: 10,
+            FinalHeight: 20,
+            FinalMajorRadius: 50,
+            FinalMinorRadius: 50,
+            TransitionTime: 300,
+            DamageAmount: 10,
+            DelayBetweenDamageFrames: 500,
+            MaxHeightForDamage: 20,
+            ParticleOffsetZ: 0.25,
+            ParticleSystem1: 'FirestormMain',
+            ParticleSystem2: 'FirestormRing',
+            FXList: 'FX_FirestormBurst',
+          }),
+        ], { GeometryMajorRadius: 10, GeometryMinorRadius: 10, GeometryHeight: 10 }),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('FirestormSmall', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        firestormDamageProfile: {
+          particleSystemNames: string[];
+          particleOffsetZ: number;
+          fxListName: string;
+        } | null;
+      }>;
+    };
+
+    const firestorm = priv.spawnedEntities.get(1)!;
+    expect(firestorm.firestormDamageProfile).toMatchObject({
+      particleSystemNames: ['FirestormMain', 'FirestormRing'],
+      particleOffsetZ: 0.25,
+      fxListName: 'FX_FirestormBurst',
+    });
+
+    logic.update(1 / 30);
+    const firstEvents = logic.drainVisualEvents();
+    expect(firstEvents).toContainEqual(expect.objectContaining({
+      type: 'NAMED_PARTICLE_SYSTEM',
+      effectName: 'FirestormMain',
+      y: 0.25,
+    }));
+    expect(firstEvents).toContainEqual(expect.objectContaining({
+      type: 'NAMED_PARTICLE_SYSTEM',
+      effectName: 'FirestormRing',
+      y: 0.25,
+    }));
+    expect(firstEvents).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_FirestormBurst',
+    }));
+
+    logic.update(1 / 30);
+    const secondEvents = logic.drainVisualEvents();
+    expect(secondEvents.some((event) => event.effectName === 'FirestormMain')).toBe(false);
+    expect(secondEvents.some((event) => event.effectName === 'FirestormRing')).toBe(false);
+    expect(secondEvents.some((event) => event.effectName === 'FX_FirestormBurst')).toBe(false);
+  });
+
   it('deals DAMAGE_FLAME to entities within radius', () => {
     const bundle = makeBundle({
       objects: [
@@ -9917,6 +10325,92 @@ describe('BunkerBusterBehavior', () => {
     expect(soldier.health).toBe(100);
   });
 
+  it('emits crash-through, detonation, and seismic visual events', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('BunkerBusterBomb', 'America', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+          makeBlock('Behavior', 'BunkerBusterBehavior ModuleTag_BB', {
+            CrashThroughBunkerFX: 'WeaponFX_BunkerBusterInitialImpact',
+            CrashThroughBunkerFXFrequency: 66,
+            DetonationFX: 'FX_BunkerBusterExplosion',
+            SeismicEffectRadius: 200,
+            SeismicEffectMagnitude: 5,
+          }),
+        ]),
+        makeObjectDef('CivilianBuilding', 'China', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_GC', {
+            MaxOccupants: 10,
+          }),
+        ], { GeometryMajorRadius: 10, GeometryMinorRadius: 10, GeometryHeight: 10 }),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('BunkerBusterBomb', 50, 50),
+        makeMapObject('CivilianBuilding', 60, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        id: number;
+        health: number;
+        objectStatusFlags: Set<string>;
+        attackTargetEntityId: number | null;
+        bunkerBusterVictimId: number | null;
+        bunkerBusterProfile: {
+          crashThroughBunkerFXName: string;
+          crashThroughBunkerFXFrequencyFrames: number;
+          detonationFXName: string;
+          seismicEffectRadius: number;
+          seismicEffectMagnitude: number;
+        } | null;
+      }>;
+      applyWeaponDamageAmount(a: number | null, t: unknown, amount: number, dt: string): void;
+    };
+
+    const bomb = priv.spawnedEntities.get(1)!;
+    expect(bomb.bunkerBusterProfile).toMatchObject({
+      crashThroughBunkerFXName: 'WeaponFX_BunkerBusterInitialImpact',
+      crashThroughBunkerFXFrequencyFrames: 2,
+      detonationFXName: 'FX_BunkerBusterExplosion',
+      seismicEffectRadius: 200,
+      seismicEffectMagnitude: 5,
+    });
+
+    bomb.attackTargetEntityId = 2;
+    bomb.objectStatusFlags.add('MISSILE_KILLING_SELF');
+    logic.update(1 / 30);
+
+    expect(bomb.bunkerBusterVictimId).toBe(2);
+    const crashEvents = logic.drainVisualEvents();
+    expect(crashEvents).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'WeaponFX_BunkerBusterInitialImpact',
+      sourceEntityId: bomb.id,
+    }));
+
+    priv.applyWeaponDamageAmount(null, bomb, 1000, 'UNRESISTABLE');
+    const detonationEvents = logic.drainVisualEvents();
+    expect(detonationEvents).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_BunkerBusterExplosion',
+      sourceEntityId: 2,
+    }));
+    expect(detonationEvents).toContainEqual(expect.objectContaining({
+      type: 'WORLD_ANIMATION',
+      effectName: 'SEISMIC',
+      radius: 200,
+      seismicMagnitude: 5,
+      sourceEntityId: 2,
+    }));
+  });
+
   it('fires shockwave weapon at victim position on death', () => {
     const bundle = makeBundle({
       objects: [
@@ -10546,11 +11040,11 @@ describe('RepairDockUpdate', () => {
       logic.update(1 / 30);
     }
 
-    expect(allyVehicle.moveTarget).not.toBeNull();
     expect(
       priv.pendingEnterObjectActions.has(2)
       || priv.pendingRepairDockActions.has(2),
     ).toBe(true);
+    expect(allyVehicle.health).toBeGreaterThanOrEqual(150);
   });
 
   it('rejects repairVehicle enter from effectively-dead source units', () => {
@@ -12744,6 +13238,101 @@ describe('PhysicsBehavior', () => {
   });
 });
 
+describe('RailroadBehavior', () => {
+  it('extracts source module profile fields with C++ defaults', () => {
+    const locomotive = makeObjectDef('TrainEngine', 'Civilian', ['VEHICLE'], [
+      makeBlock('Behavior', 'RailroadBehavior ModuleTag_Railroad', {
+        PathPrefixName: 'Railroad',
+        CrashFXTemplateName: 'SpecialEffectsTrainCrashObject',
+        IsLocomotive: true,
+        CarriageTemplateName: ['TrainCab', 'TrainCarRocket'],
+        BigMetalBounceSound: 'BuildingFallingMetal',
+        SmallMetalBounceSound: 'VehicleImpactHeavy',
+        MeatyBounceSound: 'InfantryCrush',
+        RunningGarrisonSpeedMax: 1,
+        KillSpeedMin: 1.5,
+        SpeedMax: 5,
+        Acceleration: 1.03,
+        Braking: 0.97,
+        WaitAtStationTime: 10000,
+        RunningSound: 'TrainRunningLoop',
+        ClicketyClackSound: 'TrainClicketyClack',
+        WhistleSound: 'TrainWhistle',
+        Friction: 0.995,
+      }),
+    ]);
+    const carriage = makeObjectDef('TrainCar', 'Civilian', ['VEHICLE'], [
+      makeBlock('Behavior', 'RailroadBehavior ModuleTag_Railroad', {
+        IsLocomotive: false,
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [locomotive, carriage] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('TrainEngine', 5, 5),
+        makeMapObject('TrainCar', 10, 5),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+
+    const privateApi = logic as unknown as { spawnedEntities: Map<number, {
+      railroadBehaviorProfile: {
+        pathPrefixName: string;
+        crashFXTemplateName: string;
+        isLocomotive: boolean;
+        carriageTemplateNames: string[];
+        bigMetalBounceSoundName: string;
+        smallMetalBounceSoundName: string;
+        meatyBounceSoundName: string;
+        runningGarrisonSpeedMax: number;
+        killSpeedMin: number;
+        speedMax: number;
+        acceleration: number;
+        braking: number;
+        waitAtStationFrames: number;
+        runningSoundName: string;
+        clicketyClackSoundName: string;
+        whistleSoundName: string;
+        friction: number;
+      } | null;
+    }> };
+    const engineProfile = privateApi.spawnedEntities.get(1)!.railroadBehaviorProfile!;
+    expect(engineProfile).toMatchObject({
+      pathPrefixName: 'Railroad',
+      crashFXTemplateName: 'SpecialEffectsTrainCrashObject',
+      isLocomotive: true,
+      carriageTemplateNames: ['TrainCab', 'TrainCarRocket'],
+      bigMetalBounceSoundName: 'BuildingFallingMetal',
+      smallMetalBounceSoundName: 'VehicleImpactHeavy',
+      meatyBounceSoundName: 'InfantryCrush',
+      runningGarrisonSpeedMax: 1,
+      killSpeedMin: 1.5,
+      speedMax: 5,
+      acceleration: 1.03,
+      braking: 0.97,
+      waitAtStationFrames: 300,
+      runningSoundName: 'TrainRunningLoop',
+      clicketyClackSoundName: 'TrainClicketyClack',
+      whistleSoundName: 'TrainWhistle',
+      friction: 0.995,
+    });
+
+    const carriageProfile = privateApi.spawnedEntities.get(2)!.railroadBehaviorProfile!;
+    expect(carriageProfile).toMatchObject({
+      isLocomotive: false,
+      runningGarrisonSpeedMax: 1,
+      killSpeedMin: 1,
+      speedMax: 4,
+      acceleration: 1.01,
+      braking: 0.99,
+      waitAtStationFrames: 150,
+      friction: 0.97,
+    });
+  });
+});
+
 describe('MissileLauncherBuildingUpdate', () => {
   it('extracts profile from INI', () => {
     const building = makeObjectDef('GLAScudStorm', 'GLA', ['STRUCTURE'], [
@@ -12753,6 +13342,12 @@ describe('MissileLauncherBuildingUpdate', () => {
         DoorOpenTime: 5000,
         DoorWaitOpenTime: 2000,
         DoorCloseTime: 3000,
+        DoorOpeningFX: 'FX_ScudStormDoorOpening',
+        DoorOpenFX: 'FX_ScudStormDoorOpen',
+        DoorWaitingToCloseFX: 'FX_ScudStormDoorWaitingToClose',
+        DoorClosingFX: 'FX_ScudStormDoorClosing',
+        DoorClosedFX: 'FX_ScudStormDoorClosed',
+        DoorOpenIdleAudio: 'ScudStormDoorOpenLoop',
       }),
     ]);
     const bundle = makeBundle({ objects: [building] });
@@ -12764,10 +13359,30 @@ describe('MissileLauncherBuildingUpdate', () => {
       makeHeightmap(),
     );
     const entity = (logic as unknown as { spawnedEntities: Map<number, unknown> }).spawnedEntities.get(1)! as unknown as {
-      missileLauncherBuildingProfile: { specialPowerTemplateName: string; doorOpenTimeFrames: number };
+      missileLauncherBuildingProfile: {
+        specialPowerTemplateName: string;
+        doorOpenTimeFrames: number;
+        doorWaitOpenTimeFrames: number;
+        doorClosingTimeFrames: number;
+        doorOpeningFXName: string;
+        doorOpenFXName: string;
+        doorWaitingToCloseFXName: string;
+        doorClosingFXName: string;
+        doorClosedFXName: string;
+        doorOpenIdleAudioName: string;
+      };
     };
     expect(entity.missileLauncherBuildingProfile).not.toBeNull();
     expect(entity.missileLauncherBuildingProfile.specialPowerTemplateName).toBe('SUPERWEAPONSCUDSTORM');
+    expect(entity.missileLauncherBuildingProfile.doorOpenTimeFrames).toBe(150);
+    expect(entity.missileLauncherBuildingProfile.doorWaitOpenTimeFrames).toBe(60);
+    expect(entity.missileLauncherBuildingProfile.doorClosingTimeFrames).toBe(90);
+    expect(entity.missileLauncherBuildingProfile.doorOpeningFXName).toBe('FX_ScudStormDoorOpening');
+    expect(entity.missileLauncherBuildingProfile.doorOpenFXName).toBe('FX_ScudStormDoorOpen');
+    expect(entity.missileLauncherBuildingProfile.doorWaitingToCloseFXName).toBe('FX_ScudStormDoorWaitingToClose');
+    expect(entity.missileLauncherBuildingProfile.doorClosingFXName).toBe('FX_ScudStormDoorClosing');
+    expect(entity.missileLauncherBuildingProfile.doorClosedFXName).toBe('FX_ScudStormDoorClosed');
+    expect(entity.missileLauncherBuildingProfile.doorOpenIdleAudioName).toBe('ScudStormDoorOpenLoop');
   });
 
   it('initializes door state on first tick', () => {
@@ -12832,6 +13447,104 @@ describe('MissileLauncherBuildingUpdate', () => {
     privateApi.missileLauncherOnFire(entity);
     expect(entity.missileLauncherBuildingState!.doorState).toBe('WAITING_TO_CLOSE');
   });
+
+  it('emits door FX and open-idle audio on state transitions', () => {
+    const building = makeObjectDef('GLAScudStorm', 'GLA', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'MissileLauncherBuildingUpdate ModuleTag_MLBU', {
+        SpecialPowerTemplate: 'SuperweaponScudStorm',
+        DoorOpenTime: 100,
+        DoorWaitOpenTime: 100,
+        DoorCloseTime: 100,
+        DoorOpeningFX: 'FX_ScudStormDoorOpening',
+        DoorOpenFX: 'FX_ScudStormDoorOpen',
+        DoorWaitingToCloseFX: 'FX_ScudStormDoorWaitingToClose',
+        DoorClosingFX: 'FX_ScudStormDoorClosing',
+        DoorClosedFX: 'FX_ScudStormDoorClosed',
+        DoorOpenIdleAudio: 'ScudStormDoorOpenLoop',
+      }),
+      makeBlock('Behavior', 'SpecialPowerModule ModuleTag_SP', {
+        SpecialPowerTemplate: 'SuperweaponScudStorm',
+      }),
+    ]);
+    const bundle = makeBundle({
+      objects: [building],
+      specialPowers: [makeSpecialPowerDef('SuperweaponScudStorm', { RechargeTime: 10000 })],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('GLAScudStorm', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(1 / 30);
+    logic.drainVisualEvents();
+    logic.drainScriptAudioPlaybackRequests();
+    logic.drainScriptAudioRemovalRequests();
+
+    const privateApi = logic as unknown as {
+      missileLauncherOnFire: (entity: unknown) => void;
+      spawnedEntities: Map<number, {
+        missileLauncherBuildingState: { doorState: string; timeoutFrame: number; timeoutState: string } | null;
+        specialPowerModules: Map<string, unknown>;
+        modelConditionFlags: Set<string>;
+      }>;
+      sharedShortcutSpecialPowerReadyFrames: Map<string, number>;
+      frameCounter: number;
+    };
+    const entity = privateApi.spawnedEntities.get(1)!;
+    const normalizedPowerName = 'SUPERWEAPONSCUDSTORM';
+    expect(entity.specialPowerModules.has(normalizedPowerName)).toBe(true);
+
+    privateApi.sharedShortcutSpecialPowerReadyFrames.set(normalizedPowerName, privateApi.frameCounter + 2);
+    logic.update(1 / 30);
+    expect(entity.missileLauncherBuildingState?.doorState).toBe('OPENING');
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_ScudStormDoorOpening',
+      sourceEntityId: 1,
+    }));
+
+    privateApi.sharedShortcutSpecialPowerReadyFrames.set(normalizedPowerName, privateApi.frameCounter);
+    logic.update(1 / 30);
+    expect(entity.missileLauncherBuildingState?.doorState).toBe('OPEN');
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_ScudStormDoorOpen',
+      sourceEntityId: 1,
+    }));
+    expect(logic.drainScriptAudioPlaybackRequests()).toContainEqual(expect.objectContaining({
+      audioName: 'ScudStormDoorOpenLoop',
+      sourceEntityId: 1,
+    }));
+
+    privateApi.sharedShortcutSpecialPowerReadyFrames.delete(normalizedPowerName);
+    privateApi.missileLauncherOnFire(entity);
+    const transitionEvents = logic.drainVisualEvents();
+    expect(transitionEvents).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_ScudStormDoorWaitingToClose',
+      sourceEntityId: 1,
+    }));
+    expect(logic.drainScriptAudioRemovalRequests().map((request: any) => request.eventName))
+      .toContain('ScudStormDoorOpenLoop');
+
+    const laterEvents = [...transitionEvents];
+    for (let i = 0; i < 10; i++) {
+      logic.update(1 / 30);
+      laterEvents.push(...logic.drainVisualEvents());
+    }
+    expect(laterEvents).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_ScudStormDoorClosing',
+      sourceEntityId: 1,
+    }));
+    expect(laterEvents).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_ScudStormDoorClosed',
+      sourceEntityId: 1,
+    }));
+  });
 });
 
 describe('ParticleUplinkCannonUpdate', () => {
@@ -12845,6 +13558,29 @@ describe('ParticleUplinkCannonUpdate', () => {
         DamagePerSecond: 500,
         DamageType: 'LASER',
         DamageRadiusScalar: 1.5,
+        BeamLaunchFX: 'FX_ParticleUplinkCannon_BeamLaunchIteration',
+        GroundHitFX: 'FX_ParticleUplinkCannon_GroundHit',
+        OuterEffectBoneName: 'FXOuter',
+        OuterEffectNumBones: 8,
+        OuterNodesLightFlareParticleSystem: 'ParticleCannonOuterLight',
+        OuterNodesMediumFlareParticleSystem: 'ParticleCannonOuterMedium',
+        OuterNodesIntenseFlareParticleSystem: 'ParticleCannonOuterIntense',
+        ConnectorBoneName: 'FXConnector',
+        ConnectorMediumLaserName: 'ParticleUplinkCannon_MediumConnectorLaser',
+        ConnectorIntenseLaserName: 'ParticleUplinkCannon_IntenseConnectorLaser',
+        ConnectorMediumFlare: 'ParticleCannonConnectorMediumFlare',
+        ConnectorIntenseFlare: 'ParticleCannonConnectorIntenseFlare',
+        FireBoneName: 'FXFire',
+        LaserBaseLightFlareParticleSystemName: 'ParticleCannonBaseLight',
+        LaserBaseMediumFlareParticleSystemName: 'ParticleCannonBaseMedium',
+        LaserBaseIntenseFlareParticleSystemName: 'ParticleCannonBaseIntense',
+        ParticleBeamLaserName: 'ParticleUplinkCannonBeam',
+        PoweringUpSoundLoop: 'ParticleCannonPoweringUpLoop',
+        UnpackToIdleSoundLoop: 'ParticleCannonUnpackLoop',
+        DamagePulseRemnantObjectName: 'ParticleCannonRemnant',
+        FiringToPackSoundLoop: 'ParticleCannonFiringLoop',
+        GroundAnnihilationSoundLoop: 'ParticleCannonAnnihilationLoop',
+        ScorchMarkScalar: 1.25,
       }),
     ]);
     const bundle = makeBundle({ objects: [building] });
@@ -12856,11 +13592,60 @@ describe('ParticleUplinkCannonUpdate', () => {
       makeHeightmap(),
     );
     const entity = (logic as unknown as { spawnedEntities: Map<number, unknown> }).spawnedEntities.get(1)! as unknown as {
-      particleUplinkCannonProfile: { totalDamagePulses: number; damagePerSecond: number };
+      particleUplinkCannonProfile: {
+        totalDamagePulses: number;
+        damagePerSecond: number;
+        beamLaunchFXName: string;
+        groundHitFXName: string;
+        outerEffectBoneName: string;
+        outerEffectNumBones: number;
+        outerNodesLightFlareParticleSystemName: string;
+        outerNodesMediumFlareParticleSystemName: string;
+        outerNodesIntenseFlareParticleSystemName: string;
+        connectorBoneName: string;
+        connectorMediumLaserName: string;
+        connectorIntenseLaserName: string;
+        connectorMediumFlareParticleSystemName: string;
+        connectorIntenseFlareParticleSystemName: string;
+        fireBoneName: string;
+        laserBaseLightFlareParticleSystemName: string;
+        laserBaseMediumFlareParticleSystemName: string;
+        laserBaseIntenseFlareParticleSystemName: string;
+        particleBeamLaserName: string;
+        powerupSoundName: string;
+        unpackToReadySoundName: string;
+        damagePulseRemnantObjectName: string;
+        firingToIdleSoundName: string;
+        annihilationSoundName: string;
+        scorchMarkScalar: number;
+      };
     };
     expect(entity.particleUplinkCannonProfile).not.toBeNull();
     expect(entity.particleUplinkCannonProfile.totalDamagePulses).toBe(20);
     expect(entity.particleUplinkCannonProfile.damagePerSecond).toBe(500);
+    expect(entity.particleUplinkCannonProfile.beamLaunchFXName).toBe('FX_ParticleUplinkCannon_BeamLaunchIteration');
+    expect(entity.particleUplinkCannonProfile.groundHitFXName).toBe('FX_ParticleUplinkCannon_GroundHit');
+    expect(entity.particleUplinkCannonProfile.outerEffectBoneName).toBe('FXOuter');
+    expect(entity.particleUplinkCannonProfile.outerEffectNumBones).toBe(8);
+    expect(entity.particleUplinkCannonProfile.outerNodesLightFlareParticleSystemName).toBe('ParticleCannonOuterLight');
+    expect(entity.particleUplinkCannonProfile.outerNodesMediumFlareParticleSystemName).toBe('ParticleCannonOuterMedium');
+    expect(entity.particleUplinkCannonProfile.outerNodesIntenseFlareParticleSystemName).toBe('ParticleCannonOuterIntense');
+    expect(entity.particleUplinkCannonProfile.connectorBoneName).toBe('FXConnector');
+    expect(entity.particleUplinkCannonProfile.connectorMediumLaserName).toBe('ParticleUplinkCannon_MediumConnectorLaser');
+    expect(entity.particleUplinkCannonProfile.connectorIntenseLaserName).toBe('ParticleUplinkCannon_IntenseConnectorLaser');
+    expect(entity.particleUplinkCannonProfile.connectorMediumFlareParticleSystemName).toBe('ParticleCannonConnectorMediumFlare');
+    expect(entity.particleUplinkCannonProfile.connectorIntenseFlareParticleSystemName).toBe('ParticleCannonConnectorIntenseFlare');
+    expect(entity.particleUplinkCannonProfile.fireBoneName).toBe('FXFire');
+    expect(entity.particleUplinkCannonProfile.laserBaseLightFlareParticleSystemName).toBe('ParticleCannonBaseLight');
+    expect(entity.particleUplinkCannonProfile.laserBaseMediumFlareParticleSystemName).toBe('ParticleCannonBaseMedium');
+    expect(entity.particleUplinkCannonProfile.laserBaseIntenseFlareParticleSystemName).toBe('ParticleCannonBaseIntense');
+    expect(entity.particleUplinkCannonProfile.particleBeamLaserName).toBe('ParticleUplinkCannonBeam');
+    expect(entity.particleUplinkCannonProfile.powerupSoundName).toBe('ParticleCannonPoweringUpLoop');
+    expect(entity.particleUplinkCannonProfile.unpackToReadySoundName).toBe('ParticleCannonUnpackLoop');
+    expect(entity.particleUplinkCannonProfile.damagePulseRemnantObjectName).toBe('ParticleCannonRemnant');
+    expect(entity.particleUplinkCannonProfile.firingToIdleSoundName).toBe('ParticleCannonFiringLoop');
+    expect(entity.particleUplinkCannonProfile.annihilationSoundName).toBe('ParticleCannonAnnihilationLoop');
+    expect(entity.particleUplinkCannonProfile.scorchMarkScalar).toBe(1.25);
   });
 
   it('fires damage pulses when activated', () => {
@@ -12906,6 +13691,73 @@ describe('ParticleUplinkCannonUpdate', () => {
     for (let i = 0; i < 30; i++) logic.update(0);
     expect(glaEntity.health).toBeLessThan(initialHealth);
   });
+
+  it('emits launch and ground FX, sound loops, and pulse remnants while firing', () => {
+    const building = makeObjectDef('USAParticleCannon', 'America', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        SpecialPowerTemplate: 'SuperweaponParticleCannon',
+        BeamTravelTime: 0,
+        WidthGrowTime: 1000,
+        TotalFiringTime: 1000,
+        TotalScorchMarks: 1,
+        ScorchMarkScalar: 1.25,
+        TotalDamagePulses: 1,
+        DamagePerSecond: 300,
+        DamageRadiusScalar: 1.0,
+        BeamLaunchFX: 'FX_ParticleUplinkCannon_BeamLaunchIteration',
+        DelayBetweenLaunchFX: 100,
+        GroundHitFX: 'FX_ParticleUplinkCannon_GroundHit',
+        FiringToPackSoundLoop: 'ParticleCannonFiringLoop',
+        GroundAnnihilationSoundLoop: 'ParticleCannonAnnihilationLoop',
+        DamagePulseRemnantObjectName: 'ParticleCannonRemnant',
+      }),
+    ]);
+    const remnant = makeObjectDef('ParticleCannonRemnant', 'America', ['PROJECTILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1, InitialHealth: 1 }),
+    ]);
+    const bundle = makeBundle({ objects: [building, remnant] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('USAParticleCannon', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+
+    const privateApi = logic as unknown as {
+      particleUplinkCannonOnFire: (entity: unknown, targetX: number, targetZ: number) => void;
+      spawnedEntities: Map<number, { templateName: string }>;
+    };
+    const cannonEntity = privateApi.spawnedEntities.get(1)!;
+    privateApi.particleUplinkCannonOnFire(cannonEntity, 12, 14);
+
+    expect(logic.drainScriptAudioPlaybackRequests()).toContainEqual(expect.objectContaining({
+      audioName: 'ParticleCannonFiringLoop',
+      sourceEntityId: 1,
+    }));
+
+    logic.update(1 / 30);
+
+    expect(logic.drainScriptAudioPlaybackRequests()).toContainEqual(expect.objectContaining({
+      audioName: 'ParticleCannonAnnihilationLoop',
+      sourceEntityId: 1,
+    }));
+    expect(logic.drainVisualEvents()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'NAMED_FX',
+        effectName: 'FX_ParticleUplinkCannon_BeamLaunchIteration',
+        sourceEntityId: 1,
+      }),
+      expect.objectContaining({
+        type: 'NAMED_FX',
+        effectName: 'FX_ParticleUplinkCannon_GroundHit',
+        sourceEntityId: 1,
+      }),
+    ]));
+    expect(Array.from(privateApi.spawnedEntities.values()).some((entity) =>
+      entity.templateName === 'ParticleCannonRemnant')).toBe(true);
+  });
 });
 
 describe('NeutronMissileUpdate', () => {
@@ -12921,6 +13773,8 @@ describe('NeutronMissileUpdate', () => {
         SpecialSpeedTime: 3000,
         SpecialSpeedHeight: 800,
         SpecialAccelFactor: 1.5,
+        LaunchFX: 'FX_NukeLaunch',
+        IgnitionFX: 'FX_NukeIgnition',
       }),
     ]);
     const bundle = makeBundle({ objects: [missile] });
@@ -12932,11 +13786,66 @@ describe('NeutronMissileUpdate', () => {
       makeHeightmap(),
     );
     const entity = (logic as unknown as { spawnedEntities: Map<number, unknown> }).spawnedEntities.get(1)! as unknown as {
-      neutronMissileUpdateProfile: { relativeSpeed: number; targetFromDirectlyAbove: number };
+      neutronMissileUpdateProfile: {
+        relativeSpeed: number;
+        targetFromDirectlyAbove: number;
+        launchFXName: string;
+        ignitionFXName: string;
+      };
     };
     expect(entity.neutronMissileUpdateProfile).not.toBeNull();
     expect(entity.neutronMissileUpdateProfile.relativeSpeed).toBe(2.0);
     expect(entity.neutronMissileUpdateProfile.targetFromDirectlyAbove).toBe(500);
+    expect(entity.neutronMissileUpdateProfile.launchFXName).toBe('FX_NukeLaunch');
+    expect(entity.neutronMissileUpdateProfile.ignitionFXName).toBe('FX_NukeIgnition');
+  });
+
+  it('emits LaunchFX and IgnitionFX when entering attack flight', () => {
+    const missile = makeObjectDef('NukeMissile', 'China', ['PROJECTILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'NeutronMissileUpdate ModuleTag_NMU', {
+        DistanceToTravelBeforeTurning: 0,
+        RelativeSpeed: 5.0,
+        TargetFromDirectlyAbove: 0,
+        LaunchFX: 'FX_NukeLaunch',
+        IgnitionFX: 'FX_NukeIgnition',
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [missile] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('NukeMissile', 3, 3)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+
+    const privateApi = logic as unknown as {
+      launchNeutronMissile: (entity: unknown, tx: number, ty: number, tz: number, launcherId: number) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    const missileEntity = privateApi.spawnedEntities.get(1)! as unknown as { y: number };
+    missileEntity.y = 200;
+    privateApi.launchNeutronMissile(missileEntity, 100, 0, 100, 0);
+    logic.drainVisualEvents();
+
+    logic.update(0);
+
+    expect(logic.drainVisualEvents()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'NAMED_FX',
+        effectName: 'FX_NukeLaunch',
+        sourceEntityId: 1,
+        projectileType: 'MISSILE',
+      }),
+      expect.objectContaining({
+        type: 'NAMED_FX',
+        effectName: 'FX_NukeIgnition',
+        sourceEntityId: 1,
+        projectileType: 'MISSILE',
+      }),
+    ]));
   });
 
   it('missile flies toward target and detonates on ground', () => {

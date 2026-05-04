@@ -1,7 +1,7 @@
 /**
  * Parity tests for MissileAIUpdate FieldParse fields.
  *
- * Validates all 12 MissileAIUpdateModuleData fields from the C++ FieldParse table
+ * Validates MissileAIUpdateModuleData fields from the C++ FieldParse table
  * (MissileAIUpdate.cpp:86-114) are correctly parsed from INI and applied at runtime.
  *
  * C++ source: GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate/MissileAIUpdate.cpp
@@ -150,6 +150,42 @@ describe('Parity: MissileAIUpdate IgnitionDelay (MissileAIUpdate.cpp:70,94)', ()
     const targetFinal = agent.entity(2);
     expect(targetFinal).toBeDefined();
     expect(targetFinal!.health).toBeLessThan(500);
+  });
+
+  it('emits IgnitionFX exactly when the missile enters ignition state', () => {
+    const ignitionDelayMs = 300;
+    const expectedIgnitionFrames = Math.max(1, Math.ceil(ignitionDelayMs / (1000 / LOGIC_FRAME_RATE)));
+    const agent = createMissileAgent({
+      IgnitionDelay: ignitionDelayMs,
+      IgnitionFX: 'FX_MissileIgnite',
+    }, {
+      distance: 160,
+      mapSize: 256,
+    });
+    const logic = agent.gameLogic;
+
+    agent.attack(1, 2);
+    logic.drainVisualEvents();
+
+    for (let frame = 0; frame < expectedIgnitionFrames; frame++) {
+      agent.step(1);
+      expect(logic.drainVisualEvents()).not.toContainEqual(expect.objectContaining({
+        type: 'NAMED_FX',
+        effectName: 'FX_MissileIgnite',
+      }));
+    }
+
+    agent.step(1);
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_MissileIgnite',
+    }));
+
+    agent.step(10);
+    expect(logic.drainVisualEvents()).not.toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_MissileIgnite',
+    }));
   });
 });
 
@@ -546,10 +582,11 @@ describe('Parity: MissileAIUpdate KillSelfDelay (MissileAIUpdate.cpp:82,109)', (
 // ── Test 11: Profile extraction round-trip ──────────────────────────────────
 
 describe('Parity: MissileAIProfile extraction completeness', () => {
-  it('all 12 C++ FieldParse fields are present in extracted profile', () => {
+  it('covered C++ FieldParse fields are present in extracted profile', () => {
     const agent = createMissileAgent({
       FuelLifetime: 5000,
       IgnitionDelay: 200,
+      IgnitionFX: 'FX_MissileIgnite',
       InitialVelocity: 20,
       DistanceToTravelBeforeTurning: 10,
       DistanceToTargetBeforeDiving: 40,
@@ -574,6 +611,7 @@ describe('Parity: MissileAIProfile extraction completeness', () => {
     // Field 2: IgnitionDelay (200ms → frames)
     const expectedIgnitionFrames = Math.max(1, Math.ceil(200 / (1000 / LOGIC_FRAME_RATE)));
     expect(profile!.ignitionDelayFrames).toBe(expectedIgnitionFrames);
+    expect(profile!.ignitionFXName).toBe('FX_MissileIgnite');
 
     // Field 3: DetonateOnNoFuel
     expect(profile!.detonateOnNoFuel).toBe(true);

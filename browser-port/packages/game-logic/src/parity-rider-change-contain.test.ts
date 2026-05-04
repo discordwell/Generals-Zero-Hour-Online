@@ -13,12 +13,20 @@
  *   - Rider fields correctly map to RiderInfo struct members
  */
 
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import { extractContainProfile, extractRiderChangeContainProfile } from './entity-factory.js';
+import { GameLogicSubsystem } from './index.js';
 import {
   makeBlock,
+  makeBundle,
+  makeHeightmap,
+  makeLocomotorDef,
+  makeMap,
+  makeMapObject,
   makeObjectDef,
+  makeRegistry,
 } from './test-helpers.js';
 
 // Stub self with msToLogicFrames matching C++ LOGIC_FRAME_RATE = 30.
@@ -244,5 +252,119 @@ describe('extractRiderChangeContainProfile', () => {
       expect(profile!.riders[i]!.weaponSetFlag).toBe(`WEAPON_RIDER${i + 1}`);
       expect(profile!.riders[i]!.objectStatus).toBe(`STATUS_RIDER${i + 1}`);
     }
+  });
+});
+
+describe('RiderChangeContain runtime', () => {
+  function makeRiderChangeRuntimeBundle(scuttleDelay = 90) {
+    return makeBundle({
+      objects: [
+        makeObjectDef('CombatBike', 'GLA', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeRiderChangeBlock({
+            AllowInsideKindOf: 'INFANTRY',
+            ScuttleDelay: scuttleDelay,
+            ScuttleStatus: 'TOPPLED',
+            Rider1: ['Rebel', 'RIDER1', 'WEAPON_RIDER1', 'STATUS_RIDER1', 'BikeRebelCommandSet', 'SET_SLUGGISH'],
+            Rider2: ['Worker', 'RIDER2', 'WEAPON_RIDER2', 'STATUS_RIDER2', 'BikeWorkerCommandSet', 'SET_NORMAL'],
+          }),
+          makeBlock('LocomotorSet', 'SET_NORMAL BikeNormalLoco', {}),
+          makeBlock('LocomotorSet', 'SET_SLUGGISH BikeSlowLoco', {}),
+        ], { CommandSet: 'BikeEmptyCommandSet' }),
+        makeObjectDef('Rebel', 'GLA', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL InfantryLoco', {}),
+        ], { TransportSlotCount: 1 }),
+        makeObjectDef('Worker', 'GLA', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL InfantryLoco', {}),
+        ], { TransportSlotCount: 1 }),
+        makeObjectDef('Hijacker', 'GLA', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL InfantryLoco', {}),
+        ], { TransportSlotCount: 1 }),
+      ],
+      locomotors: [
+        makeLocomotorDef('BikeNormalLoco', 50),
+        makeLocomotorDef('BikeSlowLoco', 20),
+        makeLocomotorDef('InfantryLoco', 30),
+      ],
+    });
+  }
+
+  function loadRuntime(scuttleDelay = 90) {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('CombatBike', 20, 20),
+        makeMapObject('Rebel', 20, 20),
+        makeMapObject('Worker', 20, 20),
+        makeMapObject('Hijacker', 20, 20),
+      ]),
+      makeRegistry(makeRiderChangeRuntimeBundle(scuttleDelay)),
+      makeHeightmap(),
+    );
+    return logic;
+  }
+
+  it('accepts configured rider templates and applies rider bike state on entry', () => {
+    const logic = loadRuntime();
+
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    logic.update(1 / 30);
+
+    const bike = (logic as any).spawnedEntities.get(1);
+    const rebel = (logic as any).spawnedEntities.get(2);
+    expect(rebel.transportContainerId).toBe(1);
+    expect(rebel.objectStatusFlags.has('MASKED')).toBe(true);
+    expect(bike.modelConditionFlags.has('RIDER1')).toBe(true);
+    expect((bike.weaponSetFlagsMask & (1 << 9)) !== 0).toBe(true);
+    expect(bike.objectStatusFlags.has('STATUS_RIDER1')).toBe(true);
+    expect(bike.commandSetStringOverride).toBe('BikeRebelCommandSet');
+    expect(bike.activeLocomotorSet).toBe('SET_SLUGGISH');
+
+    logic.submitCommand({ type: 'enterTransport', entityId: 4, targetTransportId: 1 });
+    logic.update(1 / 30);
+
+    expect((logic as any).spawnedEntities.get(4).transportContainerId).toBeNull();
+    expect(bike.modelConditionFlags.has('RIDER1')).toBe(true);
+  });
+
+  it('replaces existing rider without scuttling, then scuttles on normal rider exit', () => {
+    const logic = loadRuntime(120);
+
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    logic.update(1 / 30);
+    logic.submitCommand({ type: 'enterTransport', entityId: 3, targetTransportId: 1 });
+    logic.update(1 / 30);
+
+    const bike = (logic as any).spawnedEntities.get(1);
+    expect((logic as any).spawnedEntities.get(2).transportContainerId).toBeNull();
+    expect((logic as any).spawnedEntities.get(3).transportContainerId).toBe(1);
+    expect(bike.riderChangeScuttledFrame).toBe(0);
+    expect(bike.modelConditionFlags.has('RIDER1')).toBe(false);
+    expect(bike.modelConditionFlags.has('RIDER2')).toBe(true);
+    expect((bike.weaponSetFlagsMask & (1 << 9)) === 0).toBe(true);
+    expect((bike.weaponSetFlagsMask & (1 << 10)) !== 0).toBe(true);
+    expect(bike.objectStatusFlags.has('STATUS_RIDER2')).toBe(true);
+    expect(bike.commandSetStringOverride).toBe('BikeWorkerCommandSet');
+
+    bike.moving = false;
+    logic.submitCommand({ type: 'exitContainer', entityId: 3 });
+    logic.update(1 / 30);
+
+    expect((logic as any).spawnedEntities.get(3).transportContainerId).toBeNull();
+    expect(bike.riderChangeScuttledFrame).toBeGreaterThan(0);
+    expect(bike.objectStatusFlags.has('UNSELECTABLE')).toBe(true);
+    expect(bike.objectStatusFlags.has('IMMOBILE')).toBe(true);
+    expect(bike.modelConditionFlags.has('TOPPLED')).toBe(true);
+    expect(bike.modelConditionFlags.has('RIDER2')).toBe(false);
+
+    for (let i = 0; i < 5; i++) {
+      logic.update(1 / 30);
+    }
+
+    const killedBike = (logic as any).spawnedEntities.get(1);
+    expect(killedBike?.destroyed ?? true).toBe(true);
   });
 });

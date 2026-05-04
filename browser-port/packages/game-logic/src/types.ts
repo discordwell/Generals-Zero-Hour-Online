@@ -28,6 +28,8 @@ export interface RenderableEntityState {
   modelConditionInfos?: ModelConditionInfo[];
   transitionInfos?: TransitionInfo[];
   modelConditionFlags?: readonly string[];
+  /** Source parity: DeployStyleAIUpdate ManualDeployAnimations frame override. */
+  manualAnimationFrame?: number;
   currentSpeed?: number;
   maxSpeed?: number;
   category: RenderableObjectCategory;
@@ -85,8 +87,15 @@ export interface RenderableEntityState {
   streamPoints?: { x: number; y: number; z: number }[];
   /** Source parity: RadiusDecalUpdate — ground radius decal states for targeting visualization. */
   radiusDecals?: RenderableRadiusDecal[];
+  /** Source parity: SubObjectsUpgrade Drawable::showSubObject overrides. */
+  forcedHiddenSubObjects?: readonly string[];
+  forcedShownSubObjects?: readonly string[];
   /** Source parity: BoneFXUpdate — pending bone FX/OCL/ParticleSystem visual events. */
   boneFXEvents?: BoneFXVisualEvent[];
+  /** Source parity: AnimatedParticleSysBoneClientUpdate — client particle bones follow animated draw bones. */
+  animatedParticleSysBoneClientUpdate?: RenderableAnimatedParticleSysBoneClientUpdate;
+  /** Source parity: SwayClientUpdate — tree sway client update state. */
+  swayClientUpdate?: RenderableSwayClientUpdate;
   /** Source parity: ThingTemplate::m_shadowType — INI Shadow field (e.g. SHADOW_DECAL, SHADOW_VOLUME). */
   shadowType?: string;
   /** Source parity: ThingTemplate::m_shadowSizeX — shadow decal X extent. */
@@ -106,6 +115,22 @@ export interface RenderableRadiusDecal {
   positionZ: number;
   radius: number;
   visible: boolean;
+}
+
+export interface RenderableAnimatedParticleSysBoneClientUpdate {
+  moduleTag: string;
+  life: number;
+}
+
+export interface RenderableSwayClientUpdate {
+  moduleTag: string;
+  curValue: number;
+  curAngle: number;
+  curDelta: number;
+  curAngleLimit: number;
+  leanAngle: number;
+  curVersion: number;
+  swaying: boolean;
 }
 
 /**
@@ -170,7 +195,13 @@ export interface ActiveProjectile {
   heading: number;
 }
 
-export type VisualEventType = 'WEAPON_IMPACT' | 'ENTITY_DESTROYED' | 'WEAPON_FIRED';
+export type VisualEventType =
+  | 'WEAPON_IMPACT'
+  | 'ENTITY_DESTROYED'
+  | 'WEAPON_FIRED'
+  | 'NAMED_FX'
+  | 'NAMED_PARTICLE_SYSTEM'
+  | 'WORLD_ANIMATION';
 
 export interface VisualEvent {
   type: VisualEventType;
@@ -195,6 +226,18 @@ export interface VisualEvent {
    * (Damage.h:269, ActiveBody.cpp:321-329)
    */
   damageFXOverride?: string;
+  /** Named FXList or ParticleSystem template selected directly by a source module. */
+  effectName?: string;
+  /** Optional requested lifetime for module-spawned named visual systems. */
+  lifetimeFrames?: number;
+  /** Optional source drawable bone requested by a source module. */
+  sourceBoneName?: string;
+  /** Source parity: CrateCollide ExecuteAnimationZRise. */
+  zRisePerSecond?: number;
+  /** Source parity: CrateCollide ExecuteAnimationFades. */
+  fades?: boolean;
+  /** Source parity: terrain seismic simulation impulse magnitude. */
+  seismicMagnitude?: number;
 }
 
 /**

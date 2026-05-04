@@ -1884,6 +1884,7 @@ describe('SpectreGunshipUpdate', () => {
         OrbitTime: 3000,
         HowitzerWeaponTemplate: 'TestHowitzer',
         GattlingTemplateName: 'TestGattling',
+        GattlingStrafeFXParticleSystem: 'SpectreGattlingArmsSmoke',
       }),
     ], { Speed: 5 });
   }
@@ -1919,6 +1920,7 @@ describe('SpectreGunshipUpdate', () => {
     expect(entity.spectreGunshipProfile!.strafingIncrement).toBe(20);
     expect(entity.spectreGunshipProfile!.howitzerWeaponTemplate).toBe('TestHowitzer');
     expect(entity.spectreGunshipProfile!.gattlingTemplateName).toBe('TestGattling');
+    expect(entity.spectreGunshipProfile!.gattlingStrafeFXParticleSystemName).toBe('SpectreGattlingArmsSmoke');
   });
 
   it('extracts SpectreGunshipDeployment profile from INI', () => {
@@ -2131,6 +2133,57 @@ describe('SpectreGunshipUpdate', () => {
     const movedDist = Math.sqrt(movedDX * movedDX + movedDZ * movedDZ);
     // Should move by strafingIncrement (20) per frame
     expect(movedDist).toBeCloseTo(20, 0);
+  });
+
+  it('emits gattling strafe particle system while the contained gattling is firing', () => {
+    const bundle = makeBundle({
+      objects: [makeGunshipDef(), makeGattlingDef()],
+      weapons: [makeWeaponDef('TestHowitzer', { Damage: 50, DamageRadius: 20, DamageType: 'EXPLOSION' })],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestGunship', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as any;
+    const gunship = priv.spawnedEntities.get(1)!;
+    gunship.x = 640;
+    gunship.z = 540;
+    gunship.spectreGunshipState = {
+      status: 'ORBITING',
+      initialTargetX: 640,
+      initialTargetZ: 640,
+      overrideTargetX: 640,
+      overrideTargetZ: 640,
+      satelliteX: 640,
+      satelliteZ: 540,
+      gattlingTargetX: 600,
+      gattlingTargetZ: 600,
+      positionToShootAtX: 640,
+      positionToShootAtZ: 640,
+      orbitEscapeFrame: 999999,
+      okToFireHowitzerCounter: 0,
+      gattlingEntityId: -1,
+    };
+    priv.spawnSpectreGattlingEntity(gunship, gunship.spectreGunshipProfile, gunship.spectreGunshipState);
+    const gattling = priv.spawnedEntities.get(gunship.spectreGunshipState.gattlingEntityId)!;
+    gattling.objectStatusFlags.delete('DISABLED_PARALYZED');
+    gattling.objectStatusFlags.add('IS_FIRING_WEAPON');
+
+    logic.update(1 / 30);
+
+    const events = logic.drainVisualEvents();
+    const strafeFX = events.find((event) => event.type === 'NAMED_PARTICLE_SYSTEM'
+      && event.effectName === 'SpectreGattlingArmsSmoke');
+    expect(strafeFX).toBeDefined();
+    expect(strafeFX!.sourceEntityId).toBe(gunship.id);
+    expect(strafeFX!.x).toBeGreaterThanOrEqual(gunship.spectreGunshipState.gattlingTargetX - 5);
+    expect(strafeFX!.x).toBeLessThanOrEqual(gunship.spectreGunshipState.gattlingTargetX + 5);
+    expect(strafeFX!.z).toBeGreaterThanOrEqual(gunship.spectreGunshipState.gattlingTargetZ - 5);
+    expect(strafeFX!.z).toBeLessThanOrEqual(gunship.spectreGunshipState.gattlingTargetZ + 5);
   });
 
   it('howitzer fires after gattling converges for howitzerFollowLag cycles', () => {

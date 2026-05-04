@@ -474,6 +474,7 @@ import {
   handleEvacuateCommand as handleEvacuateCommandImpl,
   handleExecuteRailedTransportCommand as handleExecuteRailedTransportCommandImpl,
   noteContainerEnteredBy as noteContainerEnteredByImpl,
+  findRiderChangeInfoForPassenger as findRiderChangeInfoForPassengerImpl,
   canSourceAttemptContainerEnter as canSourceAttemptContainerEnterImpl,
   canTargetAcceptContainerEnter as canTargetAcceptContainerEnterImpl,
   isContainerEnterTargetShrouded as isContainerEnterTargetShroudedImpl,
@@ -493,6 +494,7 @@ import {
   updateTunnelHealing as updateTunnelHealingImpl,
   updateHealContainHealing as updateHealContainHealingImpl,
   updateTransportContainHealing as updateTransportContainHealingImpl,
+  updateRiderChangeContainScuttle as updateRiderChangeContainScuttleImpl,
   updateContainModelConditions as updateContainModelConditionsImpl,
   updateOverlordRiderPositions as updateOverlordRiderPositionsImpl,
   hasPendingTransportEntryForContainer as hasPendingTransportEntryForContainerImpl,
@@ -673,6 +675,7 @@ import {
   validateTeamVictim as validateTeamVictimImpl,
   findGuardTarget as findGuardTargetImpl,
   queueWeaponDamageEvent as queueWeaponDamageEventImpl,
+  queueWeaponDamageEventAtPosition as queueWeaponDamageEventAtPositionImpl,
 } from './combat-targeting.js';
 import {
   resolveWeaponScatterTargets as resolveWeaponScatterTargetsImpl,
@@ -755,6 +758,7 @@ import {
   extractPrisonBehaviorProfile as extractPrisonBehaviorProfileImpl,
   extractExperienceProfile as extractExperienceProfileImpl,
   extractAutoHealProfile as extractAutoHealProfileImpl,
+  extractBaseRegenerateUpdateProfile as extractBaseRegenerateUpdateProfileImpl,
   extractPropagandaTowerProfile as extractPropagandaTowerProfileImpl,
   extractFlammableProfile as extractFlammableProfileImpl,
   extractOCLUpdateProfiles as extractOCLUpdateProfilesImpl,
@@ -801,6 +805,7 @@ import {
   extractHeightDieProfile as extractHeightDieProfileImpl,
   extractProjectileStreamProfile as extractProjectileStreamProfileImpl,
   extractBoneFXProfile as extractBoneFXProfileImpl,
+  extractTransitionDamageFXProfile as extractTransitionDamageFXProfileImpl,
   extractSlowDeathProfiles as extractSlowDeathProfilesImpl,
   extractHelicopterSlowDeathProfiles as extractHelicopterSlowDeathProfilesImpl,
   extractCleanupHazardProfile as extractCleanupHazardProfileImpl,
@@ -908,6 +913,7 @@ import {
   markBridgeCellRadius as markBridgeCellRadiusImpl,
   markBridgeTransitionRadius as markBridgeTransitionRadiusImpl,
   updateBridgeScaffolds as updateBridgeScaffoldsImpl,
+  updateBridgeDeathEffects as updateBridgeDeathEffectsImpl,
   advanceScaffoldMotion as advanceScaffoldMotionImpl,
   setScaffoldMotion as setScaffoldMotionImpl,
   bridgeBehaviorOnDamage as bridgeBehaviorOnDamageImpl,
@@ -1281,6 +1287,14 @@ const WEAPON_SET_FLAG_CRATEUPGRADE_TWO = 1 << 5;
 const WEAPON_SET_FLAG_VEHICLE_HIJACK = 1 << 6;
 const WEAPON_SET_FLAG_CARBOMB = 1 << 7;
 export const WEAPON_SET_FLAG_MINE_CLEARING_DETAIL = 1 << 8;
+const WEAPON_SET_FLAG_RIDER1 = 1 << 9;
+const WEAPON_SET_FLAG_RIDER2 = 1 << 10;
+const WEAPON_SET_FLAG_RIDER3 = 1 << 11;
+const WEAPON_SET_FLAG_RIDER4 = 1 << 12;
+const WEAPON_SET_FLAG_RIDER5 = 1 << 13;
+const WEAPON_SET_FLAG_RIDER6 = 1 << 14;
+const WEAPON_SET_FLAG_RIDER7 = 1 << 15;
+const WEAPON_SET_FLAG_RIDER8 = 1 << 16;
 const WEAPON_AFFECTS_SELF = 0x01;
 const WEAPON_AFFECTS_ALLIES = 0x02;
 const WEAPON_AFFECTS_ENEMIES = 0x04;
@@ -1460,6 +1474,14 @@ export const WEAPON_SET_FLAG_MASK_BY_NAME = new Map<string, number>([
   ['VEHICLE_HIJACK', WEAPON_SET_FLAG_VEHICLE_HIJACK],
   ['CARBOMB', WEAPON_SET_FLAG_CARBOMB],
   ['MINE_CLEARING_DETAIL', WEAPON_SET_FLAG_MINE_CLEARING_DETAIL],
+  ['WEAPON_RIDER1', WEAPON_SET_FLAG_RIDER1],
+  ['WEAPON_RIDER2', WEAPON_SET_FLAG_RIDER2],
+  ['WEAPON_RIDER3', WEAPON_SET_FLAG_RIDER3],
+  ['WEAPON_RIDER4', WEAPON_SET_FLAG_RIDER4],
+  ['WEAPON_RIDER5', WEAPON_SET_FLAG_RIDER5],
+  ['WEAPON_RIDER6', WEAPON_SET_FLAG_RIDER6],
+  ['WEAPON_RIDER7', WEAPON_SET_FLAG_RIDER7],
+  ['WEAPON_RIDER8', WEAPON_SET_FLAG_RIDER8],
 ]);
 
 const WEAPON_AFFECTS_MASK_BY_NAME = new Map<string, number>([
@@ -2006,6 +2028,9 @@ interface AttackWeaponProfile {
   continuousFireFastRateOfFire: number;
   /** Source parity: LaserName — non-null if this weapon spawns a laser beam. */
   laserName: string | null;
+  laserMuzzleParticleSystemName?: string;
+  laserTargetParticleSystemName?: string;
+  laserPunchThroughScalar?: number;
   /**
    * Source parity: DumbProjectileBehavior Bezier arc parameters.
    * Parsed from the projectile object template's DumbProjectileBehavior module.
@@ -2119,6 +2144,8 @@ interface SpecialPowerModuleProfile {
   moduleType: string;
   /** Source parity: INI ModuleTag used to match C++ object-module save blocks. */
   moduleTag?: string | null;
+  /** Source parity: SpecialPowerModuleData::m_initiateSound. */
+  initiateSoundName: string;
   updateModuleStartsAttack: boolean;
   startsPaused: boolean;
   /** Source parity: SpecialPowerModule::m_availableOnFrame for non-shared powers. */
@@ -2137,11 +2164,27 @@ interface SpecialPowerModuleProfile {
   spyVisionResetTimersNextUpdate?: boolean;
   /** Source parity: SpyVisionUpdate::m_disabledUntilFrame. */
   spyVisionDisabledUntilFrame?: number;
+  /** Source parity: SpyVisionUpdateModuleData::m_needsUpgrade. */
+  spyVisionNeedsUpgrade?: boolean;
+  /** Source parity: SpyVisionUpdateModuleData::m_selfPowered. */
+  spyVisionSelfPowered?: boolean;
+  /** Source parity: SpyVisionUpdateModuleData::m_selfPoweredDuration. Raw INI duration in ms. */
+  spyVisionSelfPoweredDurationMs?: number;
+  /** Source parity: SpyVisionUpdateModuleData::m_selfPoweredInterval. Raw INI duration in ms. */
+  spyVisionSelfPoweredIntervalMs?: number;
+  /** Source parity: UpgradeMuxData::m_triggeredBy for SpyVisionUpdate. */
+  spyVisionTriggeredBy?: string[];
+  /** Source parity: UpgradeMuxData::m_requiresAllTriggers for SpyVisionUpdate. */
+  spyVisionRequiresAllTriggers?: boolean;
+  /** Source parity: SpyVisionUpdateModuleData::m_spyOnKindof. Empty means all kindof. */
+  spyVisionKindOf?: string[];
   /**
    * Source parity: CashHackSpecialPowerModuleData::m_defaultAmountToSteal.
    * INI field: MoneyAmount. Default 0.
    */
   cashHackMoneyAmount: number;
+  /** Source parity: CashHackSpecialPowerModuleData::m_upgrades, first owned science wins. */
+  cashHackUpgradeMoneyAmounts: Array<{ scienceName: string; amountToSteal: number }>;
   /**
    * Source parity: CashBountyPowerModuleData::m_defaultBounty.
    * INI field: Bounty (parsed as percent → real). Default 0.
@@ -2152,6 +2195,16 @@ interface SpecialPowerModuleProfile {
    * INI field: BaseDuration. Raw value in ms (C++ converts to frames). Default 0.
    */
   spyVisionBaseDurationMs: number;
+  /**
+   * Source parity: SpyVisionSpecialPowerModuleData::m_bonusDurationPerCapturedInFrames.
+   * INI field: BonusDurationPerCaptured. Raw value in ms. Default 0.
+   */
+  spyVisionBonusDurationPerCapturedMs: number;
+  /**
+   * Source parity: SpyVisionSpecialPowerModuleData::m_maxDurationInFrames.
+   * INI field: MaxDuration. Raw value in ms. Default 0.
+   */
+  spyVisionMaxDurationMs: number;
   /**
    * Source parity: FireWeaponPowerModuleData::m_maxShotsToFire.
    * INI field: MaxShotsToFire. Default 1.
@@ -2167,6 +2220,8 @@ interface SpecialPowerModuleProfile {
    * INI field: OCL. The ObjectCreationList to execute when the power fires.
    */
   oclName: string;
+  /** Source parity: OCLSpecialPowerModuleData::m_upgradeOCL, first owned science wins. */
+  upgradeOCLs: Array<{ scienceName: string; oclName: string }>;
   /**
    * Source parity: OCLSpecialPower / area-damage fallback radius.
    * INI field: Radius. Default 0 (use fallback constant).
@@ -2249,8 +2304,13 @@ interface SpecialAbilityProfile {
   packTimeFrames: number;
   unpackTimeFrames: number;
   packUnpackVariationFactor: number;
+  packSoundName: string;
+  unpackSoundName: string;
+  prepSoundLoopName: string;
+  triggerSoundName: string;
   skipPackingWithNoTarget: boolean;
   effectDurationFrames: number;
+  disableFXParticleSystemName: string;
   fleeRangeAfterCompletion: number;
   flipOwnerAfterPacking: boolean;
   flipOwnerAfterUnpacking: boolean;
@@ -2311,6 +2371,7 @@ interface UpgradeModuleProfile {
     | 'MODELCONDITIONUPGRADE'
     | 'OBJECTCREATIONUPGRADE'
     | 'ACTIVESHROUDUPGRADE'
+    | 'SUBOBJECTSUPGRADE'
     | 'REPLACEOBJECTUPGRADE';
   triggeredBy: Set<string>;
   conflictsWith: Set<string>;
@@ -2333,6 +2394,8 @@ interface UpgradeModuleProfile {
   conditionFlag: string;
   upgradeObjectOCLName: string;
   newShroudRange: number;
+  showSubObjects: string[];
+  hideSubObjects: string[];
   replaceObjectName: string;
 }
 
@@ -2397,6 +2460,7 @@ export const RANK_TABLE: readonly RankInfoEntry[] = [
 
 interface ProductionProfile {
   maxQueueEntries: number;
+  disabledTypesToProcess: Set<string>;
   quantityModifiers: Array<{
     templateName: string;
     quantity: number;
@@ -2422,6 +2486,8 @@ interface QueueProductionExitProfile {
   allowAirborneCreation: boolean;
   initialBurst: number;
   spawnPointBoneName: string | null;
+  /** Source parity: DefaultProductionExitUpdate::useSpawnRallyPoint for spawned/parachuted units. */
+  useSpawnRallyPoint: boolean;
 }
 
 /** Source parity: SpawnPointProductionExitUpdate — spawn slot positions and occupancy. */
@@ -2601,6 +2667,8 @@ interface SpectreGunshipUpdateProfile {
   howitzerWeaponTemplate: string;
   /** Source parity: m_gattlingTemplateName — template name for the gattling gun entity. */
   gattlingTemplateName: string;
+  /** Source parity: m_gattlingStrafeFXParticleSystem — client particle system spawned while strafing. */
+  gattlingStrafeFXParticleSystemName: string;
 }
 
 /** Source parity: GunshipStatus enum from SpectreGunshipUpdate.h */
@@ -2674,6 +2742,8 @@ interface ContainProfile {
   allowNeutralInside: boolean;
   passengersAllowedToFire: boolean;
   passengersAllowedToFireDefault: boolean;
+  /** Source parity: HelixContainModuleData::m_drawPips. Defaults true; false hides container pips. */
+  shouldDrawPips: boolean;
   portableStructureTemplateNames?: string[];
   /** Maximum number of garrisoned units. 0 = not garrisonable. */
   garrisonCapacity: number;
@@ -2746,6 +2816,13 @@ interface ContainProfile {
   immuneToClearBuildingAttacks?: boolean;
   /** Source parity: GarrisonContainModuleData::m_isEnclosingContainer — enclosing container flag. Default true for garrison. */
   isEnclosingContainer?: boolean;
+  parachutePitchRateMax?: number;
+  parachuteRollRateMax?: number;
+  parachuteLowAltitudeDamping?: number;
+  parachuteOpenDist?: number;
+  parachuteKillWhenLandingInWaterSlop?: number;
+  parachuteFreeFallDamagePercent?: number;
+  parachuteOpenSoundName?: string;
 }
 
 /**
@@ -2757,6 +2834,8 @@ interface ContainProfile {
 interface RiderInfo {
   /** Source parity: RiderInfo::m_templateName — object template name matching this rider slot. */
   templateName: string;
+  /** Source parity: RiderChangeContainModuleData::m_riders fixed slot index (0-7). */
+  slotIndex?: number;
   /** Source parity: RiderInfo::m_modelConditionFlagType — model condition flag to set on entry. */
   modelConditionFlag: string;
   /** Source parity: RiderInfo::m_weaponSetFlag — weapon set flag to activate. */
@@ -3112,6 +3191,7 @@ interface MissileAIProfile {
   tryToFollowTarget: boolean;
   fuelLifetimeFrames: number;
   ignitionDelayFrames: number;
+  ignitionFXName: string;
   initialVelocity: number;
   distanceToTravelBeforeTurning: number;
   distanceToTargetBeforeDiving: number;
@@ -3128,6 +3208,12 @@ interface MissileAIProfile {
   preferredHeight: number;
   /** Locomotor turn rate converted from radians/second to radians/frame. */
   turnRatePerFrame: number;
+}
+
+interface LaserUpdateProfile {
+  muzzleParticleSystemName: string;
+  targetParticleSystemName: string;
+  punchThroughScalar: number;
 }
 
 /**
@@ -3330,11 +3416,13 @@ interface HackInternetProfile {
   veteranCashAmount: number;
   eliteCashAmount: number;
   heroicCashAmount: number;
+  xpPerCashUpdate: number;
 }
 
 interface HackInternetRuntimeState {
   cashUpdateDelayFrames: number;
   cashAmountPerCycle: number;
+  xpPerCashUpdate: number;
   nextCashFrame: number;
 }
 
@@ -3851,6 +3939,8 @@ export interface MapEntity {
   healContainEnteredFrame: number;
   /** Source parity: TransportContain::m_payloadCreated — tracks whether initial payload has been spawned. */
   initialPayloadCreated: boolean;
+  /** Source parity: RiderChangeContain::m_scuttledOnFrame — frame when the bike began scuttling. */
+  riderChangeScuttledFrame: number;
   helixPortableRiderId: number | null;
   /** Source parity: SlavedUpdate — ID of the spawner/slaver that owns this slave. */
   slaverEntityId: number | null;
@@ -3866,6 +3956,9 @@ export interface MapEntity {
   objectStatusFlags: Set<string>;
   /** Source parity: ModelConditionFlags — visual state flags for drawable/animation system. */
   modelConditionFlags: Set<string>;
+  /** Source parity: SubObjectsUpgrade forced Drawable sub-object visibility overrides. */
+  forcedHiddenSubObjects: Set<string>;
+  forcedShownSubObjects: Set<string>;
   /** Source parity: Drawable::m_flashCount script-driven blink pulses remaining. */
   scriptFlashCount: number;
   /** Source parity: Drawable::m_flashColor as packed RGB integer. */
@@ -4140,6 +4233,7 @@ export interface MapEntity {
   autoHealDamageDelayUntilFrame: number;
   /** Source parity: AutoHealBehavior SingleBurst — true after first pulse (UPDATE_SLEEP_FOREVER). */
   autoHealSingleBurstDone: boolean;
+  baseRegenerateUpdateProfile: BaseRegenerateUpdateProfile | null;
   /** Source parity: BaseRegenerateUpdate — structure regen after damage delay. */
   baseRegenDelayUntilFrame: number;
   /** Source parity: PropagandaTowerBehavior — radius heal/buff aura. */
@@ -4364,6 +4458,7 @@ export interface MapEntity {
   deployStyleProfile: DeployStyleProfile | null;
   deployState: DeployState;
   deployFrameToWait: number;
+  deployManualAnimationFrame: number | null;
 
   // ── Source parity: SpecialAbilityUpdate — unit special abilities ──
   specialAbilityProfile: SpecialAbilityProfile | null;
@@ -4496,7 +4591,11 @@ export interface MapEntity {
 
   // ── Source parity: FirestormDynamicGeometryInfoUpdate — FLAME damage pulse ──
   firestormDamageProfile: FirestormDamageProfile | null;
-  firestormDamageState: { lastDamageFrame: number } | null;
+  firestormDamageState: {
+    lastDamageFrame: number;
+    effectsFired?: boolean;
+    scorchPlaced?: boolean;
+  } | null;
 
   // ── Source parity: FireOCLAfterWeaponCooldownUpdate — fire OCL after weapon stops ──
   fireOCLAfterCooldownProfiles: FireOCLAfterWeaponCooldownProfile[];
@@ -4672,6 +4771,7 @@ export interface MapEntity {
   // ── Source parity: PhysicsBehavior — rigid body physics for projectiles/debris ──
   physicsBehaviorProfile: PhysicsBehaviorProfile | null;
   physicsBehaviorState: PhysicsBehaviorState | null;
+  railroadBehaviorProfile: RailroadBehaviorProfile | null;
 
   // ── Source parity: StructureToppleUpdate — building collapse on death ──
   structureToppleProfile: StructureToppleProfile | null;
@@ -4843,6 +4943,10 @@ export interface MapEntity {
   // ── Source parity: BoneFXUpdate — triggers FX/OCL/ParticleSystem on named bones ──
   boneFXProfile: BoneFXProfile | null;
   boneFXState: BoneFXState | null;
+  transitionDamageFXProfile: TransitionDamageFXProfile | null;
+  // ── Source parity: client-only drawable updates ──
+  animatedParticleSysBoneClientUpdateState: AnimatedParticleSysBoneClientUpdateState | null;
+  swayClientUpdateState: SwayClientUpdateState | null;
 
   // ── Source parity: RadiusDecalUpdate — ground radius decals for targeting ──
   radiusDecalStates: RadiusDecalState[];
@@ -4938,6 +5042,10 @@ interface AutoHealProfile {
   skipSelfForHealing: boolean;
 }
 
+interface BaseRegenerateUpdateProfile {
+  readonly _marker: true;
+}
+
 /**
  * Source parity: PropagandaTowerBehavior module parsed from INI.
  */
@@ -4947,6 +5055,8 @@ interface PropagandaTowerProfile {
   healPercentPerSecond: number;
   upgradedHealPercentPerSecond: number;
   upgradeRequired: string | null;
+  pulseFXName: string;
+  upgradedPulseFXName: string;
   /** ZH addition: PropagandaTowerBehavior.cpp:91 — m_affectsSelf allows tower to heal itself. Default false. */
   affectsSelf: boolean;
 }
@@ -4967,6 +5077,8 @@ interface FlammableProfile {
   aflameDamageAmount: number;
   /** Frames before BURNED status is set (0 = never burns out). Independent of AFLAME duration. */
   burnedDelayFrames: number;
+  /** Source parity: FlammableUpdateModuleData::m_burningSoundName. */
+  burningSoundName: string;
 }
 
 /**
@@ -4980,6 +5092,8 @@ interface FireSpreadProfile {
   maxSpreadDelayFrames: number;
   /** Radius within which to search for flammable targets. */
   spreadTryRange: number;
+  /** Source parity: FireSpreadUpdateModuleData::m_oclEmbers. */
+  oclEmbersName: string;
 }
 
 /**
@@ -5091,6 +5205,12 @@ interface CrushDieProfile {
   veterancyLevels: Set<string>;
   exemptStatus: Set<string>;
   requiredStatus: Set<string>;
+  totalCrushSoundName: string;
+  totalCrushSoundPercent: number;
+  backEndCrushSoundName: string;
+  backEndCrushSoundPercent: number;
+  frontEndCrushSoundName: string;
+  frontEndCrushSoundPercent: number;
 }
 
 /**
@@ -5271,6 +5391,13 @@ interface DetectorProfile {
   detectionRate: number;
   /** Source parity: StealthDetectorUpdateModuleData::m_initiallyDisabled. */
   initiallyDisabled: boolean;
+  pingSoundName: string;
+  loudPingSoundName: string;
+  irBeaconParticleSysName: string;
+  irParticleSysName: string;
+  irBrightParticleSysName: string;
+  irGridParticleSysName: string;
+  irParticleSysBone: string;
   /** Can detect while garrisoned inside a building. */
   canDetectWhileGarrisoned: boolean;
   /** Can detect while contained in a transport. */
@@ -5343,6 +5470,11 @@ interface CrateCollideProfile {
   isPilot: boolean;
   /** Source parity (ZH): MoneyCrateCollide UpgradedBoost — upgrade/amount pairs for bonus money. */
   upgradedBoosts: ReadonlyArray<{ upgradeName: string; amount: number }>;
+  executeFXName: string;
+  executeAnimationName: string;
+  executeAnimationTimeSeconds: number;
+  executeAnimationZRisePerSecond: number;
+  executeAnimationFades: boolean;
 }
 
 /**
@@ -5425,6 +5557,8 @@ interface DeployStyleProfile {
   resetTurretBeforePacking: boolean;
   /** Turrets must center before packing completes. */
   turretsMustCenterBeforePacking: boolean;
+  /** Source parity: Drawable::setAnimationFrame during deploy/undeploy transitions. */
+  manualDeployAnimations: boolean;
 }
 
 /**
@@ -5445,6 +5579,20 @@ interface BattlePlanProfile {
   strategyCenterSearchAndDestroySightRangeScalar: number;
   strategyCenterSearchAndDestroyDetectsStealth: boolean;
   strategyCenterHoldTheLineMaxHealthScalar: number;
+  strategyCenterHoldTheLineMaxHealthChangeType: MaxHealthChangeTypeName;
+  bombardmentPlanUnpackSoundName: string;
+  bombardmentPlanPackSoundName: string;
+  bombardmentMessageLabel: string;
+  bombardmentAnnouncementName: string;
+  holdTheLinePlanUnpackSoundName: string;
+  holdTheLinePlanPackSoundName: string;
+  holdTheLineMessageLabel: string;
+  holdTheLineAnnouncementName: string;
+  searchAndDestroyPlanUnpackSoundName: string;
+  searchAndDestroyPlanIdleLoopSoundName: string;
+  searchAndDestroyPlanPackSoundName: string;
+  searchAndDestroyMessageLabel: string;
+  searchAndDestroyAnnouncementName: string;
   validMemberKindOf: Set<string>;
   invalidMemberKindOf: Set<string>;
 }
@@ -5715,6 +5863,8 @@ interface AutoDepositProfile {
   depositAmount: number;
   /** One-time bonus deposited when a neutral building is captured. Source parity: InitialCaptureBonus. */
   initialCaptureBonus: number;
+  /** Whether the periodic amount is deposited into player credits. Source parity: ActualMoney. */
+  actualMoney: boolean;
 }
 
 /**
@@ -5753,6 +5903,10 @@ interface SlavedUpdateProfile {
   repairMinWeldFrames: number;
   /** Maximum welding time in frames per repair cycle. Source parity: RepairMaxWeldTime (parseDurationUnsignedInt). */
   repairMaxWeldFrames: number;
+  /** ParticleSystem template spawned when repair welding sparks fire. Source parity: RepairWeldingSys. */
+  repairWeldingSysName: string;
+  /** Drawable bone used for repair welding sparks. Source parity: RepairWeldingFXBone. */
+  repairWeldingFXBone: string;
   /** If true, slave is forced to same pathfinding layer as master. */
   stayOnSameLayerAsMaster: boolean;
 }
@@ -5813,6 +5967,10 @@ interface CountermeasuresState {
  * (Generals/Code/GameEngine/Include/GameLogic/Module/ToppleUpdate.h)
  */
 interface ToppleProfile {
+  /** FXList played when toppling starts. */
+  toppleFXName: string;
+  /** FXList played on a sufficiently fast bounce. */
+  bounceFXName: string;
   /** Initial angular velocity multiplier (fraction of topple speed). */
   initialVelocityPercent: number;
   /** Angular acceleration multiplier (fraction of topple speed). */
@@ -6203,6 +6361,34 @@ interface BoneFXProfile {
   particleSystems: (BoneFXEntry | null)[][];
 }
 
+interface TransitionDamageTypeFilter {
+  includeAll: boolean;
+  includes: string[];
+  excludes: string[];
+}
+
+interface TransitionDamageFXEntry {
+  effectName: string;
+  locType: 'BONE' | 'COORD';
+  boneName: string | null;
+  randomBone: boolean;
+  loc: { x: number; y: number; z: number };
+}
+
+/**
+ * Source parity: TransitionDamageFXModuleData - per body damage state transition effects.
+ * BODYDAMAGETYPE_COUNT = 4 (PRISTINE=0, DAMAGED=1, REALLYDAMAGED=2, RUBBLE=3).
+ * DAMAGE_MODULE_MAX_FX = 12 in source, but empty slots are compacted here.
+ */
+interface TransitionDamageFXProfile {
+  fxLists: TransitionDamageFXEntry[][];
+  oclLists: TransitionDamageFXEntry[][];
+  particleSystems: TransitionDamageFXEntry[][];
+  damageFXTypes: TransitionDamageTypeFilter | null;
+  damageOCLTypes: TransitionDamageTypeFilter | null;
+  damageParticleTypes: TransitionDamageTypeFilter | null;
+}
+
 /**
  * Source parity: BoneFXUpdate runtime state — tracks next-fire frames and active particles.
  */
@@ -6227,6 +6413,22 @@ interface BoneFXState {
   pendingVisualEvents: import('./types.js').BoneFXVisualEvent[];
 }
 
+interface AnimatedParticleSysBoneClientUpdateState {
+  moduleTag: string;
+  life: number;
+}
+
+interface SwayClientUpdateState {
+  moduleTag: string;
+  curValue: number;
+  curAngle: number;
+  curDelta: number;
+  curAngleLimit: number;
+  leanAngle: number;
+  curVersion: number;
+  swaying: boolean;
+}
+
 /**
  * Source parity: RadiusDecalUpdate runtime state — position, radius, visibility.
  */
@@ -6244,6 +6446,12 @@ interface RadiusDecalModuleState {
   killWhenNoLongerAttacking: boolean;
 }
 
+interface BridgeDeathEffectEntry {
+  effectName: string;
+  delayFrames: number;
+  boneName: string;
+}
+
 /**
  * Source parity: BridgeBehaviorModuleData — bridge lifecycle INI profile.
  * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/BridgeBehavior.cpp)
@@ -6255,6 +6463,10 @@ interface BridgeBehaviorProfile {
   scaffoldVerticalSpeed: number;
   /** Template name for scaffold entities. */
   scaffoldObjectName: string;
+  /** Source parity: repeated BridgeDieFX entries. */
+  bridgeDieFX: BridgeDeathEffectEntry[];
+  /** Source parity: repeated BridgeDieOCL entries. */
+  bridgeDieOCL: BridgeDeathEffectEntry[];
 }
 
 /**
@@ -6455,18 +6667,28 @@ interface JetSlowDeathProfile {
   veterancyLevels: Set<string>;
   exemptStatus: Set<string>;
   requiredStatus: Set<string>;
+  /** FXList executed if jet dies on ground. */
+  fxOnGroundDeathName: string;
   /** OCL names to execute if jet dies on ground (instant destroy). */
   oclOnGroundDeath: string[];
+  /** FXList executed at start of airborne death. */
+  fxInitialDeathName: string;
   /** OCL names to execute at start of airborne death. */
   oclInitialDeath: string[];
   /** Frames after initial death before secondary OCL fires. */
   delaySecondaryFromInitialDeath: number;
+  /** FXList for secondary effect (mid-descent). */
+  fxSecondaryName: string;
   /** OCL names for secondary effect (mid-descent). */
   oclSecondary: string[];
+  /** FXList when jet hits the ground. */
+  fxHitGroundName: string;
   /** OCL names when jet hits the ground. */
   oclHitGround: string[];
   /** Frames after ground impact before final explosion. */
   delayFinalBlowUpFromHitGround: number;
+  /** FXList for final explosion. */
+  fxFinalBlowUpName: string;
   /** OCL names for final explosion. */
   oclFinalBlowUp: string[];
   /** Initial roll rate (rad/frame). */
@@ -6691,6 +6913,16 @@ interface EMPUpdateProfile {
   disabledDurationFrames: number;
   /** Radius in which objects are disabled. */
   effectRadius: number;
+  /** Source parity: EMPUpdateModuleData::m_startScale. */
+  startScale: number;
+  /** Source parity: EMPUpdateModuleData::m_targetScaleMin. */
+  targetScaleMin: number;
+  /** Source parity: EMPUpdateModuleData::m_targetScaleMax. */
+  targetScaleMax: number;
+  /** Source parity: EMPUpdateModuleData::m_startColor. RGB 0..255. */
+  startColor: readonly [number, number, number];
+  /** Source parity: EMPUpdateModuleData::m_endColor. RGB 0..255. */
+  endColor: readonly [number, number, number];
   /** If true, the EMP does not affect the owner's own STRUCTURE entities. */
   doesNotAffectMyOwnBuildings: boolean;
   /** Required kindOf flags for targets (empty = all). */
@@ -6706,6 +6938,14 @@ interface EMPUpdateRuntimeState {
   fadeFrame: number;
   /** Whether the disable attack has already fired. */
   disableAttackFired: boolean;
+  /** Source parity: EMPUpdate::m_currentScale. */
+  currentScale: number;
+  /** Source parity: EMPUpdate::m_targetScale. */
+  targetScale: number;
+  /** Current tint color after source saturation rules. RGB 0..255. */
+  currentTintColor: readonly [number, number, number];
+  /** Source parity: EMPUpdate::m_tintEnvFadeFrames. */
+  tintFadeFrames: number;
 }
 
 /**
@@ -6812,6 +7052,10 @@ interface FirestormDamageProfile {
   damageAmount: number;
   delayBetweenDamageFrames: number;
   maxHeightForDamage: number;
+  particleSystemNames: string[];
+  particleOffsetZ: number;
+  fxListName: string;
+  scorchSize: number;
 }
 
 /**
@@ -6866,6 +7110,16 @@ interface BunkerBusterProfile {
   occupantDamageWeaponName: string;
   /** Weapon fired at detonation point for shockwave effect. Empty = none. */
   shockwaveWeaponName: string;
+  /** FXList played on the bunker or bomb when the bunker buster detonates. */
+  detonationFXName: string;
+  /** FXList played periodically while the missile is crashing through the bunker. */
+  crashThroughBunkerFXName: string;
+  /** Frames between crash-through FX pulses. */
+  crashThroughBunkerFXFrequencyFrames: number;
+  /** Radius for the optional seismic visual impulse. */
+  seismicEffectRadius: number;
+  /** Magnitude for the optional seismic visual impulse. */
+  seismicEffectMagnitude: number;
 }
 
 /**
@@ -6939,6 +7193,26 @@ interface PhysicsBehaviorProfile {
   allowBouncing: boolean;
   allowCollideForce: boolean;
   pitchRollYawFactor: number;
+}
+
+interface RailroadBehaviorProfile {
+  pathPrefixName: string;
+  crashFXTemplateName: string;
+  isLocomotive: boolean;
+  carriageTemplateNames: string[];
+  bigMetalBounceSoundName: string;
+  smallMetalBounceSoundName: string;
+  meatyBounceSoundName: string;
+  runningGarrisonSpeedMax: number;
+  killSpeedMin: number;
+  speedMax: number;
+  acceleration: number;
+  braking: number;
+  waitAtStationFrames: number;
+  runningSoundName: string;
+  clicketyClackSoundName: string;
+  whistleSoundName: string;
+  friction: number;
 }
 
 interface PhysicsBehaviorState {
@@ -7026,6 +7300,11 @@ interface StructureToppleProfile {
   structuralIntegrity: number;
   structuralDecay: number;
   crushingWeaponName: string;
+  toppleStartFXName: string;
+  toppleDelayFXName: string;
+  toppleDoneFXName: string;
+  crushingFXName: string;
+  angleFX: Array<{ angleRadians: number; effectName: string }>;
 }
 
 type StructureToppleState = 'STANDING' | 'WAITING' | 'TOPPLING' | 'WAITING_DONE' | 'DONE';
@@ -7053,6 +7332,12 @@ interface MissileLauncherBuildingProfile {
   doorOpenTimeFrames: number;
   doorWaitOpenTimeFrames: number;
   doorClosingTimeFrames: number;
+  doorOpeningFXName: string;
+  doorOpenFXName: string;
+  doorWaitingToCloseFXName: string;
+  doorClosingFXName: string;
+  doorClosedFXName: string;
+  doorOpenIdleAudioName: string;
 }
 
 type MissileDoorState = 'CLOSED' | 'OPENING' | 'OPEN' | 'WAITING_TO_CLOSE' | 'CLOSING';
@@ -7083,6 +7368,29 @@ interface ParticleUplinkCannonProfile {
   revealRange: number;
   swathOfDeathDistance: number;
   swathOfDeathAmplitude: number;
+  outerEffectBoneName: string;
+  outerEffectNumBones: number;
+  outerNodesLightFlareParticleSystemName: string;
+  outerNodesMediumFlareParticleSystemName: string;
+  outerNodesIntenseFlareParticleSystemName: string;
+  connectorBoneName: string;
+  connectorMediumLaserName: string;
+  connectorIntenseLaserName: string;
+  connectorMediumFlareParticleSystemName: string;
+  connectorIntenseFlareParticleSystemName: string;
+  fireBoneName: string;
+  laserBaseLightFlareParticleSystemName: string;
+  laserBaseMediumFlareParticleSystemName: string;
+  laserBaseIntenseFlareParticleSystemName: string;
+  particleBeamLaserName: string;
+  beamLaunchFXName: string;
+  groundHitFXName: string;
+  scorchMarkScalar: number;
+  powerupSoundName: string;
+  unpackToReadySoundName: string;
+  firingToIdleSoundName: string;
+  annihilationSoundName: string;
+  damagePulseRemnantObjectName: string;
   framesBetweenLaunchFXRefresh: number;
   /** Manual driving speed in units/frame (INI value in units/sec, divided by 30). */
   manualDrivingSpeed: number;
@@ -7131,6 +7439,10 @@ interface NeutronMissileUpdateProfile {
   specialAccelFactor: number;
   specialSpeedTimeFrames: number;
   specialSpeedHeight: number;
+  /** FXList emitted when the missile launches from the launcher. */
+  launchFXName: string;
+  /** FXList emitted when the missile ignites after launch. */
+  ignitionFXName: string;
   /** Impact decal radius. */
   deliveryDecalRadius: number;
   /** Jitter distance during special speed phase. */
@@ -8410,6 +8722,7 @@ const SCRIPT_ACTION_TYPE_NUMERIC_TO_NAME = new Map<number, string>([
   [322, 'TEAM_GUARD_IN_TUNNEL_NETWORK'],
   [323, 'QUICKVICTORY'],
   [324, 'QUICKVICTORY'],
+  [325, 'CAMERA_STOP_FOLLOW'],
   [326, 'CAMERA_FADE_ADD'],
   [327, 'CAMERA_FADE_SUBTRACT'],
   [328, 'CAMERA_FADE_SATURATE'],
@@ -11402,6 +11715,7 @@ export class GameLogicSubsystem implements Subsystem {
   /** Source parity bridge: lightweight runtime projectile objects for weapon-delivered projectiles. */
   private readonly activeWeaponProjectileStateByVisualId = new Map<number, ActiveWeaponProjectileState>();
   private readonly missileAIProfileByProjectileTemplate = new Map<string, MissileAIProfile | null>();
+  private readonly laserUpdateProfileByTemplate = new Map<string, LaserUpdateProfile | null>();
   private readonly visualEventBuffer: import('./types.js').VisualEvent[] = [];
   private readonly evaEventBuffer: import('./types.js').EvaEvent[] = [];
   /** Cooldown tracker: EvaEventType → next frame this event can fire again. */
@@ -11487,6 +11801,7 @@ export class GameLogicSubsystem implements Subsystem {
     expiryFrame: number;
     sourceEntityId?: number;
     sourcePowerName?: string;
+    spyOnKindOf?: string[];
   }[] = [];
   /**
    * Per-entity spy vision looker states, keyed by `${entityId}:${spyingPlayerIndex}`.
@@ -12622,6 +12937,7 @@ export class GameLogicSubsystem implements Subsystem {
           expiryFrame,
           sourceEntityId: entity.id,
           sourcePowerName: powerName,
+          spyOnKindOf: Array.isArray(module.spyVisionKindOf) ? [...module.spyVisionKindOf] : [],
         });
       }
     }
@@ -13449,6 +13765,12 @@ export class GameLogicSubsystem implements Subsystem {
           sourcePowerName: typeof record.sourcePowerName === 'string'
             ? record.sourcePowerName
             : undefined,
+          spyOnKindOf: Array.isArray((record as { spyOnKindOf?: unknown }).spyOnKindOf)
+            ? ((record as { spyOnKindOf: unknown[] }).spyOnKindOf)
+              .filter((entry): entry is string => typeof entry === 'string')
+              .map((entry) => entry.trim().toUpperCase())
+              .filter(Boolean)
+            : [],
         });
         if (shouldHydratePlayerState) {
           this.applyEnemyUnitsVisionSpiedSetting(true, normalizedSide, spyingPlayerIndex);
@@ -13515,6 +13837,9 @@ export class GameLogicSubsystem implements Subsystem {
             : 0,
           cashAmountPerCycle: Number.isFinite(state.cashAmountPerCycle)
             ? Math.max(0, Math.trunc(state.cashAmountPerCycle ?? 0))
+            : 0,
+          xpPerCashUpdate: Number.isFinite(state.xpPerCashUpdate)
+            ? Math.max(0, Math.trunc(state.xpPerCashUpdate ?? 0))
             : 0,
           nextCashFrame: Number.isFinite(state.nextCashFrame)
             ? Math.max(0, Math.trunc(state.nextCashFrame ?? 0))
@@ -19648,6 +19973,7 @@ export class GameLogicSubsystem implements Subsystem {
       if (!baseRegenerateState) {
         continue;
       }
+      entity.baseRegenerateUpdateProfile = { _marker: true };
       entity.baseRegenDelayUntilFrame = Math.max(0, Math.trunc(baseRegenerateState.nextCallFrame));
       return;
     }
@@ -21392,12 +21718,14 @@ export class GameLogicSubsystem implements Subsystem {
         entity.hackInternetRuntimeState = {
           cashUpdateDelayFrames,
           cashAmountPerCycle,
+          xpPerCashUpdate: profile.xpPerCashUpdate,
           nextCashFrame: this.frameCounter + Math.max(0, Math.trunc(hackState.framesRemaining)),
         };
       } else if (hackState.currentStateId === SOURCE_HACK_INTERNET_STATE_UNPACKING) {
         entity.hackInternetRuntimeState = {
           cashUpdateDelayFrames,
           cashAmountPerCycle,
+          xpPerCashUpdate: profile.xpPerCashUpdate,
           nextCashFrame: this.frameCounter
             + Math.max(0, Math.trunc(hackState.framesRemaining))
             + Math.max(1, Math.trunc(cashUpdateDelayFrames)),
@@ -26924,7 +27252,15 @@ export class GameLogicSubsystem implements Subsystem {
       if (!spyVisionState) {
         continue;
       }
+      const normalizedModuleType = moduleType.trim().toUpperCase();
+      const normalizedModuleTag = module.identifier.trim().toUpperCase();
       const liveModule = Array.from(entity.specialPowerModules.values()).find(
+        (specialPowerModule) =>
+          specialPowerModule.moduleType.trim().toUpperCase() === normalizedModuleType
+          && (specialPowerModule.moduleTag ?? '').trim().toUpperCase() === normalizedModuleTag,
+      ) ?? Array.from(entity.specialPowerModules.values()).find(
+        (specialPowerModule) => specialPowerModule.moduleType.trim().toUpperCase() === normalizedModuleType,
+      ) ?? Array.from(entity.specialPowerModules.values()).find(
         (specialPowerModule) => resolveEffectCategoryImpl(specialPowerModule.moduleType) === 'SPY_VISION',
       );
       if (!liveModule) {
@@ -28397,9 +28733,11 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateTunnelHealing();
     this.updateHealContainHealing();
     this.updateTransportContainHealing();
+    this.updateRiderChangeContainScuttle();
     this.updateContainModelConditions();
     this.updateOverlordRiderPositions();
     this.updateAutoFindHealing();
+    this.updateSpyVisionUpdateModules();
     this.updateFogOfWar();
     this.updateSpyVisionFog();
     this.updateSupplyChain();
@@ -28433,6 +28771,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateNeutronMissileUpdate();
     this.updateTensileFormation();
     this.updateBridgeScaffolds();
+    this.updateBridgeDeathEffects();
     this.updateSupplyWarehouseCrippling();
     this.updateRadarExtension();
     this.updatePowerPlantUpdate();
@@ -30249,6 +30588,14 @@ export class GameLogicSubsystem implements Subsystem {
     return true;
   }
 
+  private resolveContainerPipCapacity(entity: MapEntity): number {
+    const contain = entity.containProfile;
+    if (!contain) return 0;
+    if (contain.garrisonCapacity > 0) return contain.garrisonCapacity;
+    if (contain.transportCapacity > 0) return contain.transportCapacity;
+    return 0;
+  }
+
   getEntityState(entityId: number): {
     id: number;
     templateName: string;
@@ -30284,6 +30631,8 @@ export class GameLogicSubsystem implements Subsystem {
     detectorEnabled?: boolean;
     detectorNextScanFrame?: number;
     modelConditionFlags: string[];
+    forcedHiddenSubObjects: string[];
+    forcedShownSubObjects: string[];
     battlePlanDamageScalar: number;
     moving: boolean;
     movePath: ReadonlyArray<{ x: number; z: number }>;
@@ -30293,6 +30642,10 @@ export class GameLogicSubsystem implements Subsystem {
     garrisonCount: number | null;
     /** Garrison occupancy: max garrison capacity. null when not a garrison container. */
     garrisonCapacity: number | null;
+    /** Generic container pips to display. null when the container should not draw pips. */
+    containerPipCount: number | null;
+    /** Generic container pip capacity. null when the container should not draw pips. */
+    containerPipCapacity: number | null;
     /** Supply truck cargo: current boxes carried. null when not a supply truck. */
     supplyBoxes: number | null;
     /** Supply truck cargo: max boxes the truck can carry. null when not a supply truck. */
@@ -30349,6 +30702,8 @@ export class GameLogicSubsystem implements Subsystem {
       detectorEnabled: entity.detectorProfile ? entity.detectorEnabled : undefined,
       detectorNextScanFrame: entity.detectorProfile ? entity.detectorNextScanFrame : undefined,
       battlePlanDamageScalar: entity.battlePlanDamageScalar,
+      forcedHiddenSubObjects: Array.from(entity.forcedHiddenSubObjects.values()).sort(),
+      forcedShownSubObjects: Array.from(entity.forcedShownSubObjects.values()).sort(),
       moving: entity.moving,
       movePath: entity.movePath,
       pathIndex: entity.pathIndex,
@@ -30358,6 +30713,12 @@ export class GameLogicSubsystem implements Subsystem {
         : null,
       garrisonCapacity: entity.containProfile?.moduleType === 'GARRISON' && entity.containProfile.garrisonCapacity > 0
         ? entity.containProfile.garrisonCapacity
+        : null,
+      containerPipCount: entity.containProfile?.shouldDrawPips && this.resolveContainerPipCapacity(entity) > 0
+        ? this.collectContainedEntityIds(entity.id).length
+        : null,
+      containerPipCapacity: entity.containProfile?.shouldDrawPips && this.resolveContainerPipCapacity(entity) > 0
+        ? this.resolveContainerPipCapacity(entity)
         : null,
       supplyBoxes: entity.supplyTruckProfile
         ? (this.supplyTruckStates.get(entity.id)?.currentBoxes ?? 0)
@@ -31832,6 +32193,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ validateTeamVictim(...args: any[]) { return (validateTeamVictimImpl as any)(this, ...args); }
   /* @internal */ findGuardTarget(...args: any[]) { return (findGuardTargetImpl as any)(this, ...args); }
   private queueWeaponDamageEvent(...args: any[]) { return (queueWeaponDamageEventImpl as any)(this, ...args); }
+  private queueWeaponDamageEventAtPosition(...args: any[]) { return (queueWeaponDamageEventAtPositionImpl as any)(this, ...args); }
 
   // ---- Weapon profiles facades (delegate to weapon-profiles.ts) ----
 
@@ -31900,6 +32262,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ markBridgeCellRadius(...args: any[]) { return (markBridgeCellRadiusImpl as any)(this, ...args); }
   /* @internal */ markBridgeTransitionRadius(...args: any[]) { return (markBridgeTransitionRadiusImpl as any)(this, ...args); }
   private updateBridgeScaffolds(...args: any[]) { return (updateBridgeScaffoldsImpl as any)(this, ...args); }
+  private updateBridgeDeathEffects(...args: any[]) { return (updateBridgeDeathEffectsImpl as any)(this, ...args); }
   /* @internal */ advanceScaffoldMotion(...args: any[]) { return (advanceScaffoldMotionImpl as any)(this, ...args); }
   /* @internal */ setScaffoldMotion(...args: any[]) { return (setScaffoldMotionImpl as any)(this, ...args); }
   private bridgeBehaviorOnDamage(...args: any[]) { return (bridgeBehaviorOnDamageImpl as any)(this, ...args); }
@@ -32015,6 +32378,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ extractPrisonBehaviorProfile(...args: any[]) { return (extractPrisonBehaviorProfileImpl as any)(this, ...args); }
   /* @internal */ extractExperienceProfile(...args: any[]) { return (extractExperienceProfileImpl as any)(this, ...args); }
   /* @internal */ extractAutoHealProfile(...args: any[]) { return (extractAutoHealProfileImpl as any)(this, ...args); }
+  /* @internal */ extractBaseRegenerateUpdateProfile(...args: any[]) { return (extractBaseRegenerateUpdateProfileImpl as any)(this, ...args); }
   /* @internal */ extractPropagandaTowerProfile(...args: any[]) { return (extractPropagandaTowerProfileImpl as any)(this, ...args); }
   /* @internal */ extractFlammableProfile(...args: any[]) { return (extractFlammableProfileImpl as any)(this, ...args); }
   /* @internal */ extractOCLUpdateProfiles(...args: any[]) { return (extractOCLUpdateProfilesImpl as any)(this, ...args); }
@@ -32061,6 +32425,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ extractHeightDieProfile(...args: any[]) { return (extractHeightDieProfileImpl as any)(this, ...args); }
   /* @internal */ extractProjectileStreamProfile(...args: any[]) { return (extractProjectileStreamProfileImpl as any)(this, ...args); }
   /* @internal */ extractBoneFXProfile(...args: any[]) { return (extractBoneFXProfileImpl as any)(this, ...args); }
+  /* @internal */ extractTransitionDamageFXProfile(...args: any[]) { return (extractTransitionDamageFXProfileImpl as any)(this, ...args); }
   /* @internal */ extractSlowDeathProfiles(...args: any[]) { return (extractSlowDeathProfilesImpl as any)(this, ...args); }
   /* @internal */ extractHelicopterSlowDeathProfiles(...args: any[]) { return (extractHelicopterSlowDeathProfilesImpl as any)(this, ...args); }
   /* @internal */ extractCleanupHazardProfile(...args: any[]) { return (extractCleanupHazardProfileImpl as any)(this, ...args); }
@@ -32259,6 +32624,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ handleEvacuateCommand(...args: any[]) { return (handleEvacuateCommandImpl as any)(this, ...args); }
   /* @internal */ handleExecuteRailedTransportCommand(...args: any[]) { return (handleExecuteRailedTransportCommandImpl as any)(this, ...args); }
   /* @internal */ noteContainerEnteredBy(...args: any[]) { return (noteContainerEnteredByImpl as any)(this, ...args); }
+  /* @internal */ findRiderChangeInfoForPassenger(...args: any[]) { return (findRiderChangeInfoForPassengerImpl as any)(this, ...args); }
   private canSourceAttemptContainerEnter(...args: any[]) { return (canSourceAttemptContainerEnterImpl as any)(this, ...args); }
   private canTargetAcceptContainerEnter(...args: any[]) { return (canTargetAcceptContainerEnterImpl as any)(this, ...args); }
   private isContainerEnterTargetShrouded(...args: any[]) { return (isContainerEnterTargetShroudedImpl as any)(this, ...args); }
@@ -32278,6 +32644,7 @@ export class GameLogicSubsystem implements Subsystem {
   private updateTunnelHealing(...args: any[]) { return (updateTunnelHealingImpl as any)(this, ...args); }
   private updateHealContainHealing(...args: any[]) { return (updateHealContainHealingImpl as any)(this, ...args); }
   private updateTransportContainHealing(...args: any[]) { return (updateTransportContainHealingImpl as any)(this, ...args); }
+  private updateRiderChangeContainScuttle(...args: any[]) { return (updateRiderChangeContainScuttleImpl as any)(this, ...args); }
   private updateContainModelConditions(...args: any[]) { return (updateContainModelConditionsImpl as any)(this, ...args); }
   private updateOverlordRiderPositions(...args: any[]) { return (updateOverlordRiderPositionsImpl as any)(this, ...args); }
   /* @internal */ hasPendingTransportEntryForContainer(...args: any[]) { return (hasPendingTransportEntryForContainerImpl as any)(this, ...args); }
@@ -37588,7 +37955,8 @@ export class GameLogicSubsystem implements Subsystem {
     const appliedUpgradeModules = this.executePendingUpgradeModules(entityId, entity);
     const appliedFireWeaponWhenDeadMuxes = this.executePendingFireWeaponWhenDeadUpgradeMuxes(entity);
     const appliedFireWhenDamagedMuxes = this.executePendingFireWhenDamagedUpgradeMuxes(entity);
-    return appliedUpgradeModules || appliedFireWeaponWhenDeadMuxes || appliedFireWhenDamagedMuxes;
+    const appliedSpyVisionMuxes = this.executePendingSpyVisionUpdateUpgradeMuxes(entity);
+    return appliedUpgradeModules || appliedFireWeaponWhenDeadMuxes || appliedFireWhenDamagedMuxes || appliedSpyVisionMuxes;
   }
 
   private captureEntity(
@@ -37705,6 +38073,9 @@ export class GameLogicSubsystem implements Subsystem {
       } else if (module.moduleType === 'ACTIVESHROUDUPGRADE') {
         // Source parity: ActiveShroudUpgrade.cpp line 87 — sets entity's shroud range.
         appliedThisModule = this.applyActiveShroudUpgrade(entity, module);
+      } else if (module.moduleType === 'SUBOBJECTSUPGRADE') {
+        // Source parity: SubObjectsUpgrade.cpp line 93 - forces Drawable sub-object visibility.
+        appliedThisModule = this.applySubObjectsUpgrade(entity, module);
       } else if (module.moduleType === 'REPLACEOBJECTUPGRADE') {
         // Source parity: ReplaceObjectUpgrade.cpp line 70 — destroy old, create replacement at same position.
         appliedThisModule = this.applyReplaceObjectUpgrade(entity, module);
@@ -38319,6 +38690,51 @@ export class GameLogicSubsystem implements Subsystem {
    * from the projectile object template's MissileAIUpdate behavior.
    * C++ file: MissileAIUpdate.cpp.
    */
+  /* @internal */ extractLaserUpdateProfile(laserObjectName: string): LaserUpdateProfile | null {
+    const normalizedTemplateName = laserObjectName.trim().toUpperCase();
+    const cached = this.laserUpdateProfileByTemplate.get(normalizedTemplateName);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const registry = this.iniDataRegistry;
+    if (!registry) {
+      this.laserUpdateProfileByTemplate.set(normalizedTemplateName, null);
+      return null;
+    }
+    const laserDef = findObjectDefByName(registry, laserObjectName);
+    if (!laserDef) {
+      this.laserUpdateProfileByTemplate.set(normalizedTemplateName, null);
+      return null;
+    }
+
+    let profile: LaserUpdateProfile | null = null;
+    const visitBlock = (block: IniBlock): void => {
+      if (profile) return;
+      const blockType = block.type.toUpperCase();
+      if (blockType === 'CLIENTUPDATE' || blockType === 'BEHAVIOR') {
+        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (moduleType === 'LASERUPDATE') {
+          profile = {
+            muzzleParticleSystemName: readStringField(block.fields, ['MuzzleParticleSystem'])?.trim() ?? '',
+            targetParticleSystemName: readStringField(block.fields, ['TargetParticleSystem'])?.trim() ?? '',
+            punchThroughScalar: readNumericField(block.fields, ['PunchThroughScalar']) ?? 0,
+          };
+          return;
+        }
+      }
+      for (const child of block.blocks) {
+        visitBlock(child);
+      }
+    };
+
+    for (const block of laserDef.blocks) {
+      visitBlock(block);
+    }
+    this.laserUpdateProfileByTemplate.set(normalizedTemplateName, profile);
+    return profile;
+  }
+
   /* @internal */ extractMissileAIProfile(projectileObjectName: string): MissileAIProfile | null {
     const normalizedTemplateName = projectileObjectName.trim().toUpperCase();
     const cached = this.missileAIProfileByProjectileTemplate.get(normalizedTemplateName);
@@ -38351,6 +38767,7 @@ export class GameLogicSubsystem implements Subsystem {
             tryToFollowTarget: readBooleanField(block.fields, ['TryToFollowTarget']) ?? true,
             fuelLifetimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['FuelLifetime']) ?? 0),
             ignitionDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['IgnitionDelay']) ?? 0),
+            ignitionFXName: readStringField(block.fields, ['IgnitionFX'])?.trim() ?? '',
             initialVelocity: readNumericField(block.fields, ['InitialVelocity']) ?? 0,
             distanceToTravelBeforeTurning: readNumericField(block.fields, ['DistanceToTravelBeforeTurning']) ?? 0,
             distanceToTargetBeforeDiving: readNumericField(block.fields, ['DistanceToTargetBeforeDiving']) ?? 0,
@@ -39283,6 +39700,7 @@ export class GameLogicSubsystem implements Subsystem {
             veteranCashAmount: Math.max(0, Math.trunc(readNumericField(block.fields, ['VeteranCashAmount']) ?? 0)),
             eliteCashAmount: Math.max(0, Math.trunc(readNumericField(block.fields, ['EliteCashAmount']) ?? 0)),
             heroicCashAmount: Math.max(0, Math.trunc(readNumericField(block.fields, ['HeroicCashAmount']) ?? 0)),
+            xpPerCashUpdate: Math.max(0, Math.trunc(readNumericField(block.fields, ['XpPerCashUpdate']) ?? 0)),
           };
           return;
         }
@@ -39435,6 +39853,25 @@ export class GameLogicSubsystem implements Subsystem {
   // DEVIATION: C++ does not override processUpgradeRemoval for ActiveShroudUpgrade.
   // Upgrade removal only processes RemovesUpgrades in the base class. This removal
   // method is a conservative addition for completeness.
+  private applySubObjectsUpgrade(entity: MapEntity, module: UpgradeModuleProfile): boolean {
+    let updated = false;
+    for (const subObjectName of module.showSubObjects) {
+      const normalizedName = subObjectName.trim().toUpperCase();
+      if (!normalizedName || normalizedName === 'NONE') continue;
+      entity.forcedHiddenSubObjects.delete(normalizedName);
+      entity.forcedShownSubObjects.add(normalizedName);
+      updated = true;
+    }
+    for (const subObjectName of module.hideSubObjects) {
+      const normalizedName = subObjectName.trim().toUpperCase();
+      if (!normalizedName || normalizedName === 'NONE') continue;
+      entity.forcedShownSubObjects.delete(normalizedName);
+      entity.forcedHiddenSubObjects.add(normalizedName);
+      updated = true;
+    }
+    return updated;
+  }
+
   private removeActiveShroudUpgrade(entity: MapEntity, _module: UpgradeModuleProfile): void {
     entity.shroudRange = 0;
   }
@@ -42003,6 +42440,16 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
+  private resolveOCLSpecialPowerName(module: SpecialPowerModuleProfile, source: MapEntity): string {
+    const sourceSide = source.side ?? '';
+    for (const upgrade of module.upgradeOCLs ?? []) {
+      if (upgrade.scienceName && upgrade.oclName && this.hasSideScience(sourceSide, upgrade.scienceName)) {
+        return upgrade.oclName;
+      }
+    }
+    return module.oclName;
+  }
+
   protected onIssueSpecialPowerNoTarget(
     sourceEntityId: number,
     specialPowerName: string,
@@ -42057,14 +42504,17 @@ export class GameLogicSubsystem implements Subsystem {
       case 'OCL_SPAWN':
         // Source parity: OCLSpecialPower::initiateInternal — execute OCL at source position.
         // No target for no-target powers; FireWeapon nuggets fire at source position.
-        if (module.oclName) {
-          this.executeOCL(module.oclName, source, undefined, source.x, source.z);
+        {
+          const oclName = this.resolveOCLSpecialPowerName(module, source);
+          if (oclName) {
+            this.executeOCL(oclName, source, undefined, source.x, source.z);
+          }
         }
         break;
       case 'SPY_VISION':
         // Source parity: SpyVisionUpdate::doActivationWork — globally spy on all enemy
         // units' vision ranges for the duration (no radius constraint).
-        this.activateGlobalSpyVision(source, module, module.spyVisionBaseDurationMs);
+        this.activateGlobalSpyVision(source, module, this.resolveSpyVisionSpecialPowerDurationMs(source, module));
         break;
       case 'CASH_BOUNTY': {
         // Source parity: CashBountyPower::onSpecialPowerCreation — sets the player's cash bounty
@@ -42163,19 +42613,22 @@ export class GameLogicSubsystem implements Subsystem {
         // Source parity (ZH): OCLSpecialPower::initiateInternal — execute OCL at source,
         // passing target position so FireWeapon nuggets fire at the target location.
         // ZH passes angle for creation orientation (AIGroup.cpp:2710).
-        if (module.oclName) {
-          this.executeOCL(module.oclName, source, undefined, adjustedTargetX, adjustedTargetZ, angle);
-        } else {
-          // Fallback: if no OCL name, apply flat area damage (legacy behavior).
-          executeAreaDamageImpl({
-            sourceEntityId,
-            sourceSide,
-            targetX: adjustedTargetX,
-            targetZ: adjustedTargetZ,
-            radius: module.areaDamageRadius > 0 ? module.areaDamageRadius : DEFAULT_AREA_DAMAGE_RADIUS,
-            damage: module.areaDamageAmount > 0 ? module.areaDamageAmount : DEFAULT_AREA_DAMAGE_AMOUNT,
-            damageType: 'EXPLOSION',
-          }, effectContext);
+        {
+          const oclName = this.resolveOCLSpecialPowerName(module, source);
+          if (oclName) {
+            this.executeOCL(oclName, source, undefined, adjustedTargetX, adjustedTargetZ, angle);
+          } else {
+            // Fallback: if no OCL name, apply flat area damage (legacy behavior).
+            executeAreaDamageImpl({
+              sourceEntityId,
+              sourceSide,
+              targetX: adjustedTargetX,
+              targetZ: adjustedTargetZ,
+              radius: module.areaDamageRadius > 0 ? module.areaDamageRadius : DEFAULT_AREA_DAMAGE_RADIUS,
+              damage: module.areaDamageAmount > 0 ? module.areaDamageAmount : DEFAULT_AREA_DAMAGE_AMOUNT,
+              damageType: 'EXPLOSION',
+            }, effectContext);
+          }
         }
         break;
       case 'AREA_DAMAGE':
@@ -42192,7 +42645,7 @@ export class GameLogicSubsystem implements Subsystem {
       case 'SPY_VISION':
         // Source parity: SpyVisionUpdate::doActivationWork — globally spy on all enemy
         // units' vision ranges for the duration (no radius constraint).
-        this.activateGlobalSpyVision(source, module, module.spyVisionBaseDurationMs);
+        this.activateGlobalSpyVision(source, module, this.resolveSpyVisionSpecialPowerDurationMs(source, module));
         break;
       case 'AREA_HEAL':
         executeAreaHealImpl({
@@ -42223,6 +42676,18 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     return true;
+  }
+
+  /* @internal */ resolveCashHackAmountToSteal(source: MapEntity, module: SpecialPowerModuleProfile): number {
+    const sourceSide = source.side ?? '';
+    for (const upgrade of module.cashHackUpgradeMoneyAmounts) {
+      if (this.hasSideScience(sourceSide, upgrade.scienceName)) {
+        return upgrade.amountToSteal;
+      }
+    }
+    return module.cashHackMoneyAmount > 0
+      ? module.cashHackMoneyAmount
+      : DEFAULT_CASH_HACK_AMOUNT;
   }
 
   protected onIssueSpecialPowerTargetObject(
@@ -42271,9 +42736,7 @@ export class GameLogicSubsystem implements Subsystem {
           sourceEntityId,
           sourceSide,
           targetEntityId,
-          amountToSteal: module.cashHackMoneyAmount > 0
-            ? module.cashHackMoneyAmount
-            : DEFAULT_CASH_HACK_AMOUNT,
+          amountToSteal: this.resolveCashHackAmountToSteal(source, module),
         }, effectContext);
         break;
       case 'DEFECTOR':
@@ -42974,7 +43437,7 @@ export class GameLogicSubsystem implements Subsystem {
       const reachDistance = this.resolveEntityInteractionDistance(source, target);
       if (distance > reachDistance) {
         if (!source.moving) {
-          this.issueMoveTo(source.id, target.x, target.z);
+          this.issueMoveTo(source.id, target.x, target.z, reachDistance);
         }
         continue;
       }
@@ -44735,6 +45198,9 @@ export class GameLogicSubsystem implements Subsystem {
         entity.objectStatusFlags.delete('AFLAME');
         entity.flameEndFrame = 0;
         entity.flameDamageNextFrame = 0;
+        if (prof?.burningSoundName) {
+          this.requestScriptAudioRemoveType(prof.burningSoundName);
+        }
       }
     }
   }
@@ -44798,6 +45264,9 @@ export class GameLogicSubsystem implements Subsystem {
     entity.flameDamageNextFrame = prof.aflameDamageDelayFrames > 0
       ? this.frameCounter + prof.aflameDamageDelayFrames
       : 0;
+    if (prof.burningSoundName) {
+      this.requestScriptSoundPlayFromNamed(prof.burningSoundName, entity.id);
+    }
   }
 
   /**
@@ -45478,7 +45947,12 @@ export class GameLogicSubsystem implements Subsystem {
 
       const interactionDistance = this.resolveEntityInteractionDistance(passenger, tunnel);
       const distance = Math.hypot(tunnel.x - passenger.x, tunnel.z - passenger.z);
-      if (distance > interactionDistance) continue;
+      if (distance > interactionDistance) {
+        if (!passenger.moving) {
+          this.issueMoveTo(passenger.id, tunnel.x, tunnel.z, interactionDistance);
+        }
+        continue;
+      }
 
       // Check capacity again.
       const tracker = this.resolveTunnelTrackerForContainer(tunnel);
@@ -46558,8 +47032,11 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   private resolveEntityInteractionDistance(source: MapEntity, target: MapEntity): number {
-    const sourceRadius = this.resolveEntityMajorRadius(source);
-    const targetRadius = this.resolveEntityMajorRadius(target);
+    // Source enter-object contact uses the target's full 2D bounds. Box
+    // structures need their diagonal radius; otherwise units try to path too
+    // close to the blocked center cell and never reach garrison/containment.
+    const sourceRadius = this.resolveEntityBoundingCircleRadius2D(source);
+    const targetRadius = this.resolveEntityBoundingCircleRadius2D(target);
     const combined = sourceRadius + targetRadius;
     return combined > 0 ? combined : MAP_XY_FACTOR;
   }
@@ -47360,11 +47837,7 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
 
-      // Source parity: disabled producers (EMP, hacked, underpowered, subdued) skip production tick.
-      if (producer.objectStatusFlags.has('DISABLED_EMP') ||
-          producer.objectStatusFlags.has('DISABLED_HACKED') ||
-          producer.objectStatusFlags.has('DISABLED_UNDERPOWERED') ||
-          producer.objectStatusFlags.has('DISABLED_SUBDUED')) {
+      if (this.isProductionPausedByDisabledStatus(producer)) {
         continue;
       }
 
@@ -47436,6 +47909,17 @@ export class GameLogicSubsystem implements Subsystem {
         this.completeUpgradeProduction(producer, production);
       }
     }
+  }
+
+  private isProductionPausedByDisabledStatus(producer: MapEntity): boolean {
+    const disabledTypesToProcess = producer.productionProfile?.disabledTypesToProcess
+      ?? new Set<string>(['DISABLED_HELD']);
+    for (const status of producer.objectStatusFlags) {
+      if (status.startsWith('DISABLED_') && !disabledTypesToProcess.has(status)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private updateQueueExitGate(producer: MapEntity): void {
@@ -48744,14 +49228,22 @@ export class GameLogicSubsystem implements Subsystem {
       computeAttackRetreatTarget: (attacker, target, weapon) =>
         this.computeAttackRetreatTarget(attacker, target, weapon as AttackWeaponProfile),
       rebuildEntityScatterTargets: (entity) => this.rebuildEntityScatterTargets(entity),
-      resolveWeaponPreAttackDelayFrames: (attacker, target, weapon) =>
-        this.resolveWeaponPreAttackDelayFrames(attacker, target, weapon as AttackWeaponProfile),
+      resolveWeaponPreAttackDelayFrames: (attacker, targetEntityId, weapon) =>
+        this.resolveWeaponPreAttackDelayFrames(attacker, targetEntityId, weapon as AttackWeaponProfile),
       queueWeaponDamageEvent: (attacker, target, weapon) => {
         this.queueWeaponDamageEvent(attacker, target, weapon as AttackWeaponProfile);
         // Source parity: AIStates.cpp:5292-5304 — linked turrets fire ALL weapon slots simultaneously.
         if (attacker.turretsLinked) {
           this.fireLinkedTurretAdditionalSlots(attacker, target, weapon as AttackWeaponProfile);
         }
+      },
+      queueWeaponDamageAtPosition: (attacker, targetPosition, weapon) => {
+        this.queueWeaponDamageEventAtPosition(
+          attacker,
+          targetPosition.x,
+          targetPosition.z,
+          weapon as AttackWeaponProfile,
+        );
       },
       recordConsecutiveAttackShot: (attacker, targetEntityId) =>
         this.recordConsecutiveAttackShot(attacker, targetEntityId),
@@ -49165,6 +49657,41 @@ export class GameLogicSubsystem implements Subsystem {
     this.visualEventBuffer.push(event);
   }
 
+  /* @internal */ emitLaserParticleSystemVisualEvents(
+    weapon: AttackWeaponProfile,
+    sourceEntityId: number,
+    start: { x: number; y: number; z: number },
+    end: { x: number; y: number; z: number },
+  ): void {
+    const muzzleParticleSystemName = (weapon.laserMuzzleParticleSystemName ?? '').trim();
+    if (muzzleParticleSystemName) {
+      this.visualEventBuffer.push({
+        type: 'NAMED_PARTICLE_SYSTEM',
+        x: start.x,
+        y: start.y,
+        z: start.z,
+        radius: 0,
+        sourceEntityId,
+        projectileType: 'LASER',
+        effectName: muzzleParticleSystemName,
+      });
+    }
+
+    const targetParticleSystemName = (weapon.laserTargetParticleSystemName ?? '').trim();
+    if (targetParticleSystemName) {
+      this.visualEventBuffer.push({
+        type: 'NAMED_PARTICLE_SYSTEM',
+        x: end.x,
+        y: end.y,
+        z: end.z,
+        radius: 0,
+        sourceEntityId,
+        projectileType: 'LASER',
+        effectName: targetParticleSystemName,
+      });
+    }
+  }
+
   private emitWeaponImpactVisualEvent(event: PendingWeaponDamageEvent): void {
     const heightmap = this.mapHeightmap;
     const impactY = heightmap ? heightmap.getInterpolatedHeight(event.impactX, event.impactZ) : 0;
@@ -49502,6 +50029,7 @@ export class GameLogicSubsystem implements Subsystem {
       }
 
       if (state.state === 'IGNITION') {
+        this.emitMissileIgnitionFX(event, profile);
         state.armed = true;
         state.fuelExpirationFrame = profile.fuelLifetimeFrames > 0
           ? this.frameCounter + profile.fuelLifetimeFrames
@@ -49750,6 +50278,22 @@ export class GameLogicSubsystem implements Subsystem {
    * stops target tracking. Called externally when an ECM source jams a missile.
    * C++ file: MissileAIUpdate.cpp:801-833.
    */
+  private emitMissileIgnitionFX(event: PendingWeaponDamageEvent, profile: MissileAIProfile): void {
+    const effectName = profile.ignitionFXName.trim();
+    const state = event.missileAIState;
+    if (!effectName || !state) return;
+    this.visualEventBuffer.push({
+      type: 'NAMED_FX',
+      x: state.currentX,
+      y: state.currentY,
+      z: state.currentZ,
+      radius: 0,
+      sourceEntityId: event.sourceEntityId,
+      projectileType: this.classifyWeaponVisualType(event.weapon),
+      effectName,
+    });
+  }
+
   /* @internal */ applyMissileJamScatter(event: PendingWeaponDamageEvent): void {
     const profile = event.missileAIProfile;
     const state = event.missileAIState;
@@ -50110,10 +50654,10 @@ export class GameLogicSubsystem implements Subsystem {
 
   private resolveWeaponPreAttackDelayFrames(
     attacker: MapEntity,
-    target: MapEntity,
+    targetEntityId: number,
     weapon: AttackWeaponProfile,
   ): number {
-    const baseDelay = resolveWeaponPreAttackDelayFramesImpl(attacker, target.id, weapon);
+    const baseDelay = resolveWeaponPreAttackDelayFramesImpl(attacker, targetEntityId, weapon);
     if (baseDelay <= 0) return 0;
     // Source parity: WeaponTemplate::getPreAttackDelay(bonus) *= PRE_ATTACK bonus.
     const preAttackBonus = this.resolveWeaponPreAttackBonusMultiplier(attacker);
@@ -50691,7 +51235,11 @@ export class GameLogicSubsystem implements Subsystem {
     const isGarrisonContainer = target.containProfile?.moduleType === 'GARRISON';
     const isOverlordOrHelix = target.containProfile?.moduleType === 'OVERLORD'
         || target.containProfile?.moduleType === 'HELIX';
-    const needsDamageStateTracking = target.supplyWarehouseCripplingProfile || target.boneFXState || isGarrisonContainer || isOverlordOrHelix;
+    const needsDamageStateTracking = target.supplyWarehouseCripplingProfile
+      || target.boneFXState
+      || target.transitionDamageFXProfile
+      || isGarrisonContainer
+      || isOverlordOrHelix;
     const oldDamageState = needsDamageStateTracking
       ? calcBodyDamageState(target.health, target.maxHealth)
       : 0 as BodyDamageState;
@@ -50702,33 +51250,38 @@ export class GameLogicSubsystem implements Subsystem {
     target.health = Math.max(0, target.health - adjustedDamage);
 
     // Source parity: onBodyDamageStateChange — SupplyWarehouseCrippling + BoneFXUpdate + GarrisonContain.
-    if (needsDamageStateTracking && target.health > 0) {
+    if (needsDamageStateTracking) {
       const newDamageState = calcBodyDamageState(target.health, target.maxHealth);
       if (oldDamageState !== newDamageState) {
-        if (target.supplyWarehouseCripplingProfile) {
-          this.supplyWarehouseCripplingOnStateChange(target, oldDamageState, newDamageState);
+        if (target.transitionDamageFXProfile) {
+          this.transitionDamageFXOnBodyDamageStateChange(target, oldDamageState, newDamageState, damageType);
         }
-        if (target.boneFXState) {
-          this.boneFXChangeBodyDamageState(target, oldDamageState, newDamageState);
-        }
+        if (target.health > 0) {
+          if (target.supplyWarehouseCripplingProfile) {
+            this.supplyWarehouseCripplingOnStateChange(target, oldDamageState, newDamageState);
+          }
+          if (target.boneFXState) {
+            this.boneFXChangeBodyDamageState(target, oldDamageState, newDamageState);
+          }
         // Source parity: GarrisonContain::onBodyDamageStateChange — auto-eject infantry on REALLY_DAMAGED.
         // C++ file: GarrisonContain.cpp — when newState == BODY_REALLYDAMAGED and building is NOT
         // KINDOF_GARRISONABLE_UNTIL_DESTROYED, eject all garrisoned infantry.
         const REALLYDAMAGED: BodyDamageState = 2;
-        if (isGarrisonContainer
+          if (isGarrisonContainer
             && newDamageState >= REALLYDAMAGED
             && oldDamageState < REALLYDAMAGED
             && !target.kindOf.has('GARRISONABLE_UNTIL_DESTROYED')) {
-          this.evacuateContainedEntities(target, target.x, target.z, null);
-        }
+            this.evacuateContainedEntities(target, target.x, target.z, null);
+          }
         // Source parity: OverlordContain::onBodyDamageStateChange — propagate damage state to single rider.
         // C++ file: OverlordContain.cpp:164-177 — only when exactly 1 rider and not RUBBLE.
-        if (isOverlordOrHelix && newDamageState !== 3) {
-          const riderIds = this.collectContainedEntityIds(target.id);
-          if (riderIds.length === 1) {
-            const rider = this.spawnedEntities.get(riderIds[0]);
-            if (rider && !rider.destroyed) {
-              this.setEntityBodyDamageState(rider, newDamageState);
+          if (isOverlordOrHelix && newDamageState !== 3) {
+            const riderIds = this.collectContainedEntityIds(target.id);
+            if (riderIds.length === 1) {
+              const rider = this.spawnedEntities.get(riderIds[0]);
+              if (rider && !rider.destroyed) {
+                this.setEntityBodyDamageState(rider, newDamageState);
+              }
             }
           }
         }
@@ -50826,8 +51379,10 @@ export class GameLogicSubsystem implements Subsystem {
     if (target.autoHealProfile && target.autoHealProfile.startHealingDelayFrames > 0) {
       target.autoHealDamageDelayUntilFrame = this.frameCounter + target.autoHealProfile.startHealingDelayFrames;
     }
-    if (target.kindOf.has('STRUCTURE')) {
+    if (target.baseRegenerateUpdateProfile) {
       target.baseRegenDelayUntilFrame = this.frameCounter + BASE_REGEN_DELAY_FRAMES;
+    }
+    if (target.kindOf.has('STRUCTURE')) {
       // Source parity: EVA — announce base under attack for important structures.
       if (target.side && target.kindOf.has('MP_COUNT_FOR_VICTORY')) {
         this.emitEvaEvent('BASE_UNDER_ATTACK', target.side, 'own', target.id);
@@ -51651,6 +52206,7 @@ export class GameLogicSubsystem implements Subsystem {
     entity.completedUpgrades.add(normalizedUpgrade);
     this.executePendingFireWeaponWhenDeadUpgradeMuxes(entity);
     this.executePendingFireWhenDamagedUpgradeMuxes(entity);
+    this.executePendingSpyVisionUpdateUpgradeMuxes(entity);
 
     // Source parity (ZH): GrantUpgradeCreate.cpp:109 — record for academy stats.
     const side = this.resolveEntityOwnerSide(entity);
@@ -51844,8 +52400,9 @@ export class GameLogicSubsystem implements Subsystem {
       // Source parity: C++ line 134 — skip if under construction.
       if (entity.constructionPercent !== CONSTRUCTION_COMPLETE) continue;
 
-      // Deposit money to controlling side.
-      this.depositSideCredits(entity.side, profile.depositAmount);
+      if (profile.actualMoney) {
+        this.depositSideCredits(entity.side, profile.depositAmount);
+      }
     }
   }
 
@@ -52409,6 +52966,8 @@ export class GameLogicSubsystem implements Subsystem {
   private static readonly TOPPLE_ANGULAR_LIMIT = Math.PI / 2 - Math.PI / 64;
   /** Below this velocity, stop bouncing. */
   private static readonly TOPPLE_VELOCITY_BOUNCE_LIMIT = 0.01;
+  /** Below this bounce velocity, source skips BounceFX. */
+  private static readonly TOPPLE_VELOCITY_BOUNCE_SOUND_LIMIT = 0.03;
   private static readonly W3D_TREE_TOPPLE_ANGULAR_LIMIT = Math.PI / 2 - Math.PI / 64;
   private static readonly W3D_TREE_TOPPLE_VELOCITY_BOUNCE_LIMIT = 0.01;
 
@@ -52596,6 +53155,22 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Source parity: remove from pathfinder on topple start.
     entity.blocksPath = false;
+    this.emitToppleNamedFX(entity, profile.toppleFXName);
+  }
+
+  private emitToppleNamedFX(entity: MapEntity, effectName: string): void {
+    const trimmedName = effectName.trim();
+    if (!trimmedName) return;
+    this.visualEventBuffer.push({
+      type: 'NAMED_FX',
+      x: entity.x,
+      y: entity.y,
+      z: entity.z,
+      radius: 0,
+      sourceEntityId: entity.id,
+      projectileType: 'BULLET',
+      effectName: trimmedName,
+    });
   }
 
   /**
@@ -52674,6 +53249,27 @@ export class GameLogicSubsystem implements Subsystem {
    * State machine: STANDING → WAITING → TOPPLING → WAITING_DONE → DONE.
    * C++ file: StructureToppleUpdate.cpp.
    */
+  private emitStructureToppleNamedFX(
+    entity: MapEntity,
+    effectName: string,
+    pos?: { x: number; y?: number; z: number },
+  ): void {
+    const trimmedName = effectName.trim();
+    if (!trimmedName) return;
+    const x = pos?.x ?? entity.x;
+    const z = pos?.z ?? entity.z;
+    this.visualEventBuffer.push({
+      type: 'NAMED_FX',
+      x,
+      y: pos?.y ?? this.resolveGroundHeight(x, z),
+      z,
+      radius: 0,
+      sourceEntityId: entity.id,
+      projectileType: 'BULLET',
+      effectName: trimmedName,
+    });
+  }
+
   private updateStructureTopple(): void {
     const TOPPLE_ACCELERATION_FACTOR = 0.02;
 
@@ -52687,6 +53283,7 @@ export class GameLogicSubsystem implements Subsystem {
       if (st.state === 'WAITING') {
         // Dramatic pause before topple starts.
         if (st.nextBurstFrame >= 0 && this.frameCounter >= st.nextBurstFrame) {
+          this.emitStructureToppleNamedFX(entity, prof.toppleDelayFXName, st.delayBurstLocation);
           // Source parity: delay bursts are client-only FX, so they use GameClientRandomValue.
           st.nextBurstFrame = this.frameCounter + this.gameClientRandom.nextRange(
             prof.minToppleBurstDelayFrames,
@@ -52711,7 +53308,13 @@ export class GameLogicSubsystem implements Subsystem {
           if (st.structuralIntegrity < 0) st.structuralIntegrity = 0;
         }
 
-        st.accumulatedAngle += st.toppleVelocity;
+        const nextAngle = st.accumulatedAngle + st.toppleVelocity;
+        for (const angleFX of prof.angleFX) {
+          if (angleFX.angleRadians > st.accumulatedAngle && angleFX.angleRadians <= nextAngle) {
+            this.emitStructureToppleNamedFX(entity, angleFX.effectName);
+          }
+        }
+        st.accumulatedAngle = nextAngle;
 
         // Source parity: StructureToppleUpdate::applyCrushingDamage — 2D grid pattern.
         // Fires weapons at WEAPON_SPACING intervals along the topple path AND
@@ -52751,11 +53354,21 @@ export class GameLogicSubsystem implements Subsystem {
                   const tx = entity.x + jcos + i * sinTopple;
                   const tz = entity.z + jsin + i * cosTopple;
                   this.fireTemporaryWeaponAtPosition(entity, weaponDef, tx, tz);
+                  this.emitStructureToppleNamedFX(entity, prof.crushingFXName, {
+                    x: tx,
+                    y: this.resolveGroundHeight(tx, tz),
+                    z: tz,
+                  });
                 }
                 // Source parity: also fire at the edge of the building width.
                 const edgeX = entity.x + jcos + facingWidth * sinTopple;
                 const edgeZ = entity.z + jsin + facingWidth * cosTopple;
                 this.fireTemporaryWeaponAtPosition(entity, weaponDef, edgeX, edgeZ);
+                this.emitStructureToppleNamedFX(entity, prof.crushingFXName, {
+                  x: edgeX,
+                  y: this.resolveGroundHeight(edgeX, edgeZ),
+                  z: edgeZ,
+                });
               }
 
               // Source parity: also fire at maxDist exactly.
@@ -52766,10 +53379,20 @@ export class GameLogicSubsystem implements Subsystem {
                   const tx = entity.x + jcos + i * sinTopple;
                   const tz = entity.z + jsin + i * cosTopple;
                   this.fireTemporaryWeaponAtPosition(entity, weaponDef, tx, tz);
+                  this.emitStructureToppleNamedFX(entity, prof.crushingFXName, {
+                    x: tx,
+                    y: this.resolveGroundHeight(tx, tz),
+                    z: tz,
+                  });
                 }
                 const edgeX = entity.x + jcos + facingWidth * sinTopple;
                 const edgeZ = entity.z + jsin + facingWidth * cosTopple;
                 this.fireTemporaryWeaponAtPosition(entity, weaponDef, edgeX, edgeZ);
+                this.emitStructureToppleNamedFX(entity, prof.crushingFXName, {
+                  x: edgeX,
+                  y: this.resolveGroundHeight(edgeX, edgeZ),
+                  z: edgeZ,
+                });
               }
 
               st.lastCrushedLocation = j;
@@ -52782,9 +53405,11 @@ export class GameLogicSubsystem implements Subsystem {
           st.accumulatedAngle = Math.PI / 2;
           st.state = 'WAITING_DONE';
           st.toppleFrame = this.frameCounter;
+          this.emitStructureToppleNamedFX(entity, prof.toppleDoneFXName);
         }
 
         if (st.nextBurstFrame >= 0 && this.frameCounter >= st.nextBurstFrame) {
+          this.emitStructureToppleNamedFX(entity, prof.toppleDelayFXName, st.delayBurstLocation);
           // Source parity: delay bursts are client-only FX, so they use GameClientRandomValue.
           st.nextBurstFrame = this.frameCounter + this.gameClientRandom.nextRange(
             prof.minToppleBurstDelayFrames,
@@ -52860,6 +53485,7 @@ export class GameLogicSubsystem implements Subsystem {
         z: delayBurstZ,
       },
     };
+    this.emitStructureToppleNamedFX(entity, prof.toppleStartFXName);
   }
 
   /**
@@ -52867,6 +53493,89 @@ export class GameLogicSubsystem implements Subsystem {
    * Manages door opening/closing states based on special power readiness timer.
    * C++ file: MissileLauncherBuildingUpdate.cpp.
    */
+  private emitMissileLauncherDoorFX(entity: MapEntity, effectName: string): void {
+    const trimmedName = effectName.trim();
+    if (!trimmedName) return;
+    this.visualEventBuffer.push({
+      type: 'NAMED_FX',
+      x: entity.x,
+      y: entity.y,
+      z: entity.z,
+      radius: 0,
+      sourceEntityId: entity.id,
+      projectileType: 'BULLET',
+      effectName: trimmedName,
+    });
+  }
+
+  private applyMissileLauncherDoorModelConditions(entity: MapEntity, doorState: MissileDoorState): void {
+    entity.modelConditionFlags.delete('DOOR_1_OPENING');
+    entity.modelConditionFlags.delete('DOOR_1_WAITING_OPEN');
+    entity.modelConditionFlags.delete('DOOR_1_CLOSING');
+    entity.modelConditionFlags.delete('DOOR_1_WAITING_TO_CLOSE');
+    switch (doorState) {
+      case 'OPENING':
+        entity.modelConditionFlags.add('DOOR_1_OPENING');
+        break;
+      case 'OPEN':
+        entity.modelConditionFlags.add('DOOR_1_WAITING_OPEN');
+        break;
+      case 'WAITING_TO_CLOSE':
+        entity.modelConditionFlags.add('DOOR_1_WAITING_TO_CLOSE');
+        break;
+      case 'CLOSING':
+        entity.modelConditionFlags.add('DOOR_1_CLOSING');
+        break;
+    }
+  }
+
+  private setMissileLauncherDoorState(
+    entity: MapEntity,
+    st: MissileLauncherBuildingState,
+    prof: MissileLauncherBuildingProfile,
+    doorState: MissileDoorState,
+  ): void {
+    if (st.doorState === doorState) {
+      this.applyMissileLauncherDoorModelConditions(entity, doorState);
+      return;
+    }
+
+    st.doorState = doorState;
+    switch (doorState) {
+      case 'CLOSED':
+        this.emitMissileLauncherDoorFX(entity, prof.doorClosedFXName);
+        if (prof.doorOpenIdleAudioName) {
+          this.requestScriptAudioRemoveType(prof.doorOpenIdleAudioName);
+        }
+        break;
+      case 'OPENING':
+        this.emitMissileLauncherDoorFX(entity, prof.doorOpeningFXName);
+        if (prof.doorOpenIdleAudioName) {
+          this.requestScriptAudioRemoveType(prof.doorOpenIdleAudioName);
+        }
+        break;
+      case 'OPEN':
+        this.emitMissileLauncherDoorFX(entity, prof.doorOpenFXName);
+        if (prof.doorOpenIdleAudioName) {
+          this.requestScriptSoundPlayFromNamed(prof.doorOpenIdleAudioName, entity.id);
+        }
+        break;
+      case 'WAITING_TO_CLOSE':
+        this.emitMissileLauncherDoorFX(entity, prof.doorWaitingToCloseFXName);
+        if (prof.doorOpenIdleAudioName) {
+          this.requestScriptAudioRemoveType(prof.doorOpenIdleAudioName);
+        }
+        break;
+      case 'CLOSING':
+        this.emitMissileLauncherDoorFX(entity, prof.doorClosingFXName);
+        if (prof.doorOpenIdleAudioName) {
+          this.requestScriptAudioRemoveType(prof.doorOpenIdleAudioName);
+        }
+        break;
+    }
+    this.applyMissileLauncherDoorModelConditions(entity, doorState);
+  }
+
   private updateMissileLauncherBuilding(): void {
     for (const entity of this.spawnedEntities.values()) {
       if (entity.destroyed) continue;
@@ -52898,7 +53607,7 @@ export class GameLogicSubsystem implements Subsystem {
       // Handle timeout transitions.
       if (st.timeoutFrame > 0 && this.frameCounter > st.timeoutFrame) {
         const prevState = st.doorState;
-        st.doorState = st.timeoutState;
+        this.setMissileLauncherDoorState(entity, st, prof, st.timeoutState);
         st.timeoutFrame = 0;
         // Source parity: chain CLOSING → CLOSED with door close duration timeout.
         if (st.doorState === 'CLOSING' && prevState === 'WAITING_TO_CLOSE') {
@@ -52909,7 +53618,7 @@ export class GameLogicSubsystem implements Subsystem {
 
       // Force door open if power is ready but door isn't open.
       if (st.doorState !== 'OPEN' && isReady) {
-        st.doorState = 'OPEN';
+        this.setMissileLauncherDoorState(entity, st, prof, 'OPEN');
         st.timeoutFrame = 0;
         st.timeoutState = 'OPEN';
       }
@@ -52920,7 +53629,7 @@ export class GameLogicSubsystem implements Subsystem {
           if (readyFrame > 0 && readyFrame > this.frameCounter) {
             const framesUntilReady = readyFrame - this.frameCounter;
             if (framesUntilReady <= prof.doorOpenTimeFrames) {
-              st.doorState = 'OPENING';
+              this.setMissileLauncherDoorState(entity, st, prof, 'OPENING');
               st.timeoutFrame = this.frameCounter + prof.doorOpenTimeFrames;
               st.timeoutState = 'OPEN';
               break;
@@ -52929,25 +53638,7 @@ export class GameLogicSubsystem implements Subsystem {
         }
       }
 
-      // Update model conditions based on door state.
-      entity.modelConditionFlags.delete('DOOR_1_OPENING');
-      entity.modelConditionFlags.delete('DOOR_1_WAITING_OPEN');
-      entity.modelConditionFlags.delete('DOOR_1_CLOSING');
-      entity.modelConditionFlags.delete('DOOR_1_WAITING_TO_CLOSE');
-      switch (st.doorState) {
-        case 'OPENING':
-          entity.modelConditionFlags.add('DOOR_1_OPENING');
-          break;
-        case 'OPEN':
-          entity.modelConditionFlags.add('DOOR_1_WAITING_OPEN');
-          break;
-        case 'WAITING_TO_CLOSE':
-          entity.modelConditionFlags.add('DOOR_1_WAITING_TO_CLOSE');
-          break;
-        case 'CLOSING':
-          entity.modelConditionFlags.add('DOOR_1_CLOSING');
-          break;
-      }
+      this.applyMissileLauncherDoorModelConditions(entity, st.doorState);
     }
   }
 
@@ -52958,17 +53649,19 @@ export class GameLogicSubsystem implements Subsystem {
   // @ts-expect-error TS6133: infrastructure for SpecialPowerUpdate dispatch
   private missileLauncherOnFire(entity: MapEntity): void {
     const prof = entity.missileLauncherBuildingProfile;
+    if (!prof) return;
+    if (!entity.missileLauncherBuildingState) {
+      entity.missileLauncherBuildingState = {
+        doorState: 'CLOSED',
+        timeoutState: 'CLOSED',
+        timeoutFrame: 0,
+      };
+    }
     const st = entity.missileLauncherBuildingState;
-    if (!prof || !st) return;
 
-    st.doorState = 'WAITING_TO_CLOSE';
+    this.setMissileLauncherDoorState(entity, st, prof, 'WAITING_TO_CLOSE');
     st.timeoutFrame = this.frameCounter + prof.doorWaitOpenTimeFrames;
     st.timeoutState = 'CLOSING';
-
-    entity.modelConditionFlags.delete('DOOR_1_OPENING');
-    entity.modelConditionFlags.delete('DOOR_1_WAITING_OPEN');
-    entity.modelConditionFlags.delete('DOOR_1_CLOSING');
-    entity.modelConditionFlags.add('DOOR_1_WAITING_TO_CLOSE');
   }
 
   /**
@@ -53024,11 +53717,17 @@ export class GameLogicSubsystem implements Subsystem {
               st.nextScorchMarkFrame = this.frameCounter;
               st.damagePulsesMade = 0;
               st.nextDamagePulseFrame = this.frameCounter;
+              if (prof.annihilationSoundName) {
+                this.requestScriptSoundPlayFromNamed(prof.annihilationSoundName, entity.id);
+              }
             }
             break;
           case 'BORN':
             if (orbitalDecayStart <= this.frameCounter) {
               st.laserStatus = 'DECAYING';
+              if (prof.annihilationSoundName) {
+                this.requestScriptAudioRemoveType(prof.annihilationSoundName);
+              }
             }
             break;
           case 'DECAYING':
@@ -53037,6 +53736,9 @@ export class GameLogicSubsystem implements Subsystem {
               st.startAttackFrame = 0;
               st.status = 'IDLE';
               st.framesInState = 0;
+              if (prof.firingToIdleSoundName) {
+                this.requestScriptAudioRemoveType(prof.firingToIdleSoundName);
+              }
             }
             break;
           case 'DEAD':
@@ -53052,8 +53754,32 @@ export class GameLogicSubsystem implements Subsystem {
             st.nextScorchMarkFrame = Math.trunc(
               orbitalBirthFrame + nextFactor * (orbitalDeathFrame - orbitalBirthFrame),
             );
+            if (prof.groundHitFXName) {
+              this.visualEventBuffer.push({
+                type: 'NAMED_FX',
+                x: st.currentTargetX,
+                y: this.resolveGroundHeight(st.currentTargetX, st.currentTargetZ),
+                z: st.currentTargetZ,
+                radius: 0,
+                sourceEntityId: entity.id,
+                projectileType: 'LASER',
+                effectName: prof.groundHitFXName,
+              });
+            }
           }
           if (prof.framesBetweenLaunchFXRefresh > 0 && st.nextLaunchFXFrame <= this.frameCounter) {
+            if (prof.beamLaunchFXName) {
+              this.visualEventBuffer.push({
+                type: 'NAMED_FX',
+                x: entity.x,
+                y: entity.y,
+                z: entity.z,
+                radius: 0,
+                sourceEntityId: entity.id,
+                projectileType: 'LASER',
+                effectName: prof.beamLaunchFXName,
+              });
+            }
             st.nextLaunchFXFrame = this.frameCounter + prof.framesBetweenLaunchFXRefresh;
           }
         }
@@ -53069,6 +53795,15 @@ export class GameLogicSubsystem implements Subsystem {
           const radius = 50 * prof.damageRadiusScalar;
           this.applyAreaDamageAtPoint(entity, st.currentTargetX, st.currentTargetZ, radius,
             damagePerPulse, prof.damageType);
+          if (prof.damagePulseRemnantObjectName) {
+            this.spawnEntityFromTemplate(
+              prof.damagePulseRemnantObjectName,
+              st.currentTargetX,
+              st.currentTargetZ,
+              0,
+              entity.side,
+            );
+          }
           st.damagePulsesMade++;
           st.nextDamagePulseFrame = this.frameCounter
             + Math.floor(prof.totalFiringFrames / prof.totalDamagePulses);
@@ -53094,6 +53829,9 @@ export class GameLogicSubsystem implements Subsystem {
         if (st.framesInState >= 30) { // ~1 second post-fire
           st.status = 'IDLE';
           st.framesInState = 0;
+          if (prof.firingToIdleSoundName) {
+            this.requestScriptAudioRemoveType(prof.firingToIdleSoundName);
+          }
         }
       }
     }
@@ -53139,6 +53877,18 @@ export class GameLogicSubsystem implements Subsystem {
     st.manualTargetMode = true;
     st.scriptedWaypointMode = false;
     st.nextDestWaypointID = 0;
+    if (prof.firingToIdleSoundName) {
+      this.requestScriptSoundPlayFromNamed(prof.firingToIdleSoundName, entity.id);
+    }
+    if (prof.powerupSoundName) {
+      this.requestScriptAudioRemoveType(prof.powerupSoundName);
+    }
+    if (prof.unpackToReadySoundName) {
+      this.requestScriptAudioRemoveType(prof.unpackToReadySoundName);
+    }
+    if (prof.annihilationSoundName) {
+      this.requestScriptAudioRemoveType(prof.annihilationSoundName);
+    }
   }
 
   /**
@@ -53178,9 +53928,11 @@ export class GameLogicSubsystem implements Subsystem {
 
       if (st.state === 'LAUNCH') {
         // Move with current velocity, then transition to ATTACK.
+        this.emitNeutronMissileUpdateFX(entity, prof.launchFXName);
         entity.x += st.velX;
         entity.y += st.velY;
         entity.z += st.velZ;
+        this.emitNeutronMissileUpdateFX(entity, prof.ignitionFXName);
         st.state = 'ATTACK';
         st.stateTimestamp = this.frameCounter;
         st.isArmed = true;
@@ -53259,6 +54011,21 @@ export class GameLogicSubsystem implements Subsystem {
         }
       }
     }
+  }
+
+  private emitNeutronMissileUpdateFX(entity: MapEntity, effectName: string | null | undefined): void {
+    const trimmedName = (effectName ?? '').trim();
+    if (!trimmedName) return;
+    this.visualEventBuffer.push({
+      type: 'NAMED_FX',
+      x: entity.x,
+      y: entity.y,
+      z: entity.z,
+      radius: 0,
+      sourceEntityId: entity.id,
+      projectileType: 'MISSILE',
+      effectName: trimmedName,
+    });
   }
 
   /**
@@ -53401,6 +54168,7 @@ export class GameLogicSubsystem implements Subsystem {
 
       const ANGULAR_LIMIT = GameLogicSubsystem.TOPPLE_ANGULAR_LIMIT;
       const BOUNCE_LIMIT = GameLogicSubsystem.TOPPLE_VELOCITY_BOUNCE_LIMIT;
+      const BOUNCE_SOUND_LIMIT = GameLogicSubsystem.TOPPLE_VELOCITY_BOUNCE_SOUND_LIMIT;
 
       // Source parity: cap velocity at limit to prevent overshoot.
       let curVelToUse = entity.toppleAngularVelocity;
@@ -53426,6 +54194,10 @@ export class GameLogicSubsystem implements Subsystem {
           }
         } else {
           entity.toppleState = 'BOUNCING';
+          if ((entity.toppleOptions & 0x00000002) === 0
+            && Math.abs(entity.toppleAngularVelocity) >= BOUNCE_SOUND_LIMIT) {
+            this.emitToppleNamedFX(entity, profile.bounceFXName);
+          }
         }
       } else {
         // Source parity: acceleration is the serialized ToppleUpdate::m_angularAcceleration.
@@ -53831,6 +54603,14 @@ export class GameLogicSubsystem implements Subsystem {
    * self-destruct at end of lifetime. C++ file: EMPUpdate.cpp.
    */
   private updateEmpEntities(): void {
+    const saturateColor = (
+      color: readonly [number, number, number],
+      factor: number,
+    ): readonly [number, number, number] => [
+      Math.min(255, Math.max(0, Math.trunc(color[0] * factor))),
+      Math.min(255, Math.max(0, Math.trunc(color[1] * factor))),
+      Math.min(255, Math.max(0, Math.trunc(color[2] * factor))),
+    ];
     for (const entity of this.spawnedEntities.values()) {
       if (entity.destroyed) continue;
       const profile = entity.empUpdateProfile;
@@ -53842,12 +54622,21 @@ export class GameLogicSubsystem implements Subsystem {
           dieFrame: this.frameCounter + profile.lifetimeFrames,
           fadeFrame: this.frameCounter + profile.startFadeFrame,
           disableAttackFired: false,
+          currentScale: profile.startScale,
+          targetScale: profile.targetScaleMin + this.gameRandom.nextFloat()
+            * (Math.max(profile.targetScaleMin, profile.targetScaleMax) - profile.targetScaleMin),
+          currentTintColor: saturateColor(profile.startColor, 2),
+          tintFadeFrames: Math.max(0, profile.lifetimeFrames - profile.startFadeFrame),
         };
         // Source parity: random orientation at creation.
         entity.rotationY = this.gameRandom.nextFloat() * Math.PI * 2 - Math.PI;
       }
 
       const state = entity.empUpdateState;
+      state.currentScale += (state.targetScale - state.currentScale) * 0.05;
+      state.currentTintColor = this.frameCounter < state.fadeFrame
+        ? saturateColor(profile.startColor, 2)
+        : saturateColor(profile.endColor, 5);
 
       // Source parity: at fade frame, fire the disable attack once.
       if (!state.disableAttackFired && this.frameCounter >= state.fadeFrame) {
@@ -54053,10 +54842,44 @@ export class GameLogicSubsystem implements Subsystem {
 
       // Lazy-init firestorm damage state.
       if (!entity.firestormDamageState) {
-        entity.firestormDamageState = { lastDamageFrame: 0 };
+        entity.firestormDamageState = { lastDamageFrame: 0, effectsFired: false, scorchPlaced: false };
       }
 
       const state = entity.firestormDamageState;
+
+      // Source parity: FirestormDynamicGeometryInfoUpdate::update starts particle systems
+      // and the configured FXList once, after the inherited dynamic geometry delay expires.
+      if (state.effectsFired !== true) {
+        const particleY = this.resolveGroundHeight(entity.x, entity.z) + profile.particleOffsetZ;
+        const radius = this.resolveEntityBoundingCircleRadius2D(entity);
+        for (const particleSystemName of profile.particleSystemNames) {
+          const effectName = particleSystemName.trim();
+          if (!effectName) continue;
+          this.visualEventBuffer.push({
+            type: 'NAMED_PARTICLE_SYSTEM',
+            x: entity.x,
+            y: particleY,
+            z: entity.z,
+            radius,
+            sourceEntityId: entity.id,
+            projectileType: 'BULLET',
+            effectName,
+          });
+        }
+        if (profile.fxListName.trim()) {
+          this.visualEventBuffer.push({
+            type: 'NAMED_FX',
+            x: entity.x,
+            y: entity.y,
+            z: entity.z,
+            radius: 0,
+            sourceEntityId: entity.id,
+            projectileType: 'BULLET',
+            effectName: profile.fxListName.trim(),
+          });
+        }
+        state.effectsFired = true;
+      }
 
       // Source parity: damage scan at interval.
       if (this.frameCounter - state.lastDamageFrame >= profile.delayBetweenDamageFrames) {
@@ -54331,6 +55154,21 @@ export class GameLogicSubsystem implements Subsystem {
    * enemy entity's fog-of-war vision contribution, so the spying player sees through
    * every enemy unit's eyes.
    */
+  private resolveSpyVisionSpecialPowerDurationMs(
+    source: MapEntity,
+    module: SpecialPowerModuleProfile,
+  ): number {
+    let durationMs = Math.max(0, module.spyVisionBaseDurationMs);
+    if (source.containProfile) {
+      durationMs += this.collectContainedEntityIds(source.id).length
+        * Math.max(0, module.spyVisionBonusDurationPerCapturedMs);
+      if (durationMs > Math.max(0, module.spyVisionMaxDurationMs)) {
+        durationMs = Math.max(0, module.spyVisionMaxDurationMs);
+      }
+    }
+    return durationMs;
+  }
+
   private activateGlobalSpyVision(
     source: MapEntity,
     module: SpecialPowerModuleProfile,
@@ -54341,16 +55179,140 @@ export class GameLogicSubsystem implements Subsystem {
     const spyingPlayerIdx = this.resolvePlayerIndexForSide(spyingSide);
     if (spyingPlayerIdx < 0) return;
 
-    const DEFAULT_SPY_DURATION_FRAMES = 900;
-    const durationFrames = durationMs > 0
-      ? this.msToLogicFrames(durationMs)
-      : DEFAULT_SPY_DURATION_FRAMES;
-    module.spyVisionDeactivateFrame = this.frameCounter + durationFrames;
+    const runtimeModule = this.resolveSpyVisionRuntimeModule(source, module);
+    runtimeModule.spyVisionDeactivateFrame = this.spyVisionDeactivateFrameFromDurationMs(durationMs);
+    runtimeModule.spyVisionCurrentlyActive = true;
+    runtimeModule.spyVisionResetTimersNextUpdate = false;
+    runtimeModule.spyVisionDisabledUntilFrame = 0;
+    this.applyEnemyUnitsVisionSpiedSetting(true, spyingSide, spyingPlayerIdx);
+    this.syncActiveSpyVisionRuntimeState();
+  }
+
+  private resolveSpyVisionRuntimeModule(
+    source: MapEntity,
+    module: SpecialPowerModuleProfile,
+  ): SpecialPowerModuleProfile {
+    if (module.moduleType.trim().toUpperCase() === 'SPYVISIONUPDATE') {
+      return module;
+    }
+    const sibling = Array.from(source.specialPowerModules.values()).find(
+      (candidate) => candidate.moduleType.trim().toUpperCase() === 'SPYVISIONUPDATE',
+    );
+    return sibling ?? module;
+  }
+
+  private spyVisionDeactivateFrameFromDurationMs(durationMs: number): number {
+    if (!(durationMs > 0)) {
+      return 0xFFFFFFFF;
+    }
+    return this.frameCounter + this.msToLogicFrames(durationMs);
+  }
+
+  private executePendingSpyVisionUpdateUpgradeMuxes(entity: MapEntity): boolean {
+    let appliedAny = false;
+    for (const module of entity.specialPowerModules.values()) {
+      if (module.moduleType.trim().toUpperCase() !== 'SPYVISIONUPDATE') {
+        continue;
+      }
+      if (!this.canActivateSpyVisionUpdateModule(entity, module)) {
+        continue;
+      }
+      this.activateSpyVisionUpdateModule(entity, module);
+      appliedAny = true;
+    }
+    return appliedAny;
+  }
+
+  private canActivateSpyVisionUpdateModule(entity: MapEntity, module: SpecialPowerModuleProfile): boolean {
+    if (!module.spyVisionSelfPowered) {
+      return false;
+    }
+    if (module.spyVisionCurrentlyActive === true) {
+      return false;
+    }
+    if ((module.availableOnFrame ?? 0) > this.frameCounter) {
+      return false;
+    }
+    const triggers = Array.isArray(module.spyVisionTriggeredBy) ? module.spyVisionTriggeredBy : [];
+    if (module.spyVisionNeedsUpgrade && triggers.length > 0) {
+      const completed = entity.completedUpgrades;
+      return module.spyVisionRequiresAllTriggers === true
+        ? triggers.every((upgradeName) => completed.has(upgradeName))
+        : triggers.some((upgradeName) => completed.has(upgradeName));
+    }
+    return module.spyVisionNeedsUpgrade !== true;
+  }
+
+  private activateSpyVisionUpdateModule(entity: MapEntity, module: SpecialPowerModuleProfile): void {
+    const spyingSide = this.normalizeSide(entity.side);
+    if (!spyingSide) {
+      return;
+    }
+    const spyingPlayerIndex = this.resolvePlayerIndexForSide(spyingSide);
+    if (spyingPlayerIndex < 0) {
+      return;
+    }
+    module.spyVisionDeactivateFrame = this.spyVisionDeactivateFrameFromDurationMs(
+      module.spyVisionSelfPoweredDurationMs ?? 0,
+    );
     module.spyVisionCurrentlyActive = true;
     module.spyVisionResetTimersNextUpdate = false;
     module.spyVisionDisabledUntilFrame = 0;
-    this.applyEnemyUnitsVisionSpiedSetting(true, spyingSide, spyingPlayerIdx);
+    this.applyEnemyUnitsVisionSpiedSetting(true, spyingSide, spyingPlayerIndex);
     this.syncActiveSpyVisionRuntimeState();
+  }
+
+  private deactivateSpyVisionUpdateModule(
+    entity: MapEntity,
+    module: SpecialPowerModuleProfile,
+    scheduleInterval: boolean,
+  ): boolean {
+    const changed = this.deactivateSourceBackedSpyVision(entity, module);
+    if (scheduleInterval && module.spyVisionSelfPowered) {
+      const intervalFrames = this.msToLogicFrames(Math.max(0, module.spyVisionSelfPoweredIntervalMs ?? 0));
+      module.availableOnFrame = this.frameCounter + intervalFrames;
+    }
+    return changed;
+  }
+
+  private updateSpyVisionUpdateModules(): void {
+    let changed = false;
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) {
+        continue;
+      }
+      for (const module of entity.specialPowerModules.values()) {
+        if (module.moduleType.trim().toUpperCase() !== 'SPYVISIONUPDATE') {
+          continue;
+        }
+        const disabledUntilFrame = Math.max(0, Math.trunc(module.spyVisionDisabledUntilFrame ?? 0));
+        if (disabledUntilFrame > this.frameCounter) {
+          if (module.spyVisionCurrentlyActive === true) {
+            changed = this.deactivateSpyVisionUpdateModule(entity, module, false) || changed;
+          }
+          continue;
+        }
+        const deactivateFrame = Math.max(0, Math.trunc(module.spyVisionDeactivateFrame));
+        if (module.spyVisionCurrentlyActive === true && deactivateFrame > 0 && deactivateFrame <= this.frameCounter) {
+          changed = this.deactivateSpyVisionUpdateModule(entity, module, true) || changed;
+          continue;
+        }
+        if (this.canActivateSpyVisionUpdateModule(entity, module)) {
+          this.activateSpyVisionUpdateModule(entity, module);
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      this.updateSpyVisionFog();
+    }
+  }
+
+  private spyVisionKindOfMatches(entity: MapEntity, spyOnKindOf: readonly string[] | undefined): boolean {
+    if (!spyOnKindOf || spyOnKindOf.length === 0) {
+      return true;
+    }
+    return spyOnKindOf.some((kindOfName) => entity.kindOf.has(kindOfName));
   }
 
   /**
@@ -54370,8 +55332,27 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
 
+      const explicitSpyVisionPlayers = new Set<number>();
+      const revealPlayerIndices = new Set<number>();
+      for (const spyVision of this.activeSpyVisions) {
+        if (this.getTeamRelationshipBySides(spyVision.spyingSide, entitySide) !== RELATIONSHIP_ENEMIES) {
+          continue;
+        }
+        explicitSpyVisionPlayers.add(spyVision.spyingPlayerIndex);
+        if (this.spyVisionKindOfMatches(entity, spyVision.spyOnKindOf)) {
+          revealPlayerIndices.add(spyVision.spyingPlayerIndex);
+        }
+      }
+
       const spyingMask = this.sideVisionSpiedMask.get(entitySide) ?? 0;
-      if (spyingMask === 0) {
+      for (let spyingPlayerIndex = 0; spyingPlayerIndex < this.nextPlayerIndex; spyingPlayerIndex += 1) {
+        if ((spyingMask & (1 << spyingPlayerIndex)) === 0 || explicitSpyVisionPlayers.has(spyingPlayerIndex)) {
+          continue;
+        }
+        revealPlayerIndices.add(spyingPlayerIndex);
+      }
+
+      if (revealPlayerIndices.size === 0) {
         continue;
       }
 
@@ -54380,11 +55361,7 @@ export class GameLogicSubsystem implements Subsystem {
         : entity.shroudClearingRange;
       const shouldReveal = !entity.destroyed && effectiveRange > 0;
 
-      for (let spyingPlayerIndex = 0; spyingPlayerIndex < this.nextPlayerIndex; spyingPlayerIndex += 1) {
-        if ((spyingMask & (1 << spyingPlayerIndex)) === 0) {
-          continue;
-        }
-
+      for (const spyingPlayerIndex of revealPlayerIndices) {
         const key = `${entity.id}:${spyingPlayerIndex}`;
         activeKeys.add(key);
 
@@ -54631,9 +55608,106 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity: RadiusDecalUpdate::update — update ground radius decals.
+   * Source parity: TransitionDamageFX::onBodyDamageStateChange.
+   * Fires one-shot FX/OCL/ParticleSystem entries when the body state worsens.
+   */
+  private transitionDamageFXOnBodyDamageStateChange(
+    entity: MapEntity,
+    oldState: BodyDamageState,
+    newState: BodyDamageState,
+    damageType: string,
+  ): void {
+    const profile = entity.transitionDamageFXProfile;
+    if (!profile || newState <= oldState) return;
+
+    const fxEntries = profile.fxLists[newState] ?? [];
+    if (this.transitionDamageFXMatchesDamageType(profile.damageFXTypes, damageType)) {
+      for (const entry of fxEntries) {
+        const pos = this.transitionDamageFXWorldPosition(entity, entry);
+        this.visualEventBuffer.push({
+          type: 'NAMED_FX',
+          x: pos.x,
+          y: pos.y,
+          z: pos.z,
+          radius: 0,
+          sourceEntityId: entity.id,
+          projectileType: 'BULLET',
+          effectName: entry.effectName,
+        });
+      }
+    }
+
+    const oclEntries = profile.oclLists[newState] ?? [];
+    if (this.transitionDamageFXMatchesDamageType(profile.damageOCLTypes, damageType)) {
+      for (const entry of oclEntries) {
+        const pos = this.transitionDamageFXWorldPosition(entity, entry);
+        this.executeTransitionDamageFXOCL(entity, entry.effectName, pos);
+      }
+    }
+
+    const particleEntries = profile.particleSystems[newState] ?? [];
+    if (this.transitionDamageFXMatchesDamageType(profile.damageParticleTypes, damageType)) {
+      for (const entry of particleEntries) {
+        const pos = this.transitionDamageFXWorldPosition(entity, entry);
+        this.visualEventBuffer.push({
+          type: 'NAMED_PARTICLE_SYSTEM',
+          x: pos.x,
+          y: pos.y,
+          z: pos.z,
+          radius: 0,
+          sourceEntityId: entity.id,
+          projectileType: 'BULLET',
+          effectName: entry.effectName,
+        });
+      }
+    }
+  }
+
+  private transitionDamageFXMatchesDamageType(filter: TransitionDamageTypeFilter | null, damageType: string): boolean {
+    if (!filter) return true;
+    const normalized = damageType.toUpperCase();
+    if (filter.excludes.includes(normalized)) return false;
+    if (filter.includeAll) return true;
+    return filter.includes.includes(normalized);
+  }
+
+  private transitionDamageFXWorldPosition(
+    entity: MapEntity,
+    entry: TransitionDamageFXEntry,
+  ): { x: number; y: number; z: number } {
+    // Source Coord3D uses X/Y as ground plane and Z as height. The browser runtime
+    // uses X/Z as ground plane and Y as height.
+    return {
+      x: entity.x + entry.loc.x,
+      y: entity.y + entry.loc.z,
+      z: entity.z + entry.loc.y,
+    };
+  }
+
+  private executeTransitionDamageFXOCL(
+    entity: MapEntity,
+    oclName: string,
+    pos: { x: number; y: number; z: number },
+  ): void {
+    const oldX = entity.x;
+    const oldY = entity.y;
+    const oldZ = entity.z;
+    entity.x = pos.x;
+    entity.y = pos.y;
+    entity.z = pos.z;
+    try {
+      this.executeOCL(oclName, entity, undefined, pos.x, pos.z);
+    } finally {
+      entity.x = oldX;
+      entity.y = oldY;
+      entity.z = oldZ;
+    }
+  }
+
+  /**
+   * Source parity: RadiusDecalUpdate::update - update ground radius decals.
    * If killWhenNoLongerAttacking and entity is not attacking, clear the decal.
-   * Update decal positions to entity position.
+   * The delivery decal position is fixed at createRadiusDecal()'s target position.
    * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/RadiusDecalUpdate.cpp:72-82)
    */
   private updateRadiusDecals(): void {
@@ -54651,10 +55725,7 @@ export class GameLogicSubsystem implements Subsystem {
           continue;
         }
 
-        // Update position to entity position.
-        decal.positionX = entity.x;
-        decal.positionY = entity.y;
-        decal.positionZ = entity.z;
+        // C++ updates the decal object in place; it does not re-anchor to the source object.
       }
     }
   }
@@ -54902,11 +55973,14 @@ export class GameLogicSubsystem implements Subsystem {
         // Source parity: FireWeaponNugget::create — fires weapon at secondary (target) position.
         // C++ calls TheWeaponStore->createAndFireTempWeapon(m_weapon, primaryObj, secondary).
         this.executeFireWeaponNugget(nugget, sourceEntity, targetX, targetZ);
+      } else if (nuggetType === 'ATTACK') {
+        // Source parity: AttackNugget::create — orders the source object to attack the secondary position.
+        this.executeAttackNugget(nugget, sourceEntity, targetX, targetZ);
       } else if (nuggetType === 'DELIVERPAYLOAD') {
         // Source parity: DeliverPayloadNugget::create — spawn transport(s) with payload.
         this.executeDeliverPayloadNugget(nugget, sourceEntity, targetX, targetZ);
       }
-      // Attack, ApplyRandomForce are omitted for now.
+      // ApplyRandomForce is omitted for now.
     }
     return firstCreatedEntityId;
   }
@@ -55170,6 +56244,53 @@ export class GameLogicSubsystem implements Subsystem {
     const fireX = targetX ?? sourceEntity.x;
     const fireZ = targetZ ?? sourceEntity.z;
     this.fireTemporaryWeaponAtPosition(sourceEntity, weaponDef, fireX, fireZ);
+  }
+
+  private parseOCLWeaponSlot(nugget: IniBlock): number {
+    const rawSlot = readStringField(nugget.fields, ['WeaponSlot'])?.trim().toUpperCase() ?? '';
+    if (rawSlot === 'SECONDARY' || rawSlot === 'SECONDARY_WEAPON') return 1;
+    if (rawSlot === 'TERTIARY' || rawSlot === 'TERTIARY_WEAPON') return 2;
+    return 0;
+  }
+
+  /**
+   * Source parity: AttackNugget::create — AI attacks a target position and shows a RadiusDecalUpdate decal.
+   * C++ ObjectCreationList.cpp AttackNugget::create.
+   */
+  private executeAttackNugget(
+    nugget: IniBlock,
+    sourceEntity: MapEntity,
+    targetX?: number,
+    targetZ?: number,
+  ): void {
+    if (!Number.isFinite(targetX) || !Number.isFinite(targetZ)) {
+      return;
+    }
+    const attackX = targetX as number;
+    const attackZ = targetZ as number;
+
+    const weaponSlot = this.parseOCLWeaponSlot(nugget);
+    const numberOfShots = Math.max(1, Math.trunc(readNumericField(nugget.fields, ['NumberOfShots']) ?? 1));
+    this.issueFireWeapon(sourceEntity.id, weaponSlot, numberOfShots, null, [attackX, 0, attackZ]);
+    sourceEntity.attackCommandSource = 'AI';
+
+    if (sourceEntity.radiusDecalModuleStates.length === 0) {
+      return;
+    }
+
+    const radius = Math.max(0, readNumericField(nugget.fields, ['DeliveryDecalRadius']) ?? 0);
+    sourceEntity.radiusDecalStates = [{
+      positionX: attackX,
+      positionY: this.resolveGroundHeight(attackX, attackZ),
+      positionZ: attackZ,
+      radius,
+      visible: radius > 0,
+      killWhenNoLongerAttacking: true,
+    }];
+    for (const state of sourceEntity.radiusDecalModuleStates) {
+      state.killWhenNoLongerAttacking = true;
+    }
+    this.setEntityAttackStatus(sourceEntity, true);
   }
 
   /**
@@ -55552,10 +56673,26 @@ export class GameLogicSubsystem implements Subsystem {
    */
   private updateBunkerBusterTracking(): void {
     for (const entity of this.spawnedEntities.values()) {
-      if (!entity.bunkerBusterProfile || entity.destroyed) continue;
-      if (entity.bunkerBusterVictimId !== null) continue;
-      if (entity.attackTargetEntityId !== null) {
+      const profile = entity.bunkerBusterProfile;
+      if (!profile || entity.destroyed) continue;
+      if (entity.bunkerBusterVictimId === null && entity.attackTargetEntityId !== null) {
         entity.bunkerBusterVictimId = entity.attackTargetEntityId;
+      }
+      if (
+        profile.crashThroughBunkerFXName
+        && entity.objectStatusFlags.has('MISSILE_KILLING_SELF')
+        && this.frameCounter % Math.max(1, profile.crashThroughBunkerFXFrequencyFrames) === 1
+      ) {
+        this.visualEventBuffer.push({
+          type: 'NAMED_FX',
+          x: entity.x,
+          y: entity.y,
+          z: entity.z,
+          radius: 0,
+          sourceEntityId: entity.id,
+          projectileType: 'MISSILE',
+          effectName: profile.crashThroughBunkerFXName,
+        });
       }
     }
   }
@@ -55573,6 +56710,7 @@ export class GameLogicSubsystem implements Subsystem {
 
     const victimId = entity.bunkerBusterVictimId;
     const victim = victimId !== null ? this.spawnedEntities.get(victimId) : undefined;
+    const objectForFX = (victim && !victim.destroyed) ? victim : entity;
 
     // Source parity: check if victim has a bustable contain module (C++ line 207).
     // GarrisonContain, TunnelContain, and CaveContain return isBustable()=TRUE.
@@ -55624,16 +56762,42 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
+    if (profile.detonationFXName) {
+      this.visualEventBuffer.push({
+        type: 'NAMED_FX',
+        x: objectForFX.x,
+        y: objectForFX.y,
+        z: objectForFX.z,
+        radius: 0,
+        sourceEntityId: objectForFX.id,
+        projectileType: 'MISSILE',
+        effectName: profile.detonationFXName,
+      });
+    }
+
+    if (profile.seismicEffectRadius > 0 && profile.seismicEffectMagnitude > 0) {
+      this.visualEventBuffer.push({
+        type: 'WORLD_ANIMATION',
+        x: objectForFX.x,
+        y: objectForFX.y,
+        z: objectForFX.z,
+        radius: profile.seismicEffectRadius,
+        sourceEntityId: objectForFX.id,
+        projectileType: 'MISSILE',
+        effectName: 'SEISMIC',
+        seismicMagnitude: profile.seismicEffectMagnitude,
+      });
+    }
+
     // Source parity: fire shockwave weapon at victim position (C++ line 244-245).
     // C++: objectForFX = victim building (determines side for relationship filtering).
     // Shockwave fires even if victim was already destroyed — fall back to bomb position.
     if (profile.shockwaveWeaponName) {
       const shockwaveWeaponDef = this.iniDataRegistry?.getWeapon(profile.shockwaveWeaponName);
       if (shockwaveWeaponDef) {
-        const shockwaveSource = (victim && !victim.destroyed) ? victim : entity;
         const shockwaveX = victim ? victim.x : entity.x;
         const shockwaveZ = victim ? victim.z : entity.z;
-        this.fireTemporaryWeaponAtPosition(shockwaveSource, shockwaveWeaponDef, shockwaveX, shockwaveZ);
+        this.fireTemporaryWeaponAtPosition(objectForFX, shockwaveWeaponDef, shockwaveX, shockwaveZ);
       }
     }
   }

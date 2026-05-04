@@ -924,6 +924,50 @@ describe('StickyBombUpdate', () => {
 });
 
 describe('EMPUpdate', () => {
+  it('parses and updates EMP visual scale and tint fields', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('EMPPulse', 'America', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+          makeBlock('Behavior', 'EMPUpdate ModuleTag_EMP', {
+            Lifetime: 300,
+            StartFadeTime: 100,
+            DisabledDuration: 3000,
+            EffectRadius: 200,
+            StartScale: 0.25,
+            TargetScaleMin: 3,
+            TargetScaleMax: 3,
+            StartColor: ['R:10', 'G:20', 'B:30'],
+            EndColor: ['R:40', 'G:50', 'B:60'],
+          }),
+        ]),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('EMPPulse', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const emp = (logic as any).spawnedEntities.get(1)!;
+    expect(emp.empUpdateProfile.startScale).toBe(0.25);
+    expect(emp.empUpdateProfile.targetScaleMin).toBe(3);
+    expect(emp.empUpdateProfile.targetScaleMax).toBe(3);
+    expect(emp.empUpdateProfile.startColor).toEqual([10, 20, 30]);
+    expect(emp.empUpdateProfile.endColor).toEqual([40, 50, 60]);
+
+    logic.update(1 / 30);
+    expect(emp.empUpdateState.targetScale).toBe(3);
+    expect(emp.empUpdateState.currentScale).toBeCloseTo(0.25 + (3 - 0.25) * 0.05, 10);
+    expect(emp.empUpdateState.currentTintColor).toEqual([20, 40, 60]);
+
+    for (let i = 0; i < 4; i++) logic.update(1 / 30);
+    expect(emp.empUpdateState.currentTintColor).toEqual([200, 250, 255]);
+    expect(emp.empUpdateState.tintFadeFrames).toBe(6);
+  });
+
   it('disables nearby vehicles after fade frame and self-destructs at lifetime end', () => {
     const bundle = makeBundle({
       objects: [

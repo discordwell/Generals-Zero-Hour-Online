@@ -7,6 +7,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { CELL_CLEAR, CELL_FOGGED } from './fog-of-war.js';
+import { buildContainedEntityIdsByContainerId } from './containment-queries.js';
 import { SupplyTruckAIState } from './supply-chain.js';
 import {
   calcBodyDamageState,
@@ -58,12 +59,20 @@ export function deriveRenderAnimationState(self: GL, entity: MapEntity): RenderA
     return 'IDLE';
 }
 
-export function updateRenderState(self: GL, entity: MapEntity): void {
+export function updateRenderState(
+  self: GL,
+  entity: MapEntity,
+  containedEntityIdsByContainerId: Map<number, number[]> | null = null,
+): void {
     entity.animationState = self.deriveRenderAnimationState(entity);
-    self.syncModelConditionFlags(entity);
+    self.syncModelConditionFlags(entity, containedEntityIdsByContainerId);
 }
 
-export function syncModelConditionFlags(self: GL, entity: MapEntity): void {
+export function syncModelConditionFlags(
+  self: GL,
+  entity: MapEntity,
+  containedEntityIdsByContainerId: Map<number, number[]> | null = null,
+): void {
     const flags = entity.modelConditionFlags;
 
     // ════════════════════════════════════════════════════════════════════════
@@ -96,7 +105,9 @@ export function syncModelConditionFlags(self: GL, entity: MapEntity): void {
     }
 
     // ── TOPPLED — tree/pole has completed topple animation ──
-    if (entity.toppleState === 'DONE' || entity.toppleState === 'BOUNCING') {
+    const riderChangeScuttleToppled = entity.riderChangeScuttledFrame > 0
+      && entity.riderChangeContainProfile?.scuttleStatus === 'TOPPLED';
+    if (entity.toppleState === 'DONE' || entity.toppleState === 'BOUNCING' || riderChangeScuttleToppled) {
       flags.add('TOPPLED');
     } else {
       flags.delete('TOPPLED');
@@ -286,7 +297,9 @@ export function syncModelConditionFlags(self: GL, entity: MapEntity): void {
 
     // ── LOADED — transport/container has passengers inside ──
     if (entity.containProfile) {
-      const occupantCount = self.collectContainedEntityIds(entity.id).length;
+      const occupantCount = containedEntityIdsByContainerId
+        ? (containedEntityIdsByContainerId.get(entity.id)?.length ?? 0)
+        : self.collectContainedEntityIds(entity.id).length;
       if (occupantCount > 0) {
         flags.add('LOADED');
       } else {
@@ -528,8 +541,9 @@ export function syncModelConditionFlags(self: GL, entity: MapEntity): void {
 }
 
 export function updateRenderStates(self: GL): void {
+    const containedEntityIdsByContainerId = buildContainedEntityIdsByContainerId(self);
     for (const entity of self.spawnedEntities.values()) {
-      self.updateRenderState(entity);
+      self.updateRenderState(entity, containedEntityIdsByContainerId);
     }
 }
 
@@ -610,6 +624,7 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
       modelConditionInfos: entity.modelConditionInfos,
       transitionInfos: entity.transitionInfos,
       modelConditionFlags: [...entity.modelConditionFlags],
+      manualAnimationFrame: entity.deployManualAnimationFrame ?? undefined,
       currentSpeed: entity.currentSpeed,
       maxSpeed: entity.speed,
       category: entity.category,
@@ -673,8 +688,20 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
             visible: d.visible,
           }))
         : undefined,
+      forcedHiddenSubObjects: entity.forcedHiddenSubObjects.size > 0
+        ? Array.from(entity.forcedHiddenSubObjects.values()).sort()
+        : undefined,
+      forcedShownSubObjects: entity.forcedShownSubObjects.size > 0
+        ? Array.from(entity.forcedShownSubObjects.values()).sort()
+        : undefined,
       boneFXEvents: entity.boneFXState?.pendingVisualEvents.length
         ? entity.boneFXState.pendingVisualEvents.slice()
+        : undefined,
+      animatedParticleSysBoneClientUpdate: entity.animatedParticleSysBoneClientUpdateState
+        ? { ...entity.animatedParticleSysBoneClientUpdateState }
+        : undefined,
+      swayClientUpdate: entity.swayClientUpdateState
+        ? { ...entity.swayClientUpdateState }
         : undefined,
       shadowType: entity.shadowType ?? undefined,
       shadowSizeX: entity.shadowSizeX > 0 ? entity.shadowSizeX : undefined,

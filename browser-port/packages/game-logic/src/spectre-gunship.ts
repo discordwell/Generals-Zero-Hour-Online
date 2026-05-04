@@ -30,6 +30,7 @@ export function extractSpectreGunshipUpdateProfile(self: GL, objectDef: ObjectDe
       orbitFrames: self.msToLogicFrames(readNumericField(block.fields, ['OrbitTime']) ?? 0),
       howitzerWeaponTemplate: readStringField(block.fields, ['HowitzerWeaponTemplate']) ?? '',
       gattlingTemplateName: readStringField(block.fields, ['GattlingTemplateName']) ?? '',
+      gattlingStrafeFXParticleSystemName: readStringField(block.fields, ['GattlingStrafeFXParticleSystem']) ?? '',
     };
   }
   return null;
@@ -416,6 +417,26 @@ export function updateSpectreGunship(self: GL): void {
         const normSZ = strafeDZ / strafeDist;
         state.gattlingTargetX += normSX * profile.strafingIncrement;
         state.gattlingTargetZ += normSZ * profile.strafingIncrement;
+      }
+
+      const gattlingStrafe = self.spawnedEntities.get(state.gattlingEntityId);
+      if (profile.gattlingStrafeFXParticleSystemName
+        && gattlingStrafe
+        && !gattlingStrafe.destroyed
+        && gattlingStrafe.objectStatusFlags.has('IS_FIRING_WEAPON')) {
+        const rand = self.gameClientRandom;
+        const fxX = state.gattlingTargetX + (rand.nextFloat() * 10 - 5);
+        const fxZ = state.gattlingTargetZ + (rand.nextFloat() * 10 - 5);
+        self.visualEventBuffer.push({
+          type: 'NAMED_PARTICLE_SYSTEM',
+          x: fxX,
+          y: self.resolveGroundHeight(fxX, fxZ),
+          z: fxZ,
+          radius: 0,
+          sourceEntityId: entity.id,
+          projectileType: 'BULLET',
+          effectName: profile.gattlingStrafeFXParticleSystemName,
+        });
       }
     }
 

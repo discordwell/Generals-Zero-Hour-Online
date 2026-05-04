@@ -130,6 +130,8 @@ export function extractSlavedUpdateProfile(self: GL, objectDef: ObjectDef | unde
           repairMaxReadyFrames: self.msToLogicFrames(readNumericField(block.fields, ['RepairMaxReadyTime']) ?? 0),
           repairMinWeldFrames: self.msToLogicFrames(readNumericField(block.fields, ['RepairMinWeldTime']) ?? 0),
           repairMaxWeldFrames: self.msToLogicFrames(readNumericField(block.fields, ['RepairMaxWeldTime']) ?? 0),
+          repairWeldingSysName: readStringField(block.fields, ['RepairWeldingSys'])?.trim() ?? '',
+          repairWeldingFXBone: readStringField(block.fields, ['RepairWeldingFXBone'])?.trim() ?? '',
           stayOnSameLayerAsMaster: readStringField(block.fields, ['StayOnSameLayerAsMaster'])?.toUpperCase() === 'YES',
         };
       }
@@ -558,9 +560,34 @@ export function slavedDoRepair(self: GL, slave: MapEntity, master: MapEntity, pr
   if (dist <= SLAVE_CLOSE_ENOUGH * 2) {
     const healPerFrame = profile.repairRatePerSecond / 30;
     if (healPerFrame > 0) {
+      const previousHealth = master.health;
       master.health = Math.min(master.maxHealth, master.health + healPerFrame);
+      emitSlavedRepairWeldingVisual(self, slave, profile, master.health > previousHealth);
     }
   }
+}
+
+function emitSlavedRepairWeldingVisual(self: GL, slave: MapEntity, profile: SlavedUpdateProfile, repaired: boolean): void {
+  if (!repaired) return;
+  const effectName = profile.repairWeldingSysName.trim();
+  if (!effectName) return;
+  const minWeldFrames = Math.max(0, Math.trunc(profile.repairMinWeldFrames));
+  const maxWeldFrames = Math.max(minWeldFrames, Math.trunc(profile.repairMaxWeldFrames));
+  const lifetimeFrames = maxWeldFrames > minWeldFrames
+    ? self.gameRandom.nextRange(minWeldFrames, maxWeldFrames)
+    : maxWeldFrames;
+  self.visualEventBuffer.push({
+    type: 'NAMED_PARTICLE_SYSTEM',
+    x: slave.x,
+    y: slave.y,
+    z: slave.z,
+    radius: 0,
+    sourceEntityId: slave.id,
+    projectileType: 'BULLET',
+    effectName,
+    sourceBoneName: profile.repairWeldingFXBone,
+    ...(lifetimeFrames > 0 ? { lifetimeFrames } : {}),
+  });
 }
 
 export function slavedDoAttack(self: GL, 

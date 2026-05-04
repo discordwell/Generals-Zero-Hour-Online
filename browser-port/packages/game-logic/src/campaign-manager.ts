@@ -54,6 +54,83 @@ export function resolveCampaignMapAssetPath(mapName: string | null | undefined):
   return `maps/_extracted/MapsZH/${normalized.replace(/\.map$/i, '.json')}`;
 }
 
+function buildFallbackStoryCampaignIni(
+  campaignName: string,
+  campaignNameLabel: string,
+  mapPrefix: string,
+  missionCount: number,
+  videoPrefix = mapPrefix,
+): string {
+  const missions: string[] = [];
+  for (let missionIndex = 1; missionIndex <= missionCount; missionIndex += 1) {
+    const missionName = `Mission${String(missionIndex).padStart(2, '0')}`;
+    const mapName = `${mapPrefix}${String(missionIndex).padStart(2, '0')}`;
+    const videoName = `${videoPrefix}${String(missionIndex).padStart(2, '0')}_0`;
+    const nextMission = missionIndex < missionCount
+      ? `    NextMission Mission${String(missionIndex + 1).padStart(2, '0')}`
+      : '';
+    missions.push([
+      `  Mission ${missionName}`,
+      `    Map Maps\\${mapName}\\${mapName}.map`,
+      `    IntroMovie ${videoName}`,
+      nextMission,
+      '  END',
+    ].filter(Boolean).join('\n'));
+  }
+
+  return [
+    `Campaign ${campaignName}`,
+    `  CampaignNameLabel ${campaignNameLabel}`,
+    '  FirstMission Mission01',
+    ...missions,
+    'END',
+  ].join('\n');
+}
+
+const FALLBACK_CHALLENGE_CAMPAIGNS = [
+  ['CHALLENGE_0', 'FactionAmericaAirForceGeneral', 'GC_ChemGeneral'],
+  ['CHALLENGE_1', 'FactionGLAToxinGeneral', 'GC_AirGeneral'],
+  ['CHALLENGE_2', 'FactionChinaNukeGeneral', 'GC_TankGeneral'],
+  ['CHALLENGE_3', 'FactionAmericaSuperWeaponGeneral', 'GC_NukeGeneral'],
+  ['CHALLENGE_4', 'FactionChinaTankGeneral', 'GC_SuperWeaponsGeneral'],
+  ['CHALLENGE_5', 'FactionAmericaLaserGeneral', 'GC_Stealth'],
+  ['CHALLENGE_6', 'FactionGLAStealthGeneral', 'GC_LaserGeneral'],
+  ['CHALLENGE_7', 'FactionChinaInfantryGeneral', 'GC_DemolitionGeneral'],
+  ['CHALLENGE_8', 'FactionGLADemolitionGeneral', 'GC_ChinaBoss'],
+] as const;
+
+function buildFallbackChallengeCampaignIni(
+  campaignName: string,
+  playerFaction: string,
+  mapName: string,
+): string {
+  return [
+    `Campaign ${campaignName}`,
+    `  CampaignNameLabel CAMPAIGN:${campaignName}`,
+    '  FirstMission Mission01',
+    '  IsChallengeCampaign yes',
+    `  PlayerFaction ${playerFaction}`,
+    '  Mission Mission01',
+    `    Map Maps\\${mapName}\\${mapName}.map`,
+    '    IntroMovie GC_Background',
+    '  END',
+    'END',
+  ].join('\n');
+}
+
+/**
+ * Minimal packaged Zero Hour campaign table used when the raw retail
+ * Campaign.ini is not present in the extracted browser assets.
+ */
+export const FALLBACK_ZERO_HOUR_CAMPAIGN_INI = [
+  buildFallbackStoryCampaignIni('USA', 'CAMPAIGN:USA', 'MD_USA', 5),
+  buildFallbackStoryCampaignIni('GLA', 'CAMPAIGN:GLA', 'MD_GLA', 5),
+  buildFallbackStoryCampaignIni('CHINA', 'CAMPAIGN:China', 'MD_CHI', 5, 'MD_China'),
+  ...FALLBACK_CHALLENGE_CAMPAIGNS.map(([campaignName, playerFaction, mapName]) =>
+    buildFallbackChallengeCampaignIni(campaignName, playerFaction, mapName),
+  ),
+].join('\n\n');
+
 // ──── Parsing ───────────────────────────────────────────────────────────────
 
 /**
@@ -290,6 +367,61 @@ export class CampaignManager {
     this.currentCampaign = campaign;
     this.currentMission = mission;
     return true;
+  }
+
+  restoreCampaignSaveSnapshot(params: {
+    campaignName: string;
+    missionName: string;
+    missionNumber: number;
+    mapName: string;
+    isChallengeCampaign: boolean;
+  }): boolean {
+    const campaignName = params.campaignName.trim().toLowerCase();
+    const missionName = params.missionName.trim().toLowerCase();
+    if (!campaignName || !missionName || !params.mapName.trim()) {
+      return false;
+    }
+
+    const missionNumber = Number.isFinite(params.missionNumber)
+      ? Math.max(0, Math.trunc(params.missionNumber))
+      : 0;
+    const missions: Mission[] = [];
+    for (let index = 0; index <= missionNumber; index += 1) {
+      const name = index === missionNumber
+        ? missionName
+        : `mission${String(index + 1).padStart(2, '0')}`;
+      missions.push({
+        name,
+        mapName: index === missionNumber ? params.mapName : '',
+        nextMission: '',
+        movieLabel: '',
+        objectiveLines: [],
+        briefingVoice: '',
+        locationNameLabel: '',
+        unitNames: [],
+        voiceLength: 0,
+        generalName: '',
+      });
+    }
+
+    const campaign: Campaign = {
+      name: campaignName,
+      firstMission: missions[0]?.name ?? missionName,
+      campaignNameLabel: campaignName,
+      finalMovieName: '',
+      isChallengeCampaign: params.isChallengeCampaign,
+      playerFactionName: '',
+      missions,
+    };
+    const existingIndex = this.campaigns.findIndex(c => c.name === campaignName);
+    if (existingIndex >= 0) {
+      this.campaigns[existingIndex] = campaign;
+    } else {
+      this.campaigns.push(campaign);
+    }
+    this.currentCampaign = campaign;
+    this.currentMission = missions[missionNumber] ?? null;
+    return this.currentMission !== null;
   }
 
   /**
