@@ -34,7 +34,10 @@ import {
   extractSalvageCrateProfile,
   extractSpecialPowerModules,
   extractStickyBombUpdateProfile,
+  extractTransitionDamageFXProfile,
+  extractUpgradeModulesFromBlocks,
 } from './entity-factory.js';
+import { extractBridgeBehaviorProfile } from './bridge-mechanics.js';
 import { extractFlightDeckProfile } from './flight-deck.js';
 import { LOGIC_FRAME_RATE } from './index.js';
 
@@ -110,18 +113,22 @@ function makeSelfStub() {
     },
     resolveObjectDefParent: (_obj: BundleObject | undefined): BundleObject | undefined =>
       undefined,
-    parseUpgradeNames: (value: unknown): string[] => {
-      if (typeof value === 'string') {
-        return value.trim().split(/\s+/).filter((s) => s.length > 0);
-      }
-      if (Array.isArray(value)) {
-        return value
-          .flatMap((entry) => (typeof entry === 'string' ? entry.trim().split(/\s+/) : []))
-          .filter((s) => s.length > 0);
-      }
-      return [];
-    },
+    parseUpgradeNames: (value: unknown): string[] => splitTokens(value),
+    parseObjectStatusNames: (value: unknown): string[] => splitTokens(value).map((s) => s.toUpperCase()),
+    parseKindOf: (value: unknown): string[] => splitTokens(value).map((s) => s.toUpperCase()),
   } as unknown as Parameters<typeof extractFlightDeckProfile>[0];
+}
+
+function splitTokens(value: unknown): string[] {
+  if (typeof value === 'string') {
+    return value.trim().split(/\s+/).filter((s) => s.length > 0);
+  }
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((entry) => (typeof entry === 'string' ? entry.trim().split(/\s+/) : []))
+      .filter((s) => s.length > 0);
+  }
+  return [];
 }
 
 describe('session 2026-05-04 — slice 3 closed module-field gaps', () => {
@@ -331,6 +338,96 @@ describe('session 2026-05-04 — slice 1 against real retail data', () => {
       );
       expect(amount).toBeDefined();
       expect(amount!.amountToSteal).toBe(2000);
+    });
+  });
+
+  describe('TransitionDamageFX particle slots on AirF_AmericaAirfield', () => {
+    const obj = findObjectDef('AirF_AmericaAirfield');
+    const profile = extractTransitionDamageFXProfile(makeSelfStub(), obj as never);
+
+    it('parses ReallyDamagedParticleSystem1/2/3 into the rubble-state row', () => {
+      expect(profile).not.toBeNull();
+      // C++ BODYDAMAGETYPE_COUNT=4 (PRISTINE=0, DAMAGED=1, REALLYDAMAGED=2, RUBBLE=3).
+      const reallyDamagedPSys = profile!.particleSystems[2];
+      expect(reallyDamagedPSys).toBeDefined();
+      const effectNames = reallyDamagedPSys.map((e) => e.effectName).sort();
+      // Three particle systems shipped on AirF_AmericaAirfield's REALLYDAMAGED state.
+      expect(effectNames).toEqual([
+        'StructureTransitionMediumExplosion',
+        'StructureTransitionMediumShockwave',
+        'StructureTransitionMediumSmoke',
+      ]);
+      // Bone:None means no specific bone — locType is BONE with name="None"
+      // (which is handled by the renderer as "no anchor" without erroring).
+      for (const entry of reallyDamagedPSys) {
+        expect(entry.locType).toBe('BONE');
+        expect(entry.boneName).toBe('None');
+        expect(entry.randomBone).toBe(false);
+      }
+    });
+  });
+
+  describe('BridgeBehavior repeated DieFX/DieOCL slots', () => {
+    it('parses BridgeDieFX with FX:/Delay:/Bone: tokens on SpecialEffectsTrainCrashObject', () => {
+      const obj = findObjectDef('SpecialEffectsTrainCrashObject');
+      const profile = extractBridgeBehaviorProfile(makeSelfStub(), obj as never);
+      expect(profile).not.toBeNull();
+      const dieFX = profile!.bridgeDieFX;
+      expect(dieFX.length).toBeGreaterThan(0);
+      // Delay:9160ms at 30Hz logic frame rate = 275 frames (9160 / (1000/30)).
+      // Round-half-to-even can yield 275; allow either rounding.
+      const splash = dieFX.find((entry) => entry.effectName === 'FX_TrainWreckSplash');
+      expect(splash).toBeDefined();
+      expect(splash!.delayFrames).toBeGreaterThanOrEqual(274);
+      expect(splash!.delayFrames).toBeLessThanOrEqual(275);
+      expect(splash!.boneName).toBe('Splash06');
+    });
+
+    it('parses BridgeDieOCL with OCL:/Delay:/Bone: tokens on TsingMaLandmarkBridge', () => {
+      const obj = findObjectDef('TsingMaLandmarkBridge');
+      const profile = extractBridgeBehaviorProfile(makeSelfStub(), obj as never);
+      expect(profile).not.toBeNull();
+      const dieOCL = profile!.bridgeDieOCL;
+      const explosion = dieOCL.find((entry) => entry.effectName === 'OCL_TsingMaExplosion');
+      expect(explosion).toBeDefined();
+      // Delay:50000ms = 1500 frames at 30Hz.
+      expect(explosion!.delayFrames).toBe(1500);
+      expect(explosion!.boneName).toBe('Explosion07');
+    });
+  });
+
+  describe('SubObjectsUpgrade visibility lists with mixed string/array shapes', () => {
+    it('parses the array-form HideSubObjects on Chem_GLAVehicleBombTruck', () => {
+      const obj = findObjectDef('Chem_GLAVehicleBombTruck');
+      const upgrades = extractUpgradeModulesFromBlocks(makeSelfStub(), obj.blocks as never, null);
+      const subObjectUpgrade = upgrades.find((u) => u.hideSubObjects.length > 0);
+      expect(subObjectUpgrade).toBeDefined();
+      expect(subObjectUpgrade!.hideSubObjects).toEqual(['Bombload01', 'Bombload03', 'Bombload04']);
+    });
+
+    it('parses the single-string ShowSubObjects on Boss_VehicleHelix', () => {
+      const obj = findObjectDef('Boss_VehicleHelix');
+      const upgrades = extractUpgradeModulesFromBlocks(makeSelfStub(), obj.blocks as never, null);
+      const subObjectUpgrade = upgrades.find((u) => u.showSubObjects.length > 0);
+      expect(subObjectUpgrade).toBeDefined();
+      expect(subObjectUpgrade!.showSubObjects).toEqual(['BombWing']);
+    });
+  });
+
+  describe('FlammableUpdate burning sound + FireSpread embers OCL on GenericTree', () => {
+    const obj = findObjectDef('GenericTree');
+
+    it('parses BurningSoundName="GenericFireMediumLoop"', () => {
+      const bundleValue = readBundleField(obj, 'FlammableUpdate', 'BurningSoundName');
+      expect(bundleValue).toBe('GenericFireMediumLoop');
+      // The Flammable profile is on the entity at runtime; we read it via the
+      // raw bundle and confirm the field is at least present in the
+      // FlammableUpdate block — the specific extractor surface is internal.
+    });
+
+    it('parses OCLEmbers="OCL_BurningEmbers"', () => {
+      const bundleValue = readBundleField(obj, 'FireSpreadUpdate', 'OCLEmbers');
+      expect(bundleValue).toBe('OCL_BurningEmbers');
     });
   });
 });
