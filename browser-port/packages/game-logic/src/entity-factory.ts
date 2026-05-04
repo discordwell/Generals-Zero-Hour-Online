@@ -1926,11 +1926,21 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
     const healthRegenRaw = readNumericField(block.fields, ['HealthRegen%PerSec']);
     const healthRegenPercentPerSec = healthRegenRaw != null ? healthRegenRaw / 100 : 0;
     // Source parity: TransportContainModuleData::m_initialPayload.
-    const initialPayloadRaw = readStringField(block.fields, ['InitialPayload']);
+    // The INI parser may emit this either as a single string ("GLAInfantryTerrorist 1")
+    // or as an array (["GLAInfantryTerrorist", "1"]) depending on how the source line was
+    // tokenized. Accept both shapes.
+    const initialPayloadField = block.fields['InitialPayload'];
     let initialPayloadTemplateName: string | null = null;
     let initialPayloadCount = 0;
-    if (initialPayloadRaw) {
-      const payloadTokens = initialPayloadRaw.trim().split(/\s+/);
+    {
+      let payloadTokens: string[] = [];
+      if (typeof initialPayloadField === 'string') {
+        payloadTokens = initialPayloadField.trim().split(/\s+/).filter((token) => token.length > 0);
+      } else if (Array.isArray(initialPayloadField)) {
+        payloadTokens = initialPayloadField
+          .flatMap((entry) => (typeof entry === 'string' ? entry.trim().split(/\s+/) : []))
+          .filter((token) => token.length > 0);
+      }
       if (payloadTokens.length >= 1) {
         initialPayloadTemplateName = payloadTokens[0]!;
         initialPayloadCount = payloadTokens.length >= 2 ? (parseInt(payloadTokens[1]!, 10) || 1) : 1;
