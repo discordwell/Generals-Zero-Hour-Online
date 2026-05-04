@@ -302,4 +302,35 @@ describe('session 2026-05-04 — slice 1 against real retail data', () => {
       expect(profile!.spyVisionKindOf).toEqual(['COMMANDCENTER']);
     });
   });
+
+  describe('OCLSpecialPower UpgradeOCL on AirF_AmericaCommandCenter', () => {
+    const obj = findObjectDef('AirF_AmericaCommandCenter');
+    const modules = extractSpecialPowerModules(makeSelfStub(), obj as never);
+
+    it('parses the array-format ["SCIENCE_MOAB", "SUPERWEAPON_MOAB"] into a {science, ocl} pair', () => {
+      const daisyCutter = [...modules.values()]
+        .find((p) => p.specialPowerTemplateName === 'SUPERWEAPONDAISYCUTTER');
+      expect(daisyCutter).toBeDefined();
+      expect(daisyCutter!.upgradeOCLs).toEqual([{
+        scienceName: 'SCIENCE_MOAB',
+        oclName: 'SUPERWEAPON_MOAB',
+      }]);
+    });
+  });
+
+  describe('CashHackSpecialPower UpgradeMoneyAmount on Boss_CommandCenter', () => {
+    const obj = findObjectDef('Boss_CommandCenter');
+    const modules = extractSpecialPowerModules(makeSelfStub(), obj as never);
+
+    it('parses the array-format ["SCIENCE_CashHack2", "2000"] into {science, amount} pair', () => {
+      const cashHack = [...modules.values()]
+        .find((p) => p.cashHackUpgradeMoneyAmounts.length > 0);
+      expect(cashHack).toBeDefined();
+      const amount = cashHack!.cashHackUpgradeMoneyAmounts.find(
+        (entry) => entry.scienceName === 'SCIENCE_CASHHACK2',
+      );
+      expect(amount).toBeDefined();
+      expect(amount!.amountToSteal).toBe(2000);
+    });
+  });
 });
