@@ -198,7 +198,7 @@ function buildCandidate(
     sourceFileExists,
     sourcePath,
     sourceIsMap,
-    sourceCompatible: manifestEntry !== null && outputFileExists && sourceFileExists && sourceIsMap,
+    sourceCompatible: manifestEntry !== null && outputFileExists && sourceIsMap,
   };
 }
 

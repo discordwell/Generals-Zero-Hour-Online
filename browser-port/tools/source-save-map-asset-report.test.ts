@@ -10,9 +10,7 @@ describe('source save map asset report', () => {
   it('groups external map requirements and ignores saves with embedded maps', () => {
     const tempDir = join(tmpdir(), `generals-map-assets-${process.pid}-${Date.now()}`);
     const assetsDir = join(tempDir, 'assets');
-    mkdirSync(join(assetsDir, '_extracted', 'Maps', 'Maps', 'USA02'), { recursive: true });
     mkdirSync(join(assetsDir, 'maps', '_extracted', 'Maps', 'Maps', 'USA02'), { recursive: true });
-    writeFileSync(join(assetsDir, '_extracted', 'Maps', 'Maps', 'USA02', 'USA02.map'), 'raw map');
     writeFileSync(join(assetsDir, 'maps', '_extracted', 'Maps', 'Maps', 'USA02', 'USA02.json'), '{}');
 
     try {
@@ -74,6 +72,13 @@ describe('source save map asset report', () => {
         status: 'available',
         availableOutputPath: 'maps/_extracted/Maps/Maps/USA02/USA02.json',
       })]);
+      expect(report.requiredMaps[0]?.candidates[0]).toEqual(expect.objectContaining({
+        manifestEntry: true,
+        outputFileExists: true,
+        sourceFileExists: false,
+        sourceIsMap: true,
+        sourceCompatible: true,
+      }));
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

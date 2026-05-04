@@ -102,20 +102,47 @@ export function collectGeneratedSourceModuleCoverage(runtimeSaveGameSource: stri
     }
   }
 
-  for (const range of [
-    /function normalizeSourceBodyModuleKind[\s\S]*?\n\s*}\n\s*\n\s*interface SourceSpecialPowerModuleBlockState/,
-    /function normalizeSourceContainModuleKind[\s\S]*?\n\s*}\n\s*\n\s*function xferSourceOpenContain/,
+  for (const functionName of [
+    'normalizeSourceBodyModuleKind',
+    'normalizeSourceContainModuleKind',
   ]) {
-    const match = runtimeSaveGameSource.match(range);
-    if (!match) {
+    const functionSource = extractFunctionSource(runtimeSaveGameSource, functionName);
+    if (!functionSource) {
       continue;
     }
-    for (const caseMatch of match[0].matchAll(/case '([^']+)'/g)) {
+    for (const caseMatch of functionSource.matchAll(/case '([^']+)'/g)) {
       covered.add(caseMatch[1]!.trim().toUpperCase());
     }
   }
 
   return covered;
+}
+
+function extractFunctionSource(source: string, functionName: string): string | null {
+  const signatureIndex = source.indexOf(`function ${functionName}`);
+  if (signatureIndex < 0) {
+    return null;
+  }
+
+  const bodyStart = source.indexOf('{', signatureIndex);
+  if (bodyStart < 0) {
+    return null;
+  }
+
+  let depth = 0;
+  for (let index = bodyStart; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === '{') {
+      depth += 1;
+    } else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(signatureIndex, index + 1);
+      }
+    }
+  }
+
+  return null;
 }
 
 export function buildSaveGeneratedModuleCoverageReport(params: {

@@ -392,7 +392,7 @@ async function probeScenario(
 }
 
 export async function runVisualSceneParityReport(rootDir: string): Promise<VisualSceneParityReport> {
-  const distDir = path.join(rootDir, 'packages', 'app', 'dist');
+  const distDir = path.join(rootDir, 'dist');
   await fs.access(path.join(distDir, 'index.html'));
   const campaignMapNames = await discoverCampaignMapNames(distDir);
   const scenarioSpecs = [

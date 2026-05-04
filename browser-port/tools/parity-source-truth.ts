@@ -1819,6 +1819,7 @@ export function parseTsSourceGeneratedAIStateMachineFields(source: string): stri
   if (!body) return [];
   const idleBranchStart = body.indexOf("saver.open('build-generated-source-ai-state-machine')");
   const parseBody = idleBranchStart >= 0 ? body.slice(idleBranchStart) : body;
+  const hasStateMachineTailHelper = parseBody.includes('xferGeneratedSourceAIStateMachineTail');
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
@@ -1882,6 +1883,21 @@ export function parseTsSourceGeneratedAIStateMachineFields(source: string): stri
       continue;
     }
     pushUniqueField(fields, seen, 'goalWaypointName');
+  }
+  if (hasStateMachineTailHelper) {
+    for (const field of [
+      'goalObjectId',
+      'goalPosition',
+      'locked',
+      'defaultStateInited',
+      'goalPath.count',
+      'goalWaypointName',
+      'goalSquad.present',
+      'temporaryStateId',
+      'temporaryStateFrameEnd',
+    ]) {
+      pushUniqueField(fields, seen, field);
+    }
   }
   return fields;
 }

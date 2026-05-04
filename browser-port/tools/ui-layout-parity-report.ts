@@ -2082,7 +2082,7 @@ async function probeHud(baseUrl: string, screenshotPath: string): Promise<UiLayo
 async function main(): Promise<void> {
   const scriptPath = fileURLToPath(import.meta.url);
   const rootDir = path.resolve(path.dirname(scriptPath), '..');
-  const distDir = path.join(rootDir, 'packages', 'app', 'dist');
+  const distDir = path.join(rootDir, 'dist');
   const reportPath = path.join(rootDir, 'ui-layout-parity-report.json');
   const screenshotDir = path.join(rootDir, 'test-results', 'ui-layout');
   await fs.mkdir(screenshotDir, { recursive: true });

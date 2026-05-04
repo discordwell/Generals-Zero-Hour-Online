@@ -39,6 +39,7 @@ const APP_PUBLIC_DIR = path.join(PROJECT_ROOT, 'packages', 'app', 'public');
 const APP_PUBLIC_ASSETS_DIR = path.join(APP_PUBLIC_DIR, RUNTIME_ASSET_BASE_URL);
 const APP_PUBLIC_ASSETS_DISPLAY_PATH = `${path.relative(path.dirname(PROJECT_ROOT), APP_PUBLIC_ASSETS_DIR).replace(/\\/g, '/')}/`;
 const TOOLS_DIR = path.join(PROJECT_ROOT, 'tools');
+const TSX_CLI_PATH = path.join(PROJECT_ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 const TOOL_VERSION = '1.0.0';
 const RUNTIME_MANIFEST_FILENAME = RUNTIME_MANIFEST_FILE;
 const VALID_STEPS = new Set(['big', 'texture', 'w3d', 'map', 'ini', 'csf', 'str', 'audio', 'wnd', 'cursor', 'wak', 'video']);
@@ -53,6 +54,10 @@ const MAP_HEADER_SCAN_BYTES = 1024;
 
 function normalizeManifestPath(value: string): string {
   return value.replace(/\\/g, '/').replace(/^(?:\.\/)+/, '');
+}
+
+function displayRelativePath(from: string, to: string): string {
+  return normalizeManifestPath(path.relative(from, to));
 }
 
 function sanitizeManifestPathValue(pathValue: string, key: 'sourcePath' | 'outputPath'): string {
@@ -640,7 +645,7 @@ function listExtractedIniParseConfigs(extractedDir: string): GameIniParseConfig[
 function runTool(tool: string, args: string[]): boolean {
   const toolPath = path.join(TOOLS_DIR, tool, 'src', 'cli.ts');
   try {
-    execFileSync('npx', ['tsx', toolPath, ...args], {
+    execFileSync(process.execPath, [TSX_CLI_PATH, toolPath, ...args], {
       stdio: 'inherit',
       cwd: PROJECT_ROOT,
     });
@@ -1082,12 +1087,12 @@ function stepParseIni(
   if (!gameIniParseConfig) {
     console.log('No runtime INI roots detected (Data/INI, Run/Data/INI, GeneralsMD/Run/Data/INI, Generals/Run/Data/INI, data); skipping game-dir INI parse.');
   } else if (gameIniParseConfig.parseDir !== gameDir) {
-    console.log(`Using runtime INI root: ${path.relative(gameDir, gameIniParseConfig.parseDir)}`);
+    console.log(`Using runtime INI root: ${displayRelativePath(gameDir, gameIniParseConfig.parseDir)}`);
   }
   if (extractedIniParseConfigs.length > 0) {
     console.log(
       `Using ${extractedIniParseConfigs.length} extracted runtime INI root(s): ${extractedIniParseConfigs
-        .map((config) => path.relative(extractedDir, config.parseDir))
+        .map((config) => displayRelativePath(extractedDir, config.parseDir))
         .join(', ')}`,
     );
   }
