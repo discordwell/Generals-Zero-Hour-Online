@@ -633,33 +633,78 @@ export function collectIniModuleFieldUsage(iniBundle: IniBundleShape): IniModule
       || left.fieldName.localeCompare(right.fieldName));
 }
 
-function extractRuntimeFieldTokens(source: string): Set<string> {
+interface RuntimeFieldTokens {
+  literal: Set<string>;
+  templated: Array<{ prefix: string; suffix: string }>;
+}
+
+function extractRuntimeFieldTokens(source: string): RuntimeFieldTokens {
   const cleanSource = stripComments(source);
-  const tokens = new Set<string>();
-  const stringRegex = /(['"`])((?:\\.|(?!\1)[\s\S])*?)\1/g;
+  const literal = new Set<string>();
+  const stringRegex = /(['"])((?:\\.|(?!\1)[\s\S])*?)\1/g;
   let match: RegExpExecArray | null;
   while ((match = stringRegex.exec(cleanSource)) !== null) {
     const value = match[2] ?? '';
     const normalized = normalizeFieldName(value);
     if (normalized) {
-      tokens.add(normalized);
+      literal.add(normalized);
     }
   }
   const fieldPropertyRegex = /\bfields\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
   while ((match = fieldPropertyRegex.exec(cleanSource)) !== null) {
     const normalized = normalizeFieldName(match[1] ?? '');
     if (normalized) {
-      tokens.add(normalized);
+      literal.add(normalized);
     }
   }
   const objectKeyRegex = /(?:^|[,{]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g;
   while ((match = objectKeyRegex.exec(cleanSource)) !== null) {
     const normalized = normalizeFieldName(match[1] ?? '');
     if (normalized) {
-      tokens.add(normalized);
+      literal.add(normalized);
     }
   }
-  return tokens;
+  // Template literals like `Runway${rn}Spaces` — capture the literal prefix and
+  // suffix so we can match dynamically-built field names.
+  const templateLiteralRegex = /`([^`$]*)\$\{[^}]*\}([^`$]*)`/g;
+  const templated: Array<{ prefix: string; suffix: string }> = [];
+  while ((match = templateLiteralRegex.exec(cleanSource)) !== null) {
+    const prefix = normalizeFieldName(match[1] ?? '');
+    const suffix = normalizeFieldName(match[2] ?? '');
+    if (prefix.length > 0 || suffix.length > 0) {
+      templated.push({ prefix, suffix });
+    }
+  }
+  // Also capture single-quoted strings that look like full field names — already
+  // handled above. Pure-literal template strings (no ${...}) are caught by the
+  // string regex via the backtick branch.
+  const pureBacktickRegex = /`([^`$\\]+)`/g;
+  while ((match = pureBacktickRegex.exec(cleanSource)) !== null) {
+    const normalized = normalizeFieldName(match[1] ?? '');
+    if (normalized) {
+      literal.add(normalized);
+    }
+  }
+  return { literal, templated };
+}
+
+function fieldMatchesTemplate(
+  normalizedFieldName: string,
+  templated: ReadonlyArray<{ prefix: string; suffix: string }>,
+): boolean {
+  for (const { prefix, suffix } of templated) {
+    if (normalizedFieldName.length <= prefix.length + suffix.length) {
+      continue;
+    }
+    if (prefix.length > 0 && !normalizedFieldName.startsWith(prefix)) {
+      continue;
+    }
+    if (suffix.length > 0 && !normalizedFieldName.endsWith(suffix)) {
+      continue;
+    }
+    return true;
+  }
+  return false;
 }
 
 export function collectRuntimeFieldSignals(
@@ -678,7 +723,8 @@ export function collectRuntimeFieldSignals(
       continue;
     }
     const filesWithToken = normalizedFiles
-      .filter((file) => file.tokens.has(normalizedFieldName))
+      .filter((file) => file.tokens.literal.has(normalizedFieldName)
+        || fieldMatchesTemplate(normalizedFieldName, file.tokens.templated))
       .map((file) => file.relativePath)
       .sort((left, right) => left.localeCompare(right));
     if (filesWithToken.length > 0) {
