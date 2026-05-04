@@ -3464,6 +3464,7 @@ export function extractStickyBombUpdateProfile(self: GL, objectDef: ObjectDef | 
         profile = {
           offsetZ: readNumericField(block.fields, ['OffsetZ']) ?? 10.0,
           geometryBasedDamageWeaponName: readStringField(block.fields, ['GeometryBasedDamageWeapon']) ?? null,
+          geometryBasedDamageFX: readStringField(block.fields, ['GeometryBasedDamageFX']) ?? '',
         };
       }
     }
@@ -4795,6 +4796,7 @@ export function extractGenerateMinefieldProfile(self: GL, objectDef: ObjectDef |
           upgradable: readBooleanField(block.fields, ['Upgradable']) === true,
           upgradedMineName: readStringField(block.fields, ['UpgradedMineName']) ?? '',
           upgradedTriggeredBy: readStringField(block.fields, ['UpgradedTriggeredBy']) ?? '',
+          generationFX: readStringField(block.fields, ['GenerationFX']) ?? '',
         };
       }
     }
@@ -4845,8 +4847,10 @@ export function extractSalvageCrateProfile(self: GL, objectDef: ObjectDef | unde
         profile = {
           weaponChance: self.parsePercent(self.readIniFieldValue(block.fields, 'WeaponChance')) ?? 1.0,
           levelChance: self.parsePercent(self.readIniFieldValue(block.fields, 'LevelChance')) ?? 0.25,
+          moneyChance: self.parsePercent(self.readIniFieldValue(block.fields, 'MoneyChance')) ?? 0.75,
           minMoney: readNumericField(block.fields, ['MinMoney']) ?? 25,
           maxMoney: readNumericField(block.fields, ['MaxMoney']) ?? 75,
+          pickupScience: readStringField(block.fields, ['PickupScience']) ?? '',
         };
       }
     }
@@ -6001,6 +6005,7 @@ export function extractLeafletDropProfile(self: GL, objectDef: ObjectDef | undef
       delayFrames: self.msToLogicFrames(readNumericField(block.fields, ['Delay']) ?? 33),
       disabledDurationFrames: self.msToLogicFrames(readNumericField(block.fields, ['DisabledDuration']) ?? 0),
       affectRadius: readNumericField(block.fields, ['AffectRadius']) ?? 60.0,
+      leafletFXParticleSystem: readStringField(block.fields, ['LeafletFXParticleSystem']) ?? '',
     };
   };
   for (const block of objectDef.blocks) visitBlock(block);

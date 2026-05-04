@@ -2577,6 +2577,8 @@ interface FlightDeckProfile {
   runwayTaxi: string[][];
   /** Per-runway creation bone name arrays (indexed by runway). */
   runwayCreation: string[][];
+  /** Source parity: per-runway m_catapultParticleSystem — particle system fired when a jet launches from this runway. */
+  runwayCatapultSystem: string[];
 }
 
 /**
@@ -5312,6 +5314,8 @@ interface StickyBombUpdateProfile {
   offsetZ: number;
   /** Weapon template name for geometry-scaled detonation damage (null = use death weapons). */
   geometryBasedDamageWeaponName: string | null;
+  /** Source parity: m_geometryBasedDamageFX — FXList played when the geometry-based weapon detonates. */
+  geometryBasedDamageFX: string;
 }
 
 /**
@@ -5426,10 +5430,14 @@ interface SalvageCrateProfile {
   weaponChance: number;
   /** Probability level gain succeeds if weapon fails (default 0.25). */
   levelChance: number;
+  /** Source parity: m_moneyChance — chance for money outcome when level/weapon fail (default 0.75). */
+  moneyChance: number;
   /** Minimum money if both weapon and level fail (default 25). */
   minMoney: number;
   /** Maximum money if both weapon and level fail (default 75). */
   maxMoney: number;
+  /** Source parity: CrateCollide::m_pickupScience — science required to pick up the crate (empty = no requirement). */
+  pickupScience: string;
 }
 
 /**
@@ -5648,6 +5656,8 @@ interface GenerateMinefieldProfile {
   randomJitter: number;
   /** Source parity: m_skipIfThisMuchUnderStructure — skip threshold (parsePercentToReal, 0-1). Default = 0.33. */
   skipIfThisMuchUnderStructure: number;
+  /** Source parity: m_genFX — FXList template fired when minefield is generated. */
+  generationFX: string;
 }
 
 /**
@@ -6959,6 +6969,8 @@ interface LeafletDropProfile {
   disabledDurationFrames: number;
   /** Radius for scanning victims. */
   affectRadius: number;
+  /** Source parity: m_leafletFXParticleSystem — particle system spawned at the drop point. */
+  leafletFXParticleSystem: string;
 }
 
 interface LeafletDropRuntimeState {

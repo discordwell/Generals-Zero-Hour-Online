@@ -35,6 +35,7 @@ export function extractFlightDeckProfile(self: GL, objectDef: ObjectDef | undefi
   const runwayLanding: [string, string][] = [];
   const runwayTaxi: string[][] = [];
   const runwayCreation: string[][] = [];
+  const runwayCatapultSystem: string[] = [];
 
   const msToFrames = (ms: number): number => Math.max(0, Math.round(ms / (1000 / LOGIC_FRAME_RATE)));
 
@@ -115,6 +116,7 @@ export function extractFlightDeckProfile(self: GL, objectDef: ObjectDef | undefi
         const landingRaw = readStringList(block.fields, [`Runway${rn}Landing`]);
         const taxiRaw = readStringList(block.fields, [`Runway${rn}Taxi`]);
         const creationRaw = readStringList(block.fields, [`Runway${rn}Creation`]);
+        const catapultSystemRaw = readStringField(block.fields, [`Runway${rn}CatapultSystem`]);
 
         if (spacesRaw.length > 0 || r < numRunways) {
           while (runwaySpaces.length <= r) runwaySpaces.push([]);
@@ -122,6 +124,7 @@ export function extractFlightDeckProfile(self: GL, objectDef: ObjectDef | undefi
           while (runwayLanding.length <= r) runwayLanding.push(['', '']);
           while (runwayTaxi.length <= r) runwayTaxi.push([]);
           while (runwayCreation.length <= r) runwayCreation.push([]);
+          while (runwayCatapultSystem.length <= r) runwayCatapultSystem.push('');
 
           runwaySpaces[r] = spacesRaw;
           if (takeoffRaw.length >= 2) {
@@ -132,6 +135,9 @@ export function extractFlightDeckProfile(self: GL, objectDef: ObjectDef | undefi
           }
           runwayTaxi[r] = taxiRaw;
           runwayCreation[r] = creationRaw;
+          if (catapultSystemRaw) {
+            runwayCatapultSystem[r] = catapultSystemRaw;
+          }
         }
       }
     }
@@ -167,6 +173,7 @@ export function extractFlightDeckProfile(self: GL, objectDef: ObjectDef | undefi
     runwayLanding,
     runwayTaxi,
     runwayCreation,
+    runwayCatapultSystem,
   };
 }
 
@@ -554,10 +561,21 @@ export function updateFlightDeck(self: GL): void {
         }
       }
 
-      // Source parity: catapult particle system timer (visual only — tracked for state parity).
+      // Source parity: catapult particle system fires when timer expires (FlightDeckBehavior.cpp:1273-1276).
       if ((state.catapultSystemFrame[i] ?? Number.POSITIVE_INFINITY) <= now) {
         state.catapultSystemFrame[i] = Number.POSITIVE_INFINITY;
-        // Source parity: would fire catapult particle here — visual-only effect.
+        const catapultSystem = profile.runwayCatapultSystem[i] ?? '';
+        if (catapultSystem) {
+          self.visualEventBuffer.push({
+            type: 'NAMED_PARTICLE_SYSTEM',
+            x: carrier.position.x,
+            y: carrier.position.y,
+            z: carrier.position.z,
+            radius: 0,
+            sourceEntityId: carrier.id,
+            effectName: catapultSystem,
+          });
+        }
       }
 
       // Source parity: lower ramp after fighter launched.
