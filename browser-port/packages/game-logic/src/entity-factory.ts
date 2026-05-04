@@ -3368,12 +3368,15 @@ export function extractOCLUpdateProfiles(self: GL, objectDef: ObjectDef | undefi
             rawEntries.push(factionOCLRaw);
           } else if (Array.isArray(factionOCLRaw)) {
             const stringElems = factionOCLRaw.filter((v): v is string => typeof v === 'string');
-            const looksLikeOneEntry = stringElems.length > 0
-              && /^(Faction|OCL):/i.test(stringElems[0] ?? '');
-            if (looksLikeOneEntry) {
-              rawEntries.push(stringElems.join(' '));
-            } else {
+            // If each element already contains both Faction: and OCL: markers,
+            // each element is a complete entry. Otherwise the array is one
+            // entry's tokens that got split (the bundle shape).
+            const everyElementIsCompleteEntry = stringElems.length > 0
+              && stringElems.every((s) => /Faction[:\s]/i.test(s) && /OCL[:\s]/i.test(s));
+            if (everyElementIsCompleteEntry) {
               for (const s of stringElems) rawEntries.push(s);
+            } else if (stringElems.length > 0) {
+              rawEntries.push(stringElems.join(' '));
             }
           }
           for (const entry of rawEntries) {
@@ -4982,9 +4985,18 @@ function extractUpgradedBoosts(value: unknown): Array<{ upgradeName: string; amo
   } else if (Array.isArray(value)) {
     const stringElems = value.filter((v): v is string => typeof v === 'string').map((s) => s.trim());
     if (stringElems.length > 0) {
-      const looksLikeOneEntry = stringElems.length > 0
-        && /^(UpgradeType|Boost):/i.test(stringElems[0] ?? '');
-      if (looksLikeOneEntry) {
+      // If each element already contains both UpgradeType: and Boost: markers,
+      // each element is a complete entry. Otherwise the array is one entry's
+      // tokens that got split (the bundle shape).
+      const everyElementIsCompleteEntry = stringElems.every(
+        (s) => /UpgradeType:/i.test(s) && /Boost:/i.test(s),
+      );
+      if (everyElementIsCompleteEntry) {
+        for (const s of stringElems) {
+          const tokens = s.split(/\s+/).filter((t) => t.length > 0);
+          if (tokens.length > 0) entriesAsTokens.push(tokens);
+        }
+      } else {
         const tokens: string[] = [];
         for (const s of stringElems) {
           for (const t of s.split(/\s+/)) {
@@ -4992,11 +5004,6 @@ function extractUpgradedBoosts(value: unknown): Array<{ upgradeName: string; amo
           }
         }
         if (tokens.length > 0) entriesAsTokens.push(tokens);
-      } else {
-        for (const s of stringElems) {
-          const tokens = s.split(/\s+/).filter((t) => t.length > 0);
-          if (tokens.length > 0) entriesAsTokens.push(tokens);
-        }
       }
     }
   }
