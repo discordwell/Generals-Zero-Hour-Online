@@ -82,6 +82,21 @@ export function readStringField(fields: Record<string, IniValue>, names: string[
       if (trimmed.length > 0) {
         return trimmed;
       }
+    } else if (Array.isArray(value)) {
+      // Source parity: the INI converter sometimes emits multi-token fields as
+      // an array of token strings (e.g., DeathTypes = ALL -CRUSHED becomes
+      // ["ALL", "-CRUSHED"]). Callers that split on whitespace get the right
+      // result if we join the array back into a single space-separated string;
+      // single-token callers see the same result they would have for the raw
+      // string form.
+      const joined = value
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0)
+        .join(' ');
+      if (joined.length > 0) {
+        return joined;
+      }
     }
   }
 

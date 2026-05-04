@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import {
+  extractBunkerBusterProfile,
   extractContainProfile,
   extractEmpUpdateProfile,
   extractGenerateMinefieldProfile,
@@ -428,6 +429,37 @@ describe('session 2026-05-04 — slice 1 against real retail data', () => {
     it('parses OCLEmbers="OCL_BurningEmbers"', () => {
       const bundleValue = readBundleField(obj, 'FireSpreadUpdate', 'OCLEmbers');
       expect(bundleValue).toBe('OCL_BurningEmbers');
+    });
+  });
+
+  describe('BunkerBusterBehavior on StealthJetMissile (retail bunker buster bomb)', () => {
+    const obj = findObjectDef('StealthJetMissile');
+    const profile = extractBunkerBusterProfile(makeSelfStub(), obj as never);
+
+    it('extracts the full BunkerBuster profile from retail data', () => {
+      expect(profile).not.toBeNull();
+      expect(profile!.detonationFXName).toBe('FX_BunkerBusterExplosion');
+      expect(profile!.crashThroughBunkerFXName).toBe('WeaponFX_BunkerBusterIntialImpact');
+      expect(profile!.upgradeRequired).toBe('UPGRADE_AMERICABUNKERBUSTERS');
+      expect(profile!.occupantDamageWeaponName).toBe('BunkerBusterAntiTunnelGarrisonWeaponWithABigName');
+      expect(profile!.shockwaveWeaponName).toBe('BunkerBusterShockwaveWeaponSmall');
+      // 571ms / (1000/30) = 17.13 frames; rounded to 17.
+      expect(profile!.crashThroughBunkerFXFrequencyFrames).toBe(17);
+      expect(profile!.seismicEffectRadius).toBe(200);
+      expect(profile!.seismicEffectMagnitude).toBe(5);
+    });
+  });
+
+  describe('JetSlowDeath multi-stage FX on AirF_AmericaJetA10Thunderbolt', () => {
+    const obj = findObjectDef('AirF_AmericaJetA10Thunderbolt');
+    // The shipped INI carries 4 separately-named FXLists. Verify each round-trips
+    // through the bundle. The runtime profile lives on the entity-creation path
+    // so we check the bundle values for the parser to consume.
+    it('exposes FXInitialDeath, FXSecondary, FXFinalBlowUp, FXHitGround in the bundle', () => {
+      expect(readBundleField(obj, 'JetSlowDeathBehavior', 'FXInitialDeath')).toBe('FX_JetDeathInitial');
+      expect(readBundleField(obj, 'JetSlowDeathBehavior', 'FXSecondary')).toBe('FX_JetDeathSecondary');
+      expect(readBundleField(obj, 'JetSlowDeathBehavior', 'FXFinalBlowUp')).toBe('FX_JetDeathFinalBlowUp');
+      expect(readBundleField(obj, 'JetSlowDeathBehavior', 'FXHitGround')).toBe('FX_JetDeathHitGround');
     });
   });
 });

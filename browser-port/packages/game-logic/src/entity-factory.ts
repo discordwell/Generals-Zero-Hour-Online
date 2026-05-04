@@ -1406,6 +1406,24 @@ export function extractIniValueTokens(self: GL, value: IniValue | undefined): st
   return [];
 }
 
+/**
+ * Parses an INI field that may be either a single space-separated string or
+ * an array of token strings into an upper-cased Set. The shipped INI bundle
+ * emits some multi-token fields (DeathTypes, VeterancyLevels, ExemptStatus,
+ * KindOf-style filters, etc.) as either a single string ("ALL -CRUSHED") or
+ * as an array (["ALL", "-CRUSHED"]) depending on how the source line was
+ * tokenized. Treating either shape as a single string with readStringField
+ * silently drops the array form.
+ */
+function readUpperTokenSet(fields: Record<string, IniValue>, fieldName: string): Set<string> {
+  const result = new Set<string>();
+  for (const token of readStringList(fields, [fieldName])) {
+    const normalized = token.trim().toUpperCase();
+    if (normalized) result.add(normalized);
+  }
+  return result;
+}
+
 function readIniFieldValueCaseInsensitive(fields: Record<string, IniValue>, fieldName: string): IniValue | undefined {
   const normalizedFieldName = fieldName.toUpperCase();
   for (const [name, value] of Object.entries(fields)) {
@@ -2195,11 +2213,19 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
       const isEnclosingContainerRaw = readBooleanField(block.fields, ['IsEnclosingContainer']);
       const isEnclosingContainer = isEnclosingContainerRaw !== false;
       // Source parity: GarrisonContainModuleData::parseInitialRoster — "templateName count" format.
-      const initialRosterRaw = readStringField(block.fields, ['InitialRoster']);
+      // Same string-or-array shape concern as TransportContain InitialPayload — accept both.
+      const initialRosterField = block.fields['InitialRoster'];
       let initialRosterTemplateName: string | null = null;
       let initialRosterCount = 0;
-      if (initialRosterRaw) {
-        const rosterTokens = initialRosterRaw.trim().split(/\s+/);
+      {
+        let rosterTokens: string[] = [];
+        if (typeof initialRosterField === 'string') {
+          rosterTokens = initialRosterField.trim().split(/\s+/).filter((token) => token.length > 0);
+        } else if (Array.isArray(initialRosterField)) {
+          rosterTokens = initialRosterField
+            .flatMap((entry) => (typeof entry === 'string' ? entry.trim().split(/\s+/) : []))
+            .filter((token) => token.length > 0);
+        }
         if (rosterTokens.length >= 1 && rosterTokens[0]) {
           initialRosterTemplateName = rosterTokens[0].toUpperCase();
           initialRosterCount = rosterTokens.length >= 2 ? (parseInt(rosterTokens[1]!, 10) || 1) : 1;

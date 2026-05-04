@@ -17,6 +17,7 @@ import { dirname, resolve } from 'node:path';
 import {
   extractContainProfile,
   extractEmpUpdateProfile,
+  extractFXListDieProfiles,
   extractGenerateMinefieldProfile,
   extractLeafletDropProfile,
   extractRiderChangeContainProfile,
@@ -241,6 +242,61 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       }
     }
     expect(count, 'expected SubObjectsUpgrade users in retail data').toBeGreaterThan(0);
+  });
+
+  it('GarrisonContain.InitialRoster extraction succeeds for every retail user (array form expected)', () => {
+    let userCount = 0;
+    let arrayShapeCount = 0;
+    for (const obj of bundle.objects ?? []) {
+      for (const block of obj.blocks ?? []) {
+        const moduleType = (block.name ?? '').split(/\s+/)[0];
+        if (moduleType !== 'GarrisonContain') continue;
+        const fields = block.fields ?? {};
+        if (!('InitialRoster' in fields)) continue;
+        userCount++;
+        if (Array.isArray(fields['InitialRoster'])) arrayShapeCount++;
+        const profile = extractContainProfile(makeSelfStub(), obj as never);
+        expect(profile, `ContainProfile null for ${obj.name}`).not.toBeNull();
+        // GarrisonContain ContainProfile uses initialRosterTemplateName / initialRosterCount.
+        const cp = profile as unknown as { initialRosterTemplateName: string | null; initialRosterCount: number };
+        if (cp.initialRosterTemplateName === null) {
+          throw new Error(`InitialRoster silently dropped on ${obj.name} bundle=${JSON.stringify(fields['InitialRoster'])}`);
+        }
+        expect(cp.initialRosterCount, `InitialRoster count = 0 on ${obj.name}`).toBeGreaterThan(0);
+      }
+    }
+    expect(userCount).toBeGreaterThan(0);
+    expect(arrayShapeCount, 'expected at least one array-shaped InitialRoster').toBeGreaterThan(0);
+  });
+
+  it('FXListDie DeathTypes parses every retail user — array AND string shapes', () => {
+    let userCount = 0;
+    let arrayShapeCount = 0;
+    let stringShapeCount = 0;
+    for (const obj of bundle.objects ?? []) {
+      for (const block of obj.blocks ?? []) {
+        const moduleType = (block.name ?? '').split(/\s+/)[0];
+        if (moduleType !== 'FXListDie') continue;
+        const fields = block.fields ?? {};
+        if (!('DeathTypes' in fields)) continue;
+        userCount++;
+        if (Array.isArray(fields['DeathTypes'])) arrayShapeCount++;
+        if (typeof fields['DeathTypes'] === 'string') stringShapeCount++;
+
+        const profiles = extractFXListDieProfiles(makeSelfStub(), obj as never);
+        // Find the profile matching this block's death FX name.
+        const deathFXName = typeof fields['DeathFX'] === 'string'
+          ? (fields['DeathFX'] as string).trim().toUpperCase()
+          : null;
+        if (!deathFXName) continue;
+        const profile = profiles.find((p) => p.deathFXName === deathFXName);
+        expect(profile, `FXListDie profile not found for ${obj.name}/${deathFXName}`).toBeDefined();
+        expect(profile!.deathTypes.size, `DeathTypes empty on ${obj.name}/${deathFXName} (bundle=${JSON.stringify(fields['DeathTypes'])})`).toBeGreaterThan(0);
+      }
+    }
+    expect(userCount).toBeGreaterThan(0);
+    expect(arrayShapeCount, 'expected array-shaped DeathTypes — confirms readStringField array branch is exercised').toBeGreaterThan(0);
+    expect(stringShapeCount, 'expected string-shaped DeathTypes — confirms backwards compatibility').toBeGreaterThan(0);
   });
 
   it('EMPUpdate StartColor / EndColor RGB tokens decode to a 3-channel tuple for every retail user', () => {
