@@ -26,11 +26,13 @@ import { dirname, resolve } from 'node:path';
 
 import {
   extractContainProfile,
+  extractEmpUpdateProfile,
   extractGenerateMinefieldProfile,
   extractLeafletDropProfile,
   extractQueueProductionExitProfile,
   extractRiderChangeContainProfile,
   extractSalvageCrateProfile,
+  extractSpecialPowerModules,
   extractStickyBombUpdateProfile,
 } from './entity-factory.js';
 import { extractFlightDeckProfile } from './flight-deck.js';
@@ -108,6 +110,17 @@ function makeSelfStub() {
     },
     resolveObjectDefParent: (_obj: BundleObject | undefined): BundleObject | undefined =>
       undefined,
+    parseUpgradeNames: (value: unknown): string[] => {
+      if (typeof value === 'string') {
+        return value.trim().split(/\s+/).filter((s) => s.length > 0);
+      }
+      if (Array.isArray(value)) {
+        return value
+          .flatMap((entry) => (typeof entry === 'string' ? entry.trim().split(/\s+/) : []))
+          .filter((s) => s.length > 0);
+      }
+      return [];
+    },
   } as unknown as Parameters<typeof extractFlightDeckProfile>[0];
 }
 
@@ -239,6 +252,54 @@ describe('session 2026-05-04 — slice 1 against real retail data', () => {
       expect(bundleValue).toBe(true);
       expect(profile).not.toBeNull();
       expect(profile!.useSpawnRallyPoint).toBe(true);
+    });
+  });
+
+  describe('EMPUpdate visual tint envelope on EMPMineEffectSpheroid', () => {
+    const obj = findObjectDef('EMPMineEffectSpheroid');
+    const profile = extractEmpUpdateProfile(makeSelfStub(), obj as never);
+
+    it('parses StartScale, TargetScaleMin, TargetScaleMax, StartColor, EndColor end-to-end from the bundle', () => {
+      expect(profile).not.toBeNull();
+      // Numeric scale envelope.
+      expect(profile!.startScale).toBe(0.01);
+      expect(profile!.targetScaleMin).toBe(6);
+      expect(profile!.targetScaleMax).toBe(7);
+      // RGB array tokens "R:0 G:255 B:255" parsed into the [r,g,b] tuple.
+      expect(profile!.startColor).toEqual([0, 255, 255]);
+      expect(profile!.endColor).toEqual([0, 128, 128]);
+    });
+  });
+
+  describe('SpyVisionUpdate retail data on ChinaInternetCenter', () => {
+    const obj = findObjectDef('ChinaInternetCenter');
+    const modules = extractSpecialPowerModules(makeSelfStub(), obj as never);
+
+    it('extracts a synthetic spy-vision power profile per module tag', () => {
+      const spyVisionEntries = [...modules.entries()]
+        .filter(([name]) => name.startsWith('__SPYVISIONUPDATE_'));
+      // ChinaInternetCenter ships two SpyVisionUpdate blocks (SatelliteHackOne / Two).
+      expect(spyVisionEntries.length).toBe(2);
+      for (const [, profile] of spyVisionEntries) {
+        expect(profile.spyVisionNeedsUpgrade).toBe(true);
+        expect(profile.spyVisionSelfPowered).toBe(true);
+        expect(profile.spyVisionTriggeredBy.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('parses SatelliteHackTwo SelfPoweredDuration=20000ms and SelfPoweredInterval=240000ms verbatim', () => {
+      const profile = [...modules.values()]
+        .find((p) => p.spyVisionTriggeredBy.includes('Upgrade_ChinaSatelliteHackTwo'));
+      expect(profile).toBeDefined();
+      expect(profile!.spyVisionSelfPoweredDurationMs).toBe(20000);
+      expect(profile!.spyVisionSelfPoweredIntervalMs).toBe(240000);
+    });
+
+    it('parses SatelliteHackOne SpyOnKindof="COMMANDCENTER" verbatim', () => {
+      const profile = [...modules.values()]
+        .find((p) => p.spyVisionTriggeredBy.includes('Upgrade_ChinaSatelliteHackOne'));
+      expect(profile).toBeDefined();
+      expect(profile!.spyVisionKindOf).toEqual(['COMMANDCENTER']);
     });
   });
 });
