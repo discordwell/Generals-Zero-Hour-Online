@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-04-16T18:28:37.559Z",
-  "rootDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port",
-  "packagesDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages",
+  "generatedAt": "2026-05-04T01:05:16.410Z",
+  "rootDir": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port",
+  "packagesDir": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\packages",
   "packages": [
     {
       "packageName": "app",
@@ -26,7 +26,7 @@
     },
     {
       "packageName": "core",
-      "sourceFileCount": 20,
+      "sourceFileCount": 17,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
@@ -40,7 +40,7 @@
     },
     {
       "packageName": "game-logic",
-      "sourceFileCount": 57,
+      "sourceFileCount": 58,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
@@ -89,7 +89,7 @@
     }
   ],
   "totals": {
-    "sourceFileCount": 209,
+    "sourceFileCount": 207,
     "todoMarkers": 0,
     "subsetMarkers": 0,
     "totalMarkers": 0

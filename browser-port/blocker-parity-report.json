@@ -1,28 +1,9 @@
 {
-  "generatedAt": "2026-04-16T18:28:37.519Z",
-  "status": "blocked",
+  "generatedAt": "2026-05-04T01:06:32.013Z",
+  "status": "clear",
   "summary": {
-    "blockerGroups": 1,
-    "blockerItems": 36
+    "blockerGroups": 0,
+    "blockerItems": 0
   },
-  "blockers": [
-    {
-      "id": "source-save-map-assets-missing",
-      "area": "save-files",
-      "count": 36,
-      "details": [
-        "Maps/CHI02/CHI02.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/CHI02/CHI02.json, maps/CHI02/CHI02.json",
-        "Maps/CHI03/CHI03.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/CHI03/CHI03.json, maps/CHI03/CHI03.json",
-        "Maps/CHI04/CHI04.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/CHI04/CHI04.json, maps/CHI04/CHI04.json",
-        "Maps/CHI05/CHI05.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/CHI05/CHI05.json, maps/CHI05/CHI05.json",
-        "Maps/CHI06/CHI06.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/CHI06/CHI06.json, maps/CHI06/CHI06.json",
-        "Maps/CHI07/CHI07.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/CHI07/CHI07.json, maps/CHI07/CHI07.json",
-        "Maps/GLA02/GLA02.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/GLA02/GLA02.json, maps/GLA02/GLA02.json",
-        "Maps/GLA04/GLA04.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/GLA04/GLA04.json, maps/GLA04/GLA04.json",
-        "Maps/GLA05/GLA05.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/GLA05/GLA05.json, maps/GLA05/GLA05.json",
-        "Maps/GLA06/GLA06.map (2 save fixtures) candidates maps/_extracted/Maps/Maps/GLA06/GLA06.json, maps/GLA06/GLA06.json",
-        "Run: npm run fixtures:extract-save-maps -- --big <path-to-Generals>/Maps.big"
-      ]
-    }
-  ]
+  "blockers": []
 }

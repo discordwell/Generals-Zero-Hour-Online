@@ -1,5 +1,5 @@
 {
-  "rootPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves",
+  "rootPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves",
   "summary": {
     "status": "pass",
     "totalSaveFiles": 208,
@@ -13,7 +13,7 @@
   },
   "saves": [
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_000.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_000.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -15513,7 +15513,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_001.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_001.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -30388,7 +30388,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_002.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_002.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -30440,7 +30440,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_003.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_003.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -30492,7 +30492,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_004.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_004.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -30544,7 +30544,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_005.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_005.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -30596,7 +30596,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_006.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_006.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -30648,7 +30648,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_007.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_007.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -30700,7 +30700,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_008.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_008.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -46478,7 +46478,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_009.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_009.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -46530,7 +46530,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_010.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_010.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -46582,7 +46582,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_011.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_011.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -46634,7 +46634,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_012.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_012.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -46686,7 +46686,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_013.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_013.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -46738,7 +46738,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_014.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_014.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -46790,7 +46790,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_015.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_015.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -62174,7 +62174,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_016.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_016.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -62226,7 +62226,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_017.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_017.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -62278,7 +62278,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_018.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_018.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -62330,7 +62330,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_019.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_019.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -62382,7 +62382,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_020.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_020.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -62434,7 +62434,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_021.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_021.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -62486,7 +62486,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_022.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_022.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -78186,7 +78186,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_023.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_023.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -93021,7 +93021,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_024.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_024.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -93073,7 +93073,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_025.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_025.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -93125,7 +93125,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_026.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_026.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -93177,7 +93177,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_027.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_027.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -93229,7 +93229,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_028.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_028.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -93281,7 +93281,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_029.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_029.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -93333,7 +93333,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_030.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_030.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -109087,7 +109087,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_031.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_031.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -109139,7 +109139,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_032.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_032.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -109191,7 +109191,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_033.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_033.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -109243,7 +109243,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_034.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_034.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -109295,7 +109295,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_035.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_035.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -109347,7 +109347,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_036.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_036.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -109399,7 +109399,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_037.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_037.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -124703,7 +124703,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_038.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_038.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -124755,7 +124755,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_039.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_039.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -124807,7 +124807,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_040.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_040.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -124859,7 +124859,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_041.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_041.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -124911,7 +124911,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_042.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_042.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -124963,7 +124963,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_043.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_043.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -125015,7 +125015,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_GN_044.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_GN_044.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -138500,7 +138500,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_000.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_000.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -145992,7 +145992,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_001.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_001.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -146044,7 +146044,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_002.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_002.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -146096,7 +146096,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_003.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_003.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -146148,7 +146148,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_004.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_004.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -146200,7 +146200,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_005.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_005.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -149966,7 +149966,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_006.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_006.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -150018,7 +150018,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_007.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_007.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -150070,7 +150070,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_008.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_008.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -150122,7 +150122,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_009.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_009.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -150174,7 +150174,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_010.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_010.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -154224,7 +154224,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_011.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_011.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -154276,7 +154276,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_012.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_012.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -154328,7 +154328,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_013.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_013.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -154380,7 +154380,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_014.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_014.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -154432,7 +154432,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_015.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_015.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -161660,7 +161660,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_016.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_016.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -161712,7 +161712,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_017.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_017.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -161764,7 +161764,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_018.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_018.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -161816,7 +161816,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_019.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_019.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -161868,7 +161868,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_020.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_020.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -165634,7 +165634,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_021.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_021.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -165686,7 +165686,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_022.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_022.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -165738,7 +165738,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_023.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_023.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -165790,7 +165790,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_024.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_024.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -165842,7 +165842,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_025.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_025.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -169668,7 +169668,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_026.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_026.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -169720,7 +169720,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_027.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_027.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -169772,7 +169772,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_028.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_028.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -169824,7 +169824,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_029.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_029.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -169876,7 +169876,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_030.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_030.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -172560,7 +172560,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_031.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_031.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -172612,7 +172612,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_032.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_032.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -172664,7 +172664,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_033.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_033.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -172716,7 +172716,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_034.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_034.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -172768,7 +172768,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_035.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_035.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -172820,7 +172820,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_036.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_036.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -172872,7 +172872,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_037.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_037.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -177044,7 +177044,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_038.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_038.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -177096,7 +177096,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_039.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_039.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -177148,7 +177148,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_040.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_040.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -177200,7 +177200,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_041.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_041.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -177252,7 +177252,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_042.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_042.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -177304,7 +177304,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_043.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_043.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -177356,7 +177356,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_044.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_044.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -181496,7 +181496,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_045.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_045.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -181548,7 +181548,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_046.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_046.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -181600,7 +181600,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_047.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_047.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -181652,7 +181652,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_048.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_048.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -181704,7 +181704,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_049.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_049.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -181756,7 +181756,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_050.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_050.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -181808,7 +181808,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_051.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_051.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -184475,7 +184475,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_052.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_052.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -184527,7 +184527,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_053.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_053.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -184579,7 +184579,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_054.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_054.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -184631,7 +184631,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_055.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_055.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -184683,7 +184683,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_056.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_056.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -184735,7 +184735,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_057.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_057.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -184787,7 +184787,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_058.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_058.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -188927,7 +188927,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_059.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_059.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -188979,7 +188979,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_060.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_060.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -189031,7 +189031,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_061.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_061.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -189083,7 +189083,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_062.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_062.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -189135,7 +189135,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_063.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_063.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -189187,7 +189187,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_064.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_064.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -189239,7 +189239,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_065.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_065.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -192284,7 +192284,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_066.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_066.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -192336,7 +192336,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_067.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_067.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -192388,7 +192388,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_068.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_068.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -192440,7 +192440,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_069.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_069.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -192492,7 +192492,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_070.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_070.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -192544,7 +192544,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_071.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_071.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -192596,7 +192596,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_072.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_072.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -192648,7 +192648,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_073.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_073.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -205061,7 +205061,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_074.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_074.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -205113,7 +205113,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_075.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_075.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -205165,7 +205165,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_076.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_076.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -205217,7 +205217,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_077.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_077.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -205269,7 +205269,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_078.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_078.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -205321,7 +205321,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_079.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_079.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -205373,7 +205373,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_080.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_080.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -209545,7 +209545,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_081.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_081.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -209597,7 +209597,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_082.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_082.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -209649,7 +209649,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_083.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_083.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -209701,7 +209701,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_084.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_084.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -209753,7 +209753,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_085.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_085.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -209805,7 +209805,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_086.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_086.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -209857,7 +209857,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_087.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_087.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -212541,7 +212541,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_088.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_088.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -212593,7 +212593,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_089.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_089.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -212645,7 +212645,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_090.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_090.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -212697,7 +212697,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_091.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_091.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -212749,7 +212749,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_092.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_092.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -212801,7 +212801,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_093.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_093.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -212853,7 +212853,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_094.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_094.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -212905,7 +212905,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_095.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_095.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -215572,7 +215572,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_096.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_096.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -215624,7 +215624,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_097.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_097.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -215676,7 +215676,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_098.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_098.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -215728,7 +215728,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_099.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_099.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -215780,7 +215780,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_100.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_100.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -215832,7 +215832,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_101.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_101.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -215884,7 +215884,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_102.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_102.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -219831,7 +219831,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_103.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_103.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -219883,7 +219883,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_104.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_104.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -219935,7 +219935,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_105.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_105.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -219987,7 +219987,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_106.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_106.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -220039,7 +220039,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_107.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_107.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -220091,7 +220091,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_108.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_108.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -220143,7 +220143,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_109.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_109.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -223947,7 +223947,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_110.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_110.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -223999,7 +223999,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_111.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_111.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -224051,7 +224051,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_112.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_112.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -224103,7 +224103,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_113.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_113.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -224155,7 +224155,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_114.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_114.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -224207,7 +224207,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_115.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_115.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -224259,7 +224259,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_116.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_116.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -226926,7 +226926,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_117.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_117.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -226978,7 +226978,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_118.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_118.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -227030,7 +227030,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_119.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_119.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -227082,7 +227082,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_120.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_120.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -227134,7 +227134,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_121.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_121.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -227186,7 +227186,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_122.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_122.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -227238,7 +227238,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_123.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_123.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -231042,7 +231042,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_124.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_124.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -231094,7 +231094,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_125.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_125.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -231146,7 +231146,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_126.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_126.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -231198,7 +231198,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_127.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_127.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -231250,7 +231250,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_128.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_128.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -231302,7 +231302,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_129.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_129.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -231354,7 +231354,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_130.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_130.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -233847,7 +233847,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_131.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_131.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -233899,7 +233899,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_132.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_132.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -233951,7 +233951,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_133.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_133.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -234003,7 +234003,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_134.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_134.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -234055,7 +234055,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_135.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_135.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -234107,7 +234107,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_136.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_136.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -234159,7 +234159,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_137.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_137.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -234211,7 +234211,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_138.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_138.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -246326,7 +246326,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_139.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_139.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -246378,7 +246378,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_140.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_140.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -246430,7 +246430,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_141.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_141.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -246482,7 +246482,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_142.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_142.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -246534,7 +246534,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_143.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_143.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -246586,7 +246586,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_144.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_144.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -246638,7 +246638,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_145.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_145.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -250585,7 +250585,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_146.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_146.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -250637,7 +250637,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_147.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_147.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -250689,7 +250689,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_148.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_148.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -250741,7 +250741,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_149.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_149.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -250793,7 +250793,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_150.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_150.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -250845,7 +250845,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_151.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_151.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -250897,7 +250897,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_152.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_152.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -253564,7 +253564,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_153.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_153.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -253616,7 +253616,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_154.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_154.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -253668,7 +253668,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_155.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_155.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -253720,7 +253720,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_156.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_156.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -253772,7 +253772,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_157.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_157.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -253824,7 +253824,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_158.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_158.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -253876,7 +253876,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_159.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_159.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 2,
@@ -253928,7 +253928,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_160.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_160.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -271182,7 +271182,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_161.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_161.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,
@@ -281634,7 +281634,7 @@
       }
     },
     {
-      "savePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves/zipeater_ZH_162.sav",
+      "savePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves\\zipeater_ZH_162.sav",
       "summary": {
         "status": "pass",
         "totalCoreChunks": 17,

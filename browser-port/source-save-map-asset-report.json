@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-04-16T07:44:12.915Z",
-  "fixturesDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/fixtures/source-saves",
-  "assetsDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/dist/assets",
-  "manifestPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/dist/assets/manifest.json",
+  "generatedAt": "2026-05-04T01:06:28.198Z",
+  "fixturesDir": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves",
+  "assetsDir": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\dist\\assets",
+  "manifestPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\dist\\assets\\manifest.json",
   "summary": {
     "totalSaveFiles": 208,
     "parsedSaveFiles": 208,
@@ -10,9 +10,9 @@
     "embeddedMapSaveFiles": 36,
     "externalMapSaveFiles": 172,
     "requiredMapAssets": 38,
-    "availableMapAssets": 20,
-    "missingMapAssets": 18,
-    "blockedSaveFiles": 36
+    "availableMapAssets": 38,
+    "missingMapAssets": 0,
+    "blockedSaveFiles": 0
   },
   "requiredMaps": [
     {
@@ -25,17 +25,17 @@
         "zipeater_GN_002.sav",
         "zipeater_GN_024.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/CHI02/CHI02.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/CHI02/CHI02.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/CHI02/CHI02.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/CHI02/CHI02.json",
@@ -58,17 +58,17 @@
         "zipeater_GN_003.sav",
         "zipeater_GN_025.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/CHI03/CHI03.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/CHI03/CHI03.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/CHI03/CHI03.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/CHI03/CHI03.json",
@@ -91,17 +91,17 @@
         "zipeater_GN_004.sav",
         "zipeater_GN_026.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/CHI04/CHI04.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/CHI04/CHI04.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/CHI04/CHI04.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/CHI04/CHI04.json",
@@ -124,17 +124,17 @@
         "zipeater_GN_005.sav",
         "zipeater_GN_027.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/CHI05/CHI05.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/CHI05/CHI05.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/CHI05/CHI05.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/CHI05/CHI05.json",
@@ -157,17 +157,17 @@
         "zipeater_GN_006.sav",
         "zipeater_GN_028.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/CHI06/CHI06.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/CHI06/CHI06.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/CHI06/CHI06.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/CHI06/CHI06.json",
@@ -190,17 +190,17 @@
         "zipeater_GN_007.sav",
         "zipeater_GN_029.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/CHI07/CHI07.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/CHI07/CHI07.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/CHI07/CHI07.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/CHI07/CHI07.json",
@@ -248,7 +248,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_AirGeneral/GC_AirGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/GC_AirGeneral/GC_AirGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -301,7 +301,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_ChemGeneral/GC_ChemGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/GC_ChemGeneral/GC_ChemGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -360,7 +360,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_ChinaBoss/GC_ChinaBoss.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/GC_ChinaBoss/GC_ChinaBoss.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -415,7 +415,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_LaserGeneral/GC_LaserGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/GC_LaserGeneral/GC_LaserGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -472,7 +472,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_NukeGeneral/GC_NukeGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/GC_NukeGeneral/GC_NukeGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -529,7 +529,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_Stealth/GC_Stealth.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/GC_Stealth/GC_Stealth.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -584,7 +584,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -637,7 +637,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_TankGeneral/GC_TankGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/GC_TankGeneral/GC_TankGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -663,17 +663,17 @@
         "zipeater_GN_009.sav",
         "zipeater_GN_031.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/GLA02/GLA02.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/GLA02/GLA02.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/GLA02/GLA02.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/GLA02/GLA02.json",
@@ -696,17 +696,17 @@
         "zipeater_GN_010.sav",
         "zipeater_GN_032.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/GLA04/GLA04.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/GLA04/GLA04.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/GLA04/GLA04.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/GLA04/GLA04.json",
@@ -729,17 +729,17 @@
         "zipeater_GN_011.sav",
         "zipeater_GN_033.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/GLA05/GLA05.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/GLA05/GLA05.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/GLA05/GLA05.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/GLA05/GLA05.json",
@@ -762,17 +762,17 @@
         "zipeater_GN_012.sav",
         "zipeater_GN_034.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/GLA06/GLA06.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/GLA06/GLA06.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/GLA06/GLA06.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/GLA06/GLA06.json",
@@ -795,17 +795,17 @@
         "zipeater_GN_013.sav",
         "zipeater_GN_035.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/GLA07/GLA07.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/GLA07/GLA07.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/GLA07/GLA07.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/GLA07/GLA07.json",
@@ -828,17 +828,17 @@
         "zipeater_GN_014.sav",
         "zipeater_GN_036.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/GLA08/GLA08.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/GLA08/GLA08.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/GLA08/GLA08.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/GLA08/GLA08.json",
@@ -878,7 +878,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -921,7 +921,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -964,7 +964,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1007,7 +1007,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1050,7 +1050,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1093,7 +1093,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1136,7 +1136,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA04/MD_GLA04.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_GLA04/MD_GLA04.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1179,7 +1179,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1222,7 +1222,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA02/MD_USA02.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_USA02/MD_USA02.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1265,7 +1265,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA03/MD_USA03.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_USA03/MD_USA03.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1308,7 +1308,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA04/MD_USA04.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_USA04/MD_USA04.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1351,7 +1351,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA05/MD_USA05.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": true,
+          "sourceFileExists": false,
           "sourcePath": "_extracted/MapsZH/Maps/MD_USA05/MD_USA05.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1377,17 +1377,17 @@
         "zipeater_GN_016.sav",
         "zipeater_GN_038.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/USA02/USA02.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/USA02/USA02.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/USA02/USA02.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/USA02/USA02.json",
@@ -1410,17 +1410,17 @@
         "zipeater_GN_017.sav",
         "zipeater_GN_039.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/USA03/USA03.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/USA03/USA03.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/USA03/USA03.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/USA03/USA03.json",
@@ -1443,17 +1443,17 @@
         "zipeater_GN_018.sav",
         "zipeater_GN_040.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/USA04/USA04.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/USA04/USA04.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/USA04/USA04.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/USA04/USA04.json",
@@ -1476,17 +1476,17 @@
         "zipeater_GN_019.sav",
         "zipeater_GN_041.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/USA06/USA06.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/USA06/USA06.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/USA06/USA06.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/USA06/USA06.json",
@@ -1509,17 +1509,17 @@
         "zipeater_GN_020.sav",
         "zipeater_GN_042.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/USA07/USA07.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/USA07/USA07.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/USA07/USA07.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/USA07/USA07.json",
@@ -1542,17 +1542,17 @@
         "zipeater_GN_021.sav",
         "zipeater_GN_043.sav"
       ],
-      "status": "missing",
-      "availableOutputPath": null,
+      "status": "available",
+      "availableOutputPath": "maps/_extracted/Maps/Maps/USA08/USA08.json",
       "candidates": [
         {
           "outputPath": "maps/_extracted/Maps/Maps/USA08/USA08.json",
-          "manifestEntry": false,
-          "outputFileExists": false,
-          "sourceFileExists": false,
-          "sourcePath": null,
-          "sourceIsMap": false,
-          "sourceCompatible": false
+          "manifestEntry": true,
+          "outputFileExists": true,
+          "sourceFileExists": true,
+          "sourcePath": "_extracted/Maps/maps/USA08/USA08.map",
+          "sourceIsMap": true,
+          "sourceCompatible": true
         },
         {
           "outputPath": "maps/USA08/USA08.json",
