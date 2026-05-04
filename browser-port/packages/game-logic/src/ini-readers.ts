@@ -89,11 +89,14 @@ export function readStringField(fields: Record<string, IniValue>, names: string[
       // result if we join the array back into a single space-separated string;
       // single-token callers see the same result they would have for the raw
       // string form.
-      const joined = value
-        .filter((entry): entry is string => typeof entry === 'string')
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0)
-        .join(' ');
+      const stringEntries: string[] = [];
+      for (const entry of value) {
+        if (typeof entry === 'string') {
+          const trimmed = entry.trim();
+          if (trimmed.length > 0) stringEntries.push(trimmed);
+        }
+      }
+      const joined = stringEntries.join(' ');
       if (joined.length > 0) {
         return joined;
       }

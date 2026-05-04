@@ -22,7 +22,9 @@ import {
   extractLeafletDropProfile,
   extractRiderChangeContainProfile,
   extractSalvageCrateProfile,
+  extractSlowDeathProfiles,
   extractStickyBombUpdateProfile,
+  extractStructureCollapseProfile,
   extractUpgradeModulesFromBlocks,
 } from './entity-factory.js';
 import { extractFlightDeckProfile } from './flight-deck.js';
@@ -297,6 +299,58 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     expect(userCount).toBeGreaterThan(0);
     expect(arrayShapeCount, 'expected array-shaped DeathTypes — confirms readStringField array branch is exercised').toBeGreaterThan(0);
     expect(stringShapeCount, 'expected string-shaped DeathTypes — confirms backwards compatibility').toBeGreaterThan(0);
+  });
+
+  it('SlowDeathBehavior INITIAL OCL flows through every retail user (was silently dropped)', () => {
+    let userCount = 0;
+    let phaseTokenCount = 0;
+    for (const obj of bundle.objects ?? []) {
+      for (const block of obj.blocks ?? []) {
+        const moduleType = (block.name ?? '').split(/\s+/)[0];
+        if (moduleType !== 'SlowDeathBehavior') continue;
+        const fields = block.fields ?? {};
+        const ocl = fields['OCL'];
+        if (!Array.isArray(ocl)) continue;
+        if (ocl.length !== 2 || typeof ocl[0] !== 'string' || typeof ocl[1] !== 'string') continue;
+        const phase = (ocl[0] as string).trim().toUpperCase();
+        const oclName = (ocl[1] as string).trim();
+        if (!['INITIAL', 'MIDPOINT', 'FINAL'].includes(phase)) continue;
+        userCount++;
+        const profiles = extractSlowDeathProfiles(makeSelfStub(), obj as never);
+        // Find the profile matching this block's module tag.
+        const moduleTag = (block.name ?? '').split(/\s+/)[1]?.toUpperCase() ?? null;
+        const profile = profiles.find((p) => p.moduleTag === moduleTag);
+        expect(profile, `SlowDeath profile not found for ${obj.name}/${moduleTag}`).toBeDefined();
+        const phaseIdx = ['INITIAL', 'MIDPOINT', 'FINAL'].indexOf(phase);
+        expect(profile!.phaseOCLs[phaseIdx], `Phase ${phase} OCL missing on ${obj.name}/${moduleTag} (bundle=${JSON.stringify(ocl)})`).toContain(oclName);
+        phaseTokenCount++;
+      }
+    }
+    expect(userCount, 'expected SlowDeathBehavior OCL with [phase, ocl] array shape in retail data').toBeGreaterThan(0);
+    expect(phaseTokenCount).toBe(userCount); // All decoded successfully
+  });
+
+  it('StructureCollapseUpdate FINAL OCL flows through every retail building (was silently dropped)', () => {
+    let userCount = 0;
+    for (const obj of bundle.objects ?? []) {
+      for (const block of obj.blocks ?? []) {
+        const moduleType = (block.name ?? '').split(/\s+/)[0];
+        if (moduleType !== 'StructureCollapseUpdate') continue;
+        const fields = block.fields ?? {};
+        const ocl = fields['OCL'];
+        if (!Array.isArray(ocl) || ocl.length !== 2) continue;
+        if (typeof ocl[0] !== 'string' || typeof ocl[1] !== 'string') continue;
+        const phase = (ocl[0] as string).trim().toUpperCase();
+        const oclName = (ocl[1] as string).trim();
+        if (!['INITIAL', 'DELAY', 'BURST', 'FINAL'].includes(phase)) continue;
+        userCount++;
+        const profile = extractStructureCollapseProfile(makeSelfStub(), obj as never);
+        expect(profile, `StructureCollapseProfile null for ${obj.name}`).not.toBeNull();
+        const phaseIdx = ['INITIAL', 'DELAY', 'BURST', 'FINAL'].indexOf(phase);
+        expect(profile!.phaseOCLs[phaseIdx], `Phase ${phase} OCL missing on ${obj.name} (bundle=${JSON.stringify(ocl)})`).toContain(oclName);
+      }
+    }
+    expect(userCount, 'expected StructureCollapseUpdate OCL with [phase, ocl] array shape').toBeGreaterThan(0);
   });
 
   it('EMPUpdate StartColor / EndColor RGB tokens decode to a 3-channel tuple for every retail user', () => {
