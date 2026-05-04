@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-05-04T01:05:53.213Z",
-  "status": "attention",
+  "generatedAt": "2026-05-04T01:44:19.066Z",
+  "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
     "sourceFactoryPaths": [
@@ -27,657 +27,12 @@
     "iniUsedModuleFields": 1271,
     "sourceDeclaredIniModuleFields": 1120,
     "sourceKnownIniModuleFields": 1116,
-    "sourceKnownGameplayReferencedIniModuleFields": 1099,
-    "sourceKnownFieldGaps": 17,
+    "sourceKnownGameplayReferencedIniModuleFields": 1116,
+    "sourceKnownFieldGaps": 0,
     "sourceUnknownIniModuleFields": 4,
-    "sourceKnownUntestedRuntimeFields": 110
+    "sourceKnownUntestedRuntimeFields": 109
   },
-  "sourceKnownFieldGaps": [
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway1CatapultSystem",
-      "normalizedFieldName": "RUNWAY1CATAPULTSYSTEM",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway1Creation",
-      "normalizedFieldName": "RUNWAY1CREATION",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway1Landing",
-      "normalizedFieldName": "RUNWAY1LANDING",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway1Spaces",
-      "normalizedFieldName": "RUNWAY1SPACES",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway1Takeoff",
-      "normalizedFieldName": "RUNWAY1TAKEOFF",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway1Taxi",
-      "normalizedFieldName": "RUNWAY1TAXI",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway2CatapultSystem",
-      "normalizedFieldName": "RUNWAY2CATAPULTSYSTEM",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway2Creation",
-      "normalizedFieldName": "RUNWAY2CREATION",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway2Landing",
-      "normalizedFieldName": "RUNWAY2LANDING",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway2Spaces",
-      "normalizedFieldName": "RUNWAY2SPACES",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway2Takeoff",
-      "normalizedFieldName": "RUNWAY2TAKEOFF",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway2Taxi",
-      "normalizedFieldName": "RUNWAY2TAXI",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "GENERATEMINEFIELDBEHAVIOR",
-      "fieldName": "GenerationFX",
-      "normalizedFieldName": "GENERATIONFX",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_05"
-      ],
-      "exampleObjectNames": [
-        "ClusterMinesBomb"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "GenerateMinefieldBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/GenerateMinefieldBehavior.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/GenerateMinefieldBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/GenerateMinefieldBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/GenerateMinefieldBehavior.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "LEAFLETDROPBEHAVIOR",
-      "fieldName": "LeafletFXParticleSystem",
-      "normalizedFieldName": "LEAFLETFXPARTICLESYSTEM",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "LeafletContainer"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "LeafletDropBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/EMPUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "SALVAGECRATECOLLIDE",
-      "fieldName": "MoneyChance",
-      "normalizedFieldName": "MONEYCHANCE",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_02"
-      ],
-      "exampleObjectNames": [
-        "SalvageCrate"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SalvageCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "SALVAGECRATECOLLIDE",
-      "fieldName": "PickupScience",
-      "normalizedFieldName": "PICKUPSCIENCE",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_02"
-      ],
-      "exampleObjectNames": [
-        "SalvageCrate"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SalvageCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "STICKYBOMBUPDATE",
-      "fieldName": "GeometryBasedDamageFX",
-      "normalizedFieldName": "GEOMETRYBASEDDAMAGEFX",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03"
-      ],
-      "exampleObjectNames": [
-        "BoobyTrap"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "StickyBombUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/StickyBombUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/StickyBombUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
-      ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    }
-  ],
+  "sourceKnownFieldGaps": [],
   "sourceUnknownIniModuleFields": [
     {
       "moduleType": "GARRISONCONTAIN",
@@ -1384,6 +739,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/main.ts",
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/entity-lifecycle.ts"
       ],
@@ -3911,82 +3267,6 @@
       "priority": "P2"
     },
     {
-      "moduleType": "SABOTAGECOMMANDCENTERCRATECOLLIDE",
-      "fieldName": "BuildingPickup",
-      "normalizedFieldName": "BUILDINGPICKUP",
-      "iniUsageCount": 3,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [],
-      "exampleObjectNames": [
-        "Demo_GLAInfantrySaboteur",
-        "GLAInfantrySaboteur",
-        "Slth_GLAInfantrySaboteur"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SabotageCommandCenterCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SabotageCommandCenterCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "SABOTAGEMILITARYFACTORYCRATECOLLIDE",
-      "fieldName": "BuildingPickup",
-      "normalizedFieldName": "BUILDINGPICKUP",
-      "iniUsageCount": 3,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [],
-      "exampleObjectNames": [
-        "Demo_GLAInfantrySaboteur",
-        "GLAInfantrySaboteur",
-        "Slth_GLAInfantrySaboteur"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SabotageMilitaryFactoryCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SabotageMilitaryFactoryCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
       "moduleType": "SABOTAGEMILITARYFACTORYCRATECOLLIDE",
       "fieldName": "SabotageDuration",
       "normalizedFieldName": "SABOTAGEDURATION",
@@ -4019,120 +3299,6 @@
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
         "packages/game-logic/src/index.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "SABOTAGEPOWERPLANTCRATECOLLIDE",
-      "fieldName": "BuildingPickup",
-      "normalizedFieldName": "BUILDINGPICKUP",
-      "iniUsageCount": 3,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [],
-      "exampleObjectNames": [
-        "Demo_GLAInfantrySaboteur",
-        "GLAInfantrySaboteur",
-        "Slth_GLAInfantrySaboteur"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SabotagePowerPlantCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SabotagePowerPlantCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "SABOTAGESUPERWEAPONCRATECOLLIDE",
-      "fieldName": "BuildingPickup",
-      "normalizedFieldName": "BUILDINGPICKUP",
-      "iniUsageCount": 3,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [],
-      "exampleObjectNames": [
-        "Demo_GLAInfantrySaboteur",
-        "GLAInfantrySaboteur",
-        "Slth_GLAInfantrySaboteur"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SabotageSuperweaponCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SabotageSuperweaponCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "SABOTAGESUPPLYCENTERCRATECOLLIDE",
-      "fieldName": "BuildingPickup",
-      "normalizedFieldName": "BUILDINGPICKUP",
-      "iniUsageCount": 3,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [],
-      "exampleObjectNames": [
-        "Demo_GLAInfantrySaboteur",
-        "GLAInfantrySaboteur",
-        "Slth_GLAInfantrySaboteur"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SabotageSupplyCenterCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SabotageSupplyCenterCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
       "testReferenceFiles": [],
@@ -4474,46 +3640,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "MONEYCRATECOLLIDE",
-      "fieldName": "BuildingPickup",
-      "normalizedFieldName": "BUILDINGPICKUP",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_ForbiddenChanges"
-      ],
-      "exampleObjectNames": [
-        "100DollarCrateForBuildings",
-        "SupplyDropZoneCrate"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "MoneyCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/MoneyCrateCollide.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/MoneyCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
+        "packages/app/src/main.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
@@ -5301,6 +4428,10 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
@@ -5583,32 +4714,113 @@
       "priority": "P2"
     },
     {
-      "moduleType": "SABOTAGEFAKEBUILDINGCRATECOLLIDE",
-      "fieldName": "BuildingPickup",
-      "normalizedFieldName": "BUILDINGPICKUP",
+      "moduleType": "FLIGHTDECKBEHAVIOR",
+      "fieldName": "Runway1CatapultSystem",
+      "normalizedFieldName": "RUNWAY1CATAPULTSYSTEM",
       "iniUsageCount": 1,
       "iniBlockTypes": [
         "BEHAVIOR"
       ],
-      "moduleTags": [],
+      "moduleTags": [
+        "ModuleTag_11"
+      ],
       "exampleObjectNames": [
-        "GLAInfantrySaboteur"
+        "AmericaAircraftCarrier"
       ],
       "sourceDeclared": true,
       "sourceKnown": true,
       "sourceDataClasses": [
-        "SabotageFakeBuildingCrateCollideModuleData"
+        "FlightDeckBehaviorModuleData"
       ],
       "sourceFiles": [
         "../Generals/Code/GameEngine/Include/Common/Module.h",
         "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
+        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
         "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
         "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SabotageFakeBuildingCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
+        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
+        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
+      ],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
+      "testReferenced": false,
+      "testReferenceFiles": [],
+      "priority": "P2"
+    },
+    {
+      "moduleType": "FLIGHTDECKBEHAVIOR",
+      "fieldName": "Runway2CatapultSystem",
+      "normalizedFieldName": "RUNWAY2CATAPULTSYSTEM",
+      "iniUsageCount": 1,
+      "iniBlockTypes": [
+        "BEHAVIOR"
+      ],
+      "moduleTags": [
+        "ModuleTag_11"
+      ],
+      "exampleObjectNames": [
+        "AmericaAircraftCarrier"
+      ],
+      "sourceDeclared": true,
+      "sourceKnown": true,
+      "sourceDataClasses": [
+        "FlightDeckBehaviorModuleData"
+      ],
+      "sourceFiles": [
+        "../Generals/Code/GameEngine/Include/Common/Module.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
+        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
+        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
+        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
+        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
+      ],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
+      "testReferenced": false,
+      "testReferenceFiles": [],
+      "priority": "P2"
+    },
+    {
+      "moduleType": "GENERATEMINEFIELDBEHAVIOR",
+      "fieldName": "GenerationFX",
+      "normalizedFieldName": "GENERATIONFX",
+      "iniUsageCount": 1,
+      "iniBlockTypes": [
+        "BEHAVIOR"
+      ],
+      "moduleTags": [
+        "ModuleTag_05"
+      ],
+      "exampleObjectNames": [
+        "ClusterMinesBomb"
+      ],
+      "sourceDeclared": true,
+      "sourceKnown": true,
+      "sourceDataClasses": [
+        "GenerateMinefieldBehaviorModuleData"
+      ],
+      "sourceFiles": [
+        "../Generals/Code/GameEngine/Include/Common/Module.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/GenerateMinefieldBehavior.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
+        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/GenerateMinefieldBehavior.cpp",
+        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/GenerateMinefieldBehavior.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
+        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/GenerateMinefieldBehavior.cpp"
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
@@ -5619,32 +4831,32 @@
       "priority": "P2"
     },
     {
-      "moduleType": "SABOTAGEINTERNETCENTERCRATECOLLIDE",
-      "fieldName": "BuildingPickup",
-      "normalizedFieldName": "BUILDINGPICKUP",
+      "moduleType": "LEAFLETDROPBEHAVIOR",
+      "fieldName": "LeafletFXParticleSystem",
+      "normalizedFieldName": "LEAFLETFXPARTICLESYSTEM",
       "iniUsageCount": 1,
       "iniBlockTypes": [
         "BEHAVIOR"
       ],
-      "moduleTags": [],
+      "moduleTags": [
+        "ModuleTag_11"
+      ],
       "exampleObjectNames": [
-        "GLAInfantrySaboteur"
+        "LeafletContainer"
       ],
       "sourceDeclared": true,
       "sourceKnown": true,
       "sourceDataClasses": [
-        "SabotageInternetCenterCrateCollideModuleData"
+        "LeafletDropBehaviorModuleData"
       ],
       "sourceFiles": [
         "../Generals/Code/GameEngine/Include/Common/Module.h",
         "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
         "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
         "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SabotageInternetCenterCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/EMPUpdate.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
@@ -5685,6 +4897,121 @@
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
         "packages/game-logic/src/index.ts"
+      ],
+      "testReferenced": false,
+      "testReferenceFiles": [],
+      "priority": "P2"
+    },
+    {
+      "moduleType": "SALVAGECRATECOLLIDE",
+      "fieldName": "MoneyChance",
+      "normalizedFieldName": "MONEYCHANCE",
+      "iniUsageCount": 1,
+      "iniBlockTypes": [
+        "BEHAVIOR"
+      ],
+      "moduleTags": [
+        "ModuleTag_02"
+      ],
+      "exampleObjectNames": [
+        "SalvageCrate"
+      ],
+      "sourceDeclared": true,
+      "sourceKnown": true,
+      "sourceDataClasses": [
+        "SalvageCrateCollideModuleData"
+      ],
+      "sourceFiles": [
+        "../Generals/Code/GameEngine/Include/Common/Module.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
+        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
+        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
+        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
+      ],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
+      "testReferenced": false,
+      "testReferenceFiles": [],
+      "priority": "P2"
+    },
+    {
+      "moduleType": "SALVAGECRATECOLLIDE",
+      "fieldName": "PickupScience",
+      "normalizedFieldName": "PICKUPSCIENCE",
+      "iniUsageCount": 1,
+      "iniBlockTypes": [
+        "BEHAVIOR"
+      ],
+      "moduleTags": [
+        "ModuleTag_02"
+      ],
+      "exampleObjectNames": [
+        "SalvageCrate"
+      ],
+      "sourceDeclared": true,
+      "sourceKnown": true,
+      "sourceDataClasses": [
+        "SalvageCrateCollideModuleData"
+      ],
+      "sourceFiles": [
+        "../Generals/Code/GameEngine/Include/Common/Module.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
+        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
+        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
+        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
+      ],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
+      "testReferenced": false,
+      "testReferenceFiles": [],
+      "priority": "P2"
+    },
+    {
+      "moduleType": "STICKYBOMBUPDATE",
+      "fieldName": "GeometryBasedDamageFX",
+      "normalizedFieldName": "GEOMETRYBASEDDAMAGEFX",
+      "iniUsageCount": 1,
+      "iniBlockTypes": [
+        "BEHAVIOR"
+      ],
+      "moduleTags": [
+        "ModuleTag_03"
+      ],
+      "exampleObjectNames": [
+        "BoobyTrap"
+      ],
+      "sourceDeclared": true,
+      "sourceKnown": true,
+      "sourceDataClasses": [
+        "StickyBombUpdateModuleData"
+      ],
+      "sourceFiles": [
+        "../Generals/Code/GameEngine/Include/Common/Module.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/StickyBombUpdate.h",
+        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
+        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/StickyBombUpdate.h",
+        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
+      ],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
       "testReferenceFiles": [],
@@ -6019,8 +5346,10 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "tools/module-field-coverage-report.test.ts"
@@ -9180,6 +8509,10 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -10535,8 +9868,13 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P0"
@@ -10564,8 +9902,13 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P0"
@@ -11058,8 +10401,10 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "tools/module-field-coverage-report.test.ts"
@@ -12616,8 +11961,10 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "tools/module-field-coverage-report.test.ts"
@@ -12664,6 +12011,10 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -15061,6 +14412,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/main.ts",
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/entity-lifecycle.ts"
       ],
@@ -15217,6 +14569,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/aircraft-ai.ts",
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/entity-lifecycle.ts"
@@ -17102,7 +16455,8 @@
         "packages/game-logic/src/production-spawn.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
-        "packages/game-logic/src/wet-test-harness.test.ts"
+        "packages/game-logic/src/wet-test-harness.test.ts",
+        "packages/game-logic/src/zh-combat-runtime.test.ts"
       ],
       "priority": "P1"
     },
@@ -17691,6 +17045,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -17741,6 +17096,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -17792,6 +17148,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -18405,6 +17762,10 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -21513,8 +20874,10 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "tools/module-field-coverage-report.test.ts"
@@ -21571,8 +20934,10 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P1"
@@ -23415,8 +22780,10 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -26557,6 +25924,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -26607,6 +25975,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -26717,6 +26086,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -27081,7 +26451,8 @@
         "packages/game-logic/src/production-spawn.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
-        "packages/game-logic/src/wet-test-harness.test.ts"
+        "packages/game-logic/src/wet-test-harness.test.ts",
+        "packages/game-logic/src/zh-combat-runtime.test.ts"
       ],
       "priority": "P2"
     },
@@ -27483,6 +26854,7 @@
         "packages/game-logic/src/containment-system.ts",
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/entity-lifecycle.ts",
+        "packages/game-logic/src/flight-deck.ts",
         "packages/game-logic/src/fog-of-war.ts",
         "packages/game-logic/src/index.ts",
         "packages/game-logic/src/render-state-bridge.ts",
@@ -27882,6 +27254,7 @@
       "gameplayReferenceFiles": [
         "packages/app/src/control-bar-dispatch.ts",
         "packages/app/src/game-shell.ts",
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/command-dispatch.ts",
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/index.ts",
@@ -28177,6 +27550,7 @@
         "packages/game-logic/src/containment-system.ts",
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/entity-lifecycle.ts",
+        "packages/game-logic/src/flight-deck.ts",
         "packages/game-logic/src/fog-of-war.ts",
         "packages/game-logic/src/index.ts",
         "packages/game-logic/src/render-state-bridge.ts",
@@ -30728,6 +30102,8 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/main.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -30946,7 +30322,8 @@
         "packages/game-logic/src/production-spawn.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
-        "packages/game-logic/src/wet-test-harness.test.ts"
+        "packages/game-logic/src/wet-test-harness.test.ts",
+        "packages/game-logic/src/zh-combat-runtime.test.ts"
       ],
       "priority": "P2"
     },
@@ -31349,6 +30726,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/game-logic/src/containment-system.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -31402,6 +30780,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/game-logic/src/containment-system.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -31452,6 +30831,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/game-logic/src/containment-system.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -31502,6 +30882,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/game-logic/src/containment-system.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -31551,6 +30932,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/game-logic/src/containment-system.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -31600,6 +30982,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/game-logic/src/containment-system.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -31649,6 +31032,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/game-logic/src/containment-system.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -31978,6 +31362,11 @@
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts",
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts",
         "packages/game-logic/src/zh-container-transport-fixes.test.ts",
         "packages/game-logic/src/zh-player-gamelogic-runtime.test.ts",
         "packages/game-logic/src/zh-production-upgrade-fixes.test.ts"
@@ -32036,6 +31425,11 @@
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts",
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts",
         "packages/game-logic/src/zh-behavior-runtime-fixes.test.ts",
         "packages/game-logic/src/zh-container-transport-fixes.test.ts",
         "packages/game-logic/src/zh-production-upgrade-fixes.test.ts"
@@ -32734,6 +32128,7 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/fog-of-war.ts",
         "packages/game-logic/src/index.ts"
@@ -32808,6 +32203,7 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/app/src/voice-audio-bridge.ts"
       ],
       "testReferenced": true,
@@ -32838,8 +32234,10 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "tools/module-field-coverage-report.test.ts"
@@ -32896,10 +32294,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/main.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts",
+        "packages/game-logic/src/update-behaviors.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -35626,6 +35029,7 @@
         "packages/game-logic/src/containment-system.ts",
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/entity-lifecycle.ts",
+        "packages/game-logic/src/flight-deck.ts",
         "packages/game-logic/src/fog-of-war.ts",
         "packages/game-logic/src/index.ts",
         "packages/game-logic/src/render-state-bridge.ts",
@@ -37397,6 +36801,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/main.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -37756,6 +37161,10 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -38319,10 +37728,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/main.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts",
+        "packages/game-logic/src/update-behaviors.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -38686,6 +38100,7 @@
         "packages/game-logic/src/parity-misc.test.ts",
         "packages/game-logic/src/parity-supply-garrison.test.ts",
         "packages/game-logic/src/supply-chain.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
         "packages/game-logic/src/zh-combat-economy-fixes.test.ts",
         "packages/game-logic/src/zh-dock-ai-runtime.test.ts"
       ],
@@ -38975,6 +38390,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/bridge-mechanics.ts"
       ],
       "testReferenced": true,
@@ -41187,10 +40603,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/main.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts",
+        "packages/game-logic/src/update-behaviors.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -41478,8 +40899,13 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -41506,8 +40932,10 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "tools/module-field-coverage-report.test.ts"
@@ -42721,6 +42149,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
         "packages/game-logic/src/aircraft-ai.ts"
       ],
       "testReferenced": true,
@@ -43071,6 +42500,7 @@
         "packages/game-logic/src/parity-misc.test.ts",
         "packages/game-logic/src/parity-supply-garrison.test.ts",
         "packages/game-logic/src/supply-chain.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
         "packages/game-logic/src/zh-combat-economy-fixes.test.ts",
         "packages/game-logic/src/zh-dock-ai-runtime.test.ts"
       ],
@@ -45278,6 +44708,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
         "packages/game-logic/src/stealth-detection.ts"
       ],
       "testReferenced": true,
@@ -45957,6 +45388,10 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -46004,6 +45439,10 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -46051,6 +45490,10 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -46207,6 +45650,7 @@
         "packages/game-logic/src/parity-misc.test.ts",
         "packages/game-logic/src/parity-supply-garrison.test.ts",
         "packages/game-logic/src/supply-chain.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
         "packages/game-logic/src/zh-combat-economy-fixes.test.ts",
         "packages/game-logic/src/zh-dock-ai-runtime.test.ts"
       ],
@@ -47440,6 +46884,7 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/app/src/voice-audio-bridge.ts"
       ],
       "testReferenced": false,
@@ -47470,6 +46915,7 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/app/src/voice-audio-bridge.ts"
       ],
       "testReferenced": true,
@@ -48363,6 +47809,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -48453,6 +47900,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -49225,6 +48673,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
@@ -50751,7 +50200,12 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-thingtpl-fields.test.ts"
+        "packages/game-logic/src/parity-thingtpl-fields.test.ts",
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts"
       ],
       "priority": "P2"
     },
@@ -50940,8 +50394,10 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "tools/module-field-coverage-report.test.ts"
@@ -51166,8 +50622,13 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -51194,8 +50655,13 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -52576,6 +52042,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -56827,6 +56294,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/main.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -58064,6 +57532,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -58112,6 +57581,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -58161,6 +57631,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": true,
@@ -58244,8 +57715,10 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "tools/module-field-coverage-report.test.ts"
@@ -59543,8 +59016,14 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -59581,8 +59060,14 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -59657,8 +59142,14 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -59736,8 +59227,14 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -59774,8 +59271,14 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -61355,6 +60858,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/main.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
@@ -61661,8 +61165,14 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -63061,6 +62571,10 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
@@ -64834,8 +64348,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -64871,8 +64387,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.test.ts"
@@ -64910,8 +64428,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.test.ts"
@@ -64949,8 +64469,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.test.ts"
@@ -64988,8 +64510,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.test.ts"
@@ -65027,8 +64551,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.test.ts"
@@ -65066,8 +64592,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -65103,8 +64631,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.test.ts"
@@ -65142,8 +64672,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.test.ts"
@@ -65181,8 +64713,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.test.ts"
@@ -65220,8 +64754,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.test.ts"
@@ -65259,8 +64795,10 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/flight-deck.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.test.ts"
@@ -65434,8 +64972,10 @@
         "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/GenerateMinefieldBehavior.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -65861,8 +65401,10 @@
         "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/EMPUpdate.h",
         "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -66772,8 +66314,14 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -66808,8 +66356,14 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/wet-test-retail-deep.test.ts",
+        "packages/game-logic/src/wet-test-retail-factions.test.ts",
+        "packages/game-logic/src/wet-test-retail-multimap.test.ts",
+        "packages/game-logic/src/wet-test-retail-special.test.ts",
+        "packages/game-logic/src/wet-test-retail-stress.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -67044,8 +66598,10 @@
         "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -67081,8 +66637,10 @@
         "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -67242,8 +66800,10 @@
         "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/StickyBombUpdate.h",
         "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -67531,8 +67091,10 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/script-engine-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
+        "packages/game-logic/src/zh-combat-runtime.test.ts",
         "packages/game-logic/src/zh-production-upgrade-fixes.test.ts"
       ],
       "priority": "P2"
@@ -67575,7 +67137,9 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/update-behaviors.test.ts"
+        "packages/app/src/runtime-save-game.test.ts",
+        "packages/game-logic/src/update-behaviors.test.ts",
+        "packages/game-logic/src/zh-combat-runtime.test.ts"
       ],
       "priority": "P2"
     },
@@ -67597,8 +67161,13 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
@@ -67621,8 +67190,13 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/load-game-screen.ts",
+        "packages/app/src/options-screen.ts",
+        "packages/app/src/replay-menu-screen.ts"
+      ],
       "testReferenced": false,
       "testReferenceFiles": [],
       "priority": "P2"
