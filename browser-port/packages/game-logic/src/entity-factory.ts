@@ -3357,12 +3357,26 @@ export function extractOCLUpdateProfiles(self: GL, objectDef: ObjectDef | undefi
         const oclName = readStringField(block.fields, ['OCL']) ?? '';
         const factionTriggered = readBooleanField(block.fields, ['FactionTriggered']) === true;
         // Source parity: ZH-only FactionOCL — parse "Faction:<name> OCL:<ocl_name>" entries.
+        // Bundle may emit one entry's tokens as a flat array (["Faction:X",
+        // "OCL:Y"]) or as a single string. Join the array elements before
+        // running the regex so both shapes resolve.
         const factionOCLMap = new Map<string, string>();
         const factionOCLRaw = block.fields['FactionOCL'];
         if (factionOCLRaw !== undefined) {
-          const entries = Array.isArray(factionOCLRaw) ? factionOCLRaw : [factionOCLRaw];
-          for (const entry of entries) {
-            if (typeof entry !== 'string') continue;
+          const rawEntries: string[] = [];
+          if (typeof factionOCLRaw === 'string') {
+            rawEntries.push(factionOCLRaw);
+          } else if (Array.isArray(factionOCLRaw)) {
+            const stringElems = factionOCLRaw.filter((v): v is string => typeof v === 'string');
+            const looksLikeOneEntry = stringElems.length > 0
+              && /^(Faction|OCL):/i.test(stringElems[0] ?? '');
+            if (looksLikeOneEntry) {
+              rawEntries.push(stringElems.join(' '));
+            } else {
+              for (const s of stringElems) rawEntries.push(s);
+            }
+          }
+          for (const entry of rawEntries) {
             // Format: "Faction:<name> OCL:<ocl_name>" or "Faction:<name>OCL:<ocl_name>"
             const factionMatch = entry.match(/Faction[:\s]+(\S+)/i);
             const oclMatch = entry.match(/OCL[:\s]+(\S+)/i);
@@ -4957,18 +4971,37 @@ export function extractCrateCollideProfile(self: GL, objectDef: ObjectDef | unde
  */
 function extractUpgradedBoosts(value: unknown): Array<{ upgradeName: string; amount: number }> {
   if (value === undefined || value === null) return [];
-  const entries: string[] = [];
+  // Each entry is "UpgradeType:Name Boost:N" — multiple key:value tokens. The
+  // shipped INI bundle may emit one entry as a flat array of tokens
+  // (["UpgradeType:X", "Boost:25"]) or as a single string. Treat the entire
+  // flat array as one entry's tokens whenever any element starts with a known
+  // key prefix; otherwise each element is its own whitespace-separated entry.
+  const entriesAsTokens: string[][] = [];
   if (typeof value === 'string') {
-    entries.push(value);
+    entriesAsTokens.push(value.trim().split(/\s+/).filter((t) => t.length > 0));
   } else if (Array.isArray(value)) {
-    for (const v of value) {
-      if (typeof v === 'string') entries.push(v);
+    const stringElems = value.filter((v): v is string => typeof v === 'string').map((s) => s.trim());
+    if (stringElems.length > 0) {
+      const looksLikeOneEntry = stringElems.length > 0
+        && /^(UpgradeType|Boost):/i.test(stringElems[0] ?? '');
+      if (looksLikeOneEntry) {
+        const tokens: string[] = [];
+        for (const s of stringElems) {
+          for (const t of s.split(/\s+/)) {
+            if (t.length > 0) tokens.push(t);
+          }
+        }
+        if (tokens.length > 0) entriesAsTokens.push(tokens);
+      } else {
+        for (const s of stringElems) {
+          const tokens = s.split(/\s+/).filter((t) => t.length > 0);
+          if (tokens.length > 0) entriesAsTokens.push(tokens);
+        }
+      }
     }
   }
   const result: Array<{ upgradeName: string; amount: number }> = [];
-  for (const entry of entries) {
-    // Parse colon-separated key:value pairs: "UpgradeType:Name Boost:25"
-    const tokens = entry.trim().split(/\s+/);
+  for (const tokens of entriesAsTokens) {
     let upgradeName = '';
     let amount = 0;
     for (const token of tokens) {
