@@ -667,14 +667,26 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       profileKey: 'fxLists' | 'particleSystems';
       effectKey: 'FXLIST' | 'PSYS';
     }> = [
+      { fieldName: 'DamagedParticleSystem4', rowIndex: 1, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'DamagedParticleSystem5', rowIndex: 1, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'DamagedParticleSystem6', rowIndex: 1, profileKey: 'particleSystems', effectKey: 'PSYS' },
       { fieldName: 'ReallyDamagedParticleSystem1', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
       { fieldName: 'ReallyDamagedParticleSystem2', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
       { fieldName: 'ReallyDamagedParticleSystem3', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'ReallyDamagedParticleSystem4', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'ReallyDamagedParticleSystem5', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'ReallyDamagedParticleSystem6', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'ReallyDamagedParticleSystem7', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'ReallyDamagedParticleSystem8', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
       { fieldName: 'ReallyDamagedFXList1', rowIndex: 2, profileKey: 'fxLists', effectKey: 'FXLIST' },
+      { fieldName: 'RubbleFXList1', rowIndex: 3, profileKey: 'fxLists', effectKey: 'FXLIST' },
       { fieldName: 'RubbleParticleSystem1', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
       { fieldName: 'RubbleParticleSystem2', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
       { fieldName: 'RubbleParticleSystem3', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
       { fieldName: 'RubbleParticleSystem4', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'RubbleParticleSystem5', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'RubbleParticleSystem6', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'RubbleParticleSystem7', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
     ];
 
     for (const testCase of cases) {
@@ -701,6 +713,21 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       }
       expect(usageCount, `expected retail users for ${testCase.fieldName}`).toBeGreaterThan(0);
     }
+
+    let damageParticleTypeUsers = 0;
+    for (const { obj, bundleValue } of iterFieldUsages('TransitionDamageFX', 'DamageParticleTypes')) {
+      damageParticleTypeUsers++;
+      const profile = extractTransitionDamageFXProfile(makeSelfStub(), obj as never);
+      expect(profile, `TransitionDamageFXProfile null on ${obj.name}`).not.toBeNull();
+      const tokens = splitTokens(bundleValue).map((token) => token.toUpperCase());
+      expect(profile!.damageParticleTypes?.includeAll, `DamageParticleTypes includeAll missing on ${obj.name}`)
+        .toBe(tokens.includes('ALL'));
+      for (const token of tokens.filter((value) => value.startsWith('-')).map((value) => value.slice(1))) {
+        expect(profile!.damageParticleTypes?.excludes, `DamageParticleTypes exclude ${token} missing on ${obj.name}`)
+          .toContain(token);
+      }
+    }
+    expect(damageParticleTypeUsers, 'expected retail users for DamageParticleTypes').toBeGreaterThan(0);
   });
 
   it('BoneFXUpdate particle systems decode for every retail user (was silently dropped)', () => {
@@ -737,6 +764,38 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     }
     expect(userCount, 'expected retail BoneFXUpdate users with array-shaped fields').toBeGreaterThan(0);
     expect(entryCount, 'expected ≥1 parsed BoneFX entry total').toBeGreaterThan(0);
+  });
+
+  it('BoneFXUpdate lower-slot shipped fields decode through their exact row/slot', () => {
+    const cases: Array<{
+      fieldName: string;
+      rowIndex: number;
+      slotIndex: number;
+      profileKey: 'fxLists' | 'particleSystems';
+      effectKey: 'FXLIST' | 'PSYS';
+    }> = [
+      { fieldName: 'PristineParticleSystem2', rowIndex: 0, slotIndex: 1, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'PristineParticleSystem3', rowIndex: 0, slotIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'PristineParticleSystem4', rowIndex: 0, slotIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'PristineParticleSystem5', rowIndex: 0, slotIndex: 4, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'PristineParticleSystem6', rowIndex: 0, slotIndex: 5, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'RubbleFXList1', rowIndex: 3, slotIndex: 0, profileKey: 'fxLists', effectKey: 'FXLIST' },
+    ];
+
+    for (const testCase of cases) {
+      let usageCount = 0;
+      for (const { obj, bundleValue } of iterFieldUsages('BoneFXUpdate', testCase.fieldName)) {
+        usageCount++;
+        const expectedEffectName = transitionEffectName(bundleValue, testCase.effectKey);
+        expect(expectedEffectName, `${testCase.fieldName} has no effect token on ${obj.name}`).toBeTruthy();
+
+        const profile = extractBoneFXProfile(makeSelfStub(), obj as never);
+        expect(profile, `BoneFXProfile null on ${obj.name}`).not.toBeNull();
+        const cell = profile![testCase.profileKey][testCase.rowIndex]?.[testCase.slotIndex] ?? null;
+        expect(cell?.effectName, `${testCase.fieldName} mismatch on ${obj.name}`).toBe(expectedEffectName);
+      }
+      expect(usageCount, `expected retail users for BoneFXUpdate.${testCase.fieldName}`).toBeGreaterThan(0);
+    }
   });
 
   it('extractIniValueTokens decodes flat primitive arrays as a single multi-token entry', () => {
