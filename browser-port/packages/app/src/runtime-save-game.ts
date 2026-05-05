@@ -424,7 +424,9 @@ const GAME_STATE_VERSION = 2;
 const SOURCE_CAMPAIGN_SNAPSHOT_FRESH_VERSION = 3;
 const SOURCE_CAMPAIGN_SNAPSHOT_MAX_VERSION = 5;
 const GAME_STATE_MAP_VERSION = 2;
-const BROWSER_RUNTIME_STATE_VERSION = 1;
+const BROWSER_RUNTIME_STATE_VERSION = 2;
+const BROWSER_RUNTIME_JSON_CHUNK_CHAR_LENGTH = 8 * 1024 * 1024;
+const BROWSER_RUNTIME_JSON_MAX_CHUNKS = 256;
 const SOURCE_SKIRMISH_GAME_INFO_SNAPSHOT_VERSION = 4;
 const SOURCE_SKIRMISH_GAME_SLOT_COUNT = 8;
 const SOURCE_SKIRMISH_GAME_INFO_RELEASE_CRC_INTERVAL = 100;
@@ -28619,13 +28621,18 @@ class BrowserRuntimeSnapshot implements Snapshot {
 
   xfer(xfer: Xfer): void {
     const version = xfer.xferVersion(BROWSER_RUNTIME_STATE_VERSION);
-    if (version !== BROWSER_RUNTIME_STATE_VERSION) {
+    if (version < 1 || version > BROWSER_RUNTIME_STATE_VERSION) {
       throw new Error(`Unsupported browser runtime save version ${version}`);
     }
 
-    const serialized = xfer.xferLongString(
-      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
-    );
+    const serialized = version === 1
+      ? xfer.xferLongString(
+          this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
+        )
+      : xferBrowserRuntimeJsonChunks(
+          xfer,
+          this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
+        );
     if (serialized.length === 0) {
       this.payload = null;
       return;
@@ -28636,6 +28643,33 @@ class BrowserRuntimeSnapshot implements Snapshot {
   loadPostProcess(): void {
     // No cross-snapshot fixup required.
   }
+}
+
+function xferBrowserRuntimeJsonChunks(xfer: Xfer, value: string): string {
+  if (xfer.getMode() === XferMode.XFER_SAVE || xfer.getMode() === XferMode.XFER_CRC) {
+    const chunks: string[] = [];
+    for (let offset = 0; offset < value.length; offset += BROWSER_RUNTIME_JSON_CHUNK_CHAR_LENGTH) {
+      chunks.push(value.slice(offset, offset + BROWSER_RUNTIME_JSON_CHUNK_CHAR_LENGTH));
+    }
+    xfer.xferUnsignedInt(chunks.length);
+    for (const chunk of chunks) {
+      xfer.xferLongString(chunk);
+    }
+    return value;
+  }
+
+  const chunkCount = xfer.xferUnsignedInt(0);
+  if (chunkCount === 0) {
+    return '';
+  }
+  if (chunkCount > BROWSER_RUNTIME_JSON_MAX_CHUNKS) {
+    throw new Error(`Browser runtime save has too many JSON chunks: ${chunkCount}`);
+  }
+  const chunks: string[] = [];
+  for (let index = 0; index < chunkCount; index += 1) {
+    chunks.push(xfer.xferLongString(''));
+  }
+  return chunks.join('');
 }
 
 class RawPassthroughSnapshot implements Snapshot {
@@ -30165,7 +30199,11 @@ export function parseRuntimeSaveFile(
     throw new Error('Runtime save load failed before the browser snapshot payload could be restored.');
   }
   const payload = runtimeSnapshot.payload;
-  if (payload !== null && payload.version !== BROWSER_RUNTIME_STATE_VERSION) {
+  if (payload !== null && (
+    !Number.isFinite(payload.version)
+    || payload.version < 1
+    || payload.version > BROWSER_RUNTIME_STATE_VERSION
+  )) {
     throw new Error(`Unsupported browser runtime save payload version ${payload.version}`);
   }
   const browserCameraState = payload === null
