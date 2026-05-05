@@ -413,7 +413,9 @@ class SourceTeamPrototypeSnapshot implements Snapshot {
       this.playerState,
       this.sidesListState,
     ));
-    applyOwnerIndexToTeam(this.prototypeRecord, ownerIndex, this.playerState);
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      applyOwnerIndexToTeam(this.prototypeRecord, ownerIndex, this.playerState);
+    }
     if (version >= 2) {
       this.prototypeRecord.attackPrioritySetName = xfer.xferAsciiString(
         this.prototypeRecord.attackPrioritySetName,

@@ -777,6 +777,8 @@ export interface BrowserRuntimeSavePayload {
   cameraState: BrowserRuntimeCameraSaveState | null;
   gameLogicState: unknown;
   gameLogicCoreState?: GameLogicCoreSaveState | null;
+  gameLogicTeamFactoryState?: GameLogicTeamFactorySaveState | null;
+  sourceTeamPrototypeNames?: readonly string[] | null;
 }
 
 export interface RuntimeSaveCampaignBootstrap {
@@ -998,6 +1000,7 @@ export interface RuntimeSaveBootstrap {
   scriptEngineFadeState: ScriptCameraEffectFadeSaveState | null;
   gameLogicInGameUiState: GameLogicInGameUiSaveState | null;
   gameLogicCoreState: GameLogicCoreSaveState | null;
+  hasBrowserRuntimeCoreState: boolean;
   sourceGameLogicImportState: GameLogicSourceGameLogicImportSaveState | null;
   gameLogicState: unknown | null;
   sourceGameLogicPrototypeNames: readonly string[] | null;
@@ -1568,6 +1571,81 @@ function collectSourceTeamPrototypeNamesFromMapData(mapData: MapDataJSON): strin
     prototypeNames.push(teamName);
   }
   return prototypeNames;
+}
+
+function cloneRuntimeSaveScriptTeamRecord(team: ScriptTeamRecord): ScriptTeamRecord {
+  return {
+    ...team,
+    memberEntityIds: new Set(team.memberEntityIds),
+    reinforcementUnitEntries: team.reinforcementUnitEntries.map((entry) => ({ ...entry })),
+  };
+}
+
+function cloneRuntimeSaveTeamFactoryState(
+  state: GameLogicTeamFactorySaveState,
+): GameLogicTeamFactorySaveState {
+  const nextState: Record<string, unknown> = { ...state.state };
+  const teamsByName = state.state.scriptTeamsByName;
+  if (teamsByName instanceof Map) {
+    nextState.scriptTeamsByName = new Map(
+      [...(teamsByName as Map<string, ScriptTeamRecord>).entries()]
+        .map(([name, team]) => [name, cloneRuntimeSaveScriptTeamRecord(team)]),
+    );
+  }
+  const instanceNamesByPrototype = state.state.scriptTeamInstanceNamesByPrototypeName;
+  if (instanceNamesByPrototype instanceof Map) {
+    nextState.scriptTeamInstanceNamesByPrototypeName = new Map(
+      [...(instanceNamesByPrototype as Map<string, string[]>).entries()]
+        .map(([prototypeName, instanceNames]) => [prototypeName, [...instanceNames]]),
+    );
+  }
+  return {
+    version: state.version,
+    state: nextState,
+  };
+}
+
+function collectSyntheticSourceTeamPrototypeNamesFromTeamFactoryState(
+  state: GameLogicTeamFactorySaveState | null | undefined,
+): string[] {
+  const teamsByName = state?.state.scriptTeamsByName;
+  if (!(teamsByName instanceof Map)) {
+    return [];
+  }
+  const instanceNamesByPrototype = state?.state.scriptTeamInstanceNamesByPrototypeName;
+  const names = new Set<string>();
+  const addName = (name: unknown): void => {
+    if (typeof name !== 'string') {
+      return;
+    }
+    const normalized = name.trim().toUpperCase();
+    if (/^__SOURCE_TEAM_PROTOTYPE_\d+$/.test(normalized)) {
+      names.add(normalized);
+    }
+  };
+  if (instanceNamesByPrototype instanceof Map) {
+    for (const prototypeName of instanceNamesByPrototype.keys()) {
+      addName(prototypeName);
+    }
+  }
+  for (const team of (teamsByName as Map<string, ScriptTeamRecord>).values()) {
+    addName(team.prototypeNameUpper);
+  }
+
+  const sourcePrototypeOrder = (name: string): number => {
+    const team = (teamsByName as Map<string, ScriptTeamRecord>).get(name);
+    const sourcePrototypeId = Number(team?.sourcePrototypeId);
+    if (Number.isFinite(sourcePrototypeId) && Math.trunc(sourcePrototypeId) > 0) {
+      return Math.trunc(sourcePrototypeId);
+    }
+    const match = name.match(/^__SOURCE_TEAM_PROTOTYPE_(\d+)$/);
+    return match ? Math.trunc(Number(match[1])) : Number.MAX_SAFE_INTEGER;
+  };
+
+  return [...names].sort((left, right) => {
+    const orderDiff = sourcePrototypeOrder(left) - sourcePrototypeOrder(right);
+    return orderDiff !== 0 ? orderDiff : left.localeCompare(right);
+  });
 }
 
 function resolveScriptNameByEntityId(
@@ -4078,6 +4156,12 @@ function base64ToBytes(encoded: string): Uint8Array {
 }
 
 function runtimeJsonReplacer(_key: string, value: unknown): unknown {
+  if (typeof value === 'number' && Object.is(value, -0)) {
+    return {
+      __runtimeType: 'Number',
+      value: '-0',
+    };
+  }
   if (value instanceof Map) {
     return {
       __runtimeType: 'Map',
@@ -4121,6 +4205,8 @@ function runtimeJsonReviver(_key: string, value: unknown): unknown {
   }
 
   switch (runtimeType) {
+    case 'Number':
+      return record.value === '-0' ? -0 : Number(record.value ?? 0);
     case 'Map':
       return new Map(Array.isArray(record.entries) ? record.entries as Array<[unknown, unknown]> : []);
     case 'Set':
@@ -29566,7 +29652,9 @@ export function buildRuntimeSaveFile(params: {
   const partitionPayload = params.gameLogic.captureSourcePartitionRuntimeSaveState();
   const radarPayload = params.gameLogic.captureSourceRadarRuntimeSaveState();
   const sidesListPayload = params.gameLogic.captureSourceSidesListRuntimeSaveState();
-  const teamFactoryPayload = params.gameLogic.captureSourceTeamFactoryRuntimeSaveState();
+  const teamFactoryPayload = cloneRuntimeSaveTeamFactoryState(
+    params.gameLogic.captureSourceTeamFactoryRuntimeSaveState(),
+  );
   const scriptEnginePayload = params.gameLogic.captureSourceScriptEngineRuntimeSaveState();
   const inGameUiLogicPayload = params.gameLogic.captureSourceInGameUiRuntimeSaveState();
   const inGameUiPayload = params.inGameUiState
@@ -29630,14 +29718,14 @@ export function buildRuntimeSaveFile(params: {
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
   const preservePassthroughBlockBytes = params.preservePassthroughBlockBytes === true;
   const hasSourceGameLogicPassthrough = hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_LOGIC_BLOCK);
-  const includeBrowserRuntimeCoreState = params.includeBrowserRuntimeCoreState === true
-    && !hasSourceGameLogicPassthrough;
+  const includeBrowserRuntimeCoreState = params.includeBrowserRuntimeCoreState === true;
   const runtimePayload: BrowserRuntimeSavePayload = {
     version: BROWSER_RUNTIME_STATE_VERSION,
     mapPath: params.mapPath,
     cameraState: buildBrowserRuntimeCameraSaveState(params.cameraState),
     gameLogicState: browserGameLogicState,
     gameLogicCoreState: includeBrowserRuntimeCoreState ? gameLogicPayload : null,
+    gameLogicTeamFactoryState: includeBrowserRuntimeCoreState ? teamFactoryPayload : null,
   };
   const mergedGameClientBriefingLines = mergeBriefingLines(
     params.gameClientState?.briefingLines ?? [],
@@ -29694,9 +29782,14 @@ export function buildRuntimeSaveFile(params: {
   };
 
   const state = new GameState();
-  const sourceTeamPrototypeNames = params.mapData
-    ? collectSourceTeamPrototypeNamesFromMapData(params.mapData)
-    : [];
+  const syntheticSourceTeamPrototypeNames =
+    collectSyntheticSourceTeamPrototypeNamesFromTeamFactoryState(teamFactoryPayload);
+  const sourceTeamPrototypeNames = syntheticSourceTeamPrototypeNames.length > 0
+    ? syntheticSourceTeamPrototypeNames
+    : params.mapData
+      ? collectSourceTeamPrototypeNamesFromMapData(params.mapData)
+      : [];
+  runtimePayload.sourceTeamPrototypeNames = sourceTeamPrototypeNames;
   const teamFactoryChunk = buildSourceTeamFactoryChunk(
     teamFactoryPayload,
     playerPayload,
@@ -29708,7 +29801,7 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, new CampaignSnapshot(campaignState));
   state.addSnapshotBlock('CHUNK_GameStateMap', new MapSnapshot(mapState));
   state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, new TerrainLogicSnapshot(terrainLogicPayload));
-  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TEAM_FACTORY_BLOCK)) {
+  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TEAM_FACTORY_BLOCK) && preservePassthroughBlockBytes) {
     const passthroughBlock = orderedPassthroughBlocks.find(
       (block) => block.blockName.toLowerCase() === SOURCE_TEAM_FACTORY_BLOCK.toLowerCase(),
     );
@@ -29722,7 +29815,7 @@ export function buildRuntimeSaveFile(params: {
   } else {
     state.addSnapshotBlock(SOURCE_TEAM_FACTORY_BLOCK, new RawPassthroughSnapshot(teamFactoryChunk));
   }
-  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_PLAYERS_BLOCK)) {
+  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_PLAYERS_BLOCK) && preservePassthroughBlockBytes) {
     const passthroughBlock = orderedPassthroughBlocks.find(
       (block) => block.blockName.toLowerCase() === SOURCE_PLAYERS_BLOCK.toLowerCase(),
     );
@@ -29786,7 +29879,7 @@ export function buildRuntimeSaveFile(params: {
     );
   }
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
-  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_SCRIPT_ENGINE_BLOCK)) {
+  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_SCRIPT_ENGINE_BLOCK) && preservePassthroughBlockBytes) {
     const passthroughBlock = orderedPassthroughBlocks.find(
       (block) => block.blockName.toLowerCase() === SOURCE_SCRIPT_ENGINE_BLOCK.toLowerCase(),
     );
@@ -29829,10 +29922,12 @@ export function buildRuntimeSaveFile(params: {
     }
     if (KNOWN_RUNTIME_SAVE_BLOCKS.has(passthroughBlock.blockName.toLowerCase())) {
       if (passthroughBlock.blockName.toLowerCase() === SOURCE_IN_GAME_UI_BLOCK.toLowerCase()) {
-        state.addSnapshotBlock(
-          passthroughBlock.blockName,
-          new RawPassthroughSnapshot(passthroughBlock.blockData),
-        );
+        if (preservePassthroughBlockBytes) {
+          state.addSnapshotBlock(
+            passthroughBlock.blockName,
+            new RawPassthroughSnapshot(passthroughBlock.blockData),
+          );
+        }
       }
       continue;
     }
@@ -29857,7 +29952,7 @@ export function buildRuntimeSaveFile(params: {
       ),
     );
   }
-  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_IN_GAME_UI_BLOCK)) {
+  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_IN_GAME_UI_BLOCK) || !preservePassthroughBlockBytes) {
     state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
   }
   state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, new PartitionSnapshot(partitionPayload));
@@ -29986,7 +30081,14 @@ function parseRuntimeSaveGameMapInfoForMetadata(
   }
 }
 
-export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
+export interface ParseRuntimeSaveFileOptions {
+  mapDataOverride?: MapDataJSON | null;
+}
+
+export function parseRuntimeSaveFile(
+  data: ArrayBuffer,
+  options: ParseRuntimeSaveFileOptions = {},
+): RuntimeSaveBootstrap {
   const metadata = parseSaveGameInfo(data);
   const mapInfo = parseRuntimeSaveGameMapInfoForMetadata(data, metadata);
 
@@ -30037,13 +30139,14 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const resolvedMapPath = resolvedMapPathCandidates[0] ?? null;
   const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData)
     ?? tryDecodeSourceMapBytes(mapInfo.embeddedMapData);
+  const resolvedMapData = mapData ?? options.mapDataOverride ?? null;
   const teamFactoryChunk = extractSaveChunkData(data, SOURCE_TEAM_FACTORY_BLOCK);
   const legacyTeamFactoryState = teamFactoryChunk
     ? tryParseLegacyTeamFactoryChunk(teamFactoryChunk)
     : null;
   const playersChunk = extractSaveChunkData(data, SOURCE_PLAYERS_BLOCK);
   const sourcePlayersState = playersChunk
-    ? tryParseSourcePlayersChunk(playersChunk, { mapData })
+    ? tryParseSourcePlayersChunk(playersChunk, { mapData: resolvedMapData })
     : null;
   const legacyPlayersState = sourcePlayersState === null && playersChunk
     ? tryParseLegacyPlayersChunk(playersChunk)
@@ -30056,12 +30159,21 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const terrainVisualChunk = extractSaveChunkData(data, SOURCE_TERRAIN_VISUAL_BLOCK);
   const sourceTerrainVisualState = parseSourceTerrainVisualChunk(terrainVisualChunk);
   const sourceGameLogicPrototypeNames = collectSourceGameLogicPrototypeNames(sourceGameLogicState);
-  const sourceMapTeamPrototypeNames = mapData
-    ? collectSourceTeamPrototypeNamesFromMapData(mapData)
+  const sourceMapTeamPrototypeNames = resolvedMapData
+    ? collectSourceTeamPrototypeNamesFromMapData(resolvedMapData)
     : [];
-  const sourceTeamFactoryPrototypeNames = mapData
-    ? sourceMapTeamPrototypeNames
-    : sourceGameLogicPrototypeNames;
+  const browserRuntimeTeamPrototypeNames = Array.isArray(payload?.sourceTeamPrototypeNames)
+    ? payload.sourceTeamPrototypeNames
+      .map((name) => (typeof name === 'string' ? name.trim().toUpperCase() : ''))
+      .filter((name) => name.length > 0)
+    : [];
+  const sourceTeamFactoryPrototypeNames = browserRuntimeTeamPrototypeNames.length > 0
+    ? browserRuntimeTeamPrototypeNames
+    : resolvedMapData
+      ? sourceMapTeamPrototypeNames
+      : sourceGameLogicPrototypeNames;
+  const browserRuntimeCoreState = payload?.gameLogicCoreState ?? null;
+  const browserRuntimeTeamFactoryState = payload?.gameLogicTeamFactoryState ?? null;
   const sourceGameLogicImportState = buildSourceGameLogicImportSaveState(
     sourceGameLogicState,
     mapInfo.objectIdCounter,
@@ -30073,20 +30185,20 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const legacyGameLogicCoreState = sourceGameLogicCoreState === null && gameLogicChunk
     ? tryParseLegacyGameLogicChunk(gameLogicChunk)
     : null;
-  const browserRuntimeCoreState = payload?.gameLogicCoreState ?? null;
-  const gameLogicCoreState = legacyGameLogicCoreState ?? browserRuntimeCoreState ?? sourceGameLogicCoreState;
+  const gameLogicCoreState = browserRuntimeCoreState ?? legacyGameLogicCoreState ?? sourceGameLogicCoreState;
   const sidesListChunk = extractSaveChunkData(data, SOURCE_SIDES_LIST_BLOCK);
   const sidesListState = sidesListChunk
     ? parseSourceSidesListChunk(sidesListChunk)
     : null;
-  const resolvedTeamFactoryState = legacyTeamFactoryState
+  const resolvedTeamFactoryState = browserRuntimeTeamFactoryState
+    ?? legacyTeamFactoryState
     ?? (
       teamFactoryChunk
         ? (() => {
             try {
               return applySourceTeamFactoryChunkToState(
                 teamFactoryChunk,
-                createRuntimeSaveTeamFactoryStateFromMapData(mapData, sidesListState),
+                createRuntimeSaveTeamFactoryStateFromMapData(resolvedMapData, sidesListState),
                 resolvedPlayersState,
                 sidesListState,
                 gameLogicCoreState,
@@ -30102,7 +30214,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const parsedScriptEngineChunk = scriptEngineChunk
     ? (
       tryParseSourceScriptEngineChunk(scriptEngineChunk, {
-        mapData,
+        mapData: resolvedMapData,
         playerState: resolvedPlayersState,
         teamFactoryState: resolvedTeamFactoryState,
         coreState: gameLogicCoreState,
@@ -30147,7 +30259,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
 
   return {
     metadata,
-    mapData,
+    mapData: resolvedMapData,
     embeddedMapBytes: mapInfo.embeddedMapData,
     gameStateMapTrailingBytes: mapInfo.trailingBytes,
     mapPath: resolvedMapPath,
@@ -30174,6 +30286,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     scriptEngineFadeState,
     gameLogicInGameUiState,
     gameLogicCoreState,
+    hasBrowserRuntimeCoreState: browserRuntimeCoreState !== null,
     sourceGameLogicImportState,
     gameLogicState: payload && shouldWriteBrowserRuntimeStateBlock(payload.gameLogicState)
       ? payload.gameLogicState

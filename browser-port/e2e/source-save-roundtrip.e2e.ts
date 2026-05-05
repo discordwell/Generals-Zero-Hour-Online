@@ -173,6 +173,149 @@ for (const fixture of roundtripFixtures) {
       if (!hook || !logic) {
         return null;
       }
+      const summarizeTeamFactory = () => {
+        const teamFactory = logic.captureSourceTeamFactoryRuntimeSaveState?.();
+        const teamsByName = teamFactory?.state?.scriptTeamsByName;
+        const scriptEngine = logic.captureSourceScriptEngineRuntimeSaveState?.();
+        const scriptState = scriptEngine?.state ?? {};
+        const coreState = logic.captureSourceGameLogicRuntimeSaveState?.();
+        const mapSize = (value: unknown): number | null => value instanceof Map ? value.size : null;
+        const setSize = (value: unknown): number | null => value instanceof Set ? value.size : null;
+        const commandQueue = Array.isArray(logic.commandQueue) ? logic.commandQueue : null;
+        const normalizeForDigest = (value: unknown): unknown => {
+          if (value instanceof Map) {
+            return [...value.entries()]
+              .sort(([left], [right]) => String(left).localeCompare(String(right)))
+              .map(([key, entry]) => [key, normalizeForDigest(entry)]);
+          }
+          if (value instanceof Set) {
+            return [...value.values()].sort((left, right) => String(left).localeCompare(String(right)));
+          }
+          if (Array.isArray(value)) {
+            return value.map((entry) => normalizeForDigest(entry));
+          }
+          if (value && typeof value === 'object') {
+            return Object.fromEntries(
+              Object.entries(value)
+                .sort(([left], [right]) => left.localeCompare(right))
+                .map(([key, entry]) => [key, normalizeForDigest(entry)]),
+            );
+          }
+          return value;
+        };
+        const digest = (value: unknown): number => {
+          const text = JSON.stringify(normalizeForDigest(value));
+          let hash = 2166136261;
+          for (let i = 0; i < text.length; i += 1) {
+            hash ^= text.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+          }
+          return hash >>> 0;
+        };
+        const aiSummary = {
+          logicFrame: coreState?.frameCounter ?? null,
+          nextId: coreState?.nextId ?? null,
+          animationTime: Object.is(coreState?.animationTime, -0) ? '-0' : coreState?.animationTime ?? null,
+          commandQueueLength: commandQueue?.length ?? null,
+          commandQueueTypes: commandQueue?.map((command: { type?: string }) => command?.type ?? '') ?? null,
+          scriptCompletedVideosLength: Array.isArray(scriptState.scriptCompletedVideos)
+            ? scriptState.scriptCompletedVideos.length
+            : null,
+          scriptCompletedSpeechLength: Array.isArray(scriptState.scriptCompletedSpeech)
+            ? scriptState.scriptCompletedSpeech.length
+            : null,
+          scriptCompletedAudioLength: Array.isArray(scriptState.scriptCompletedAudio)
+            ? scriptState.scriptCompletedAudio.length
+            : null,
+          scriptCompletedMusicLength: Array.isArray(scriptState.scriptCompletedMusic)
+            ? scriptState.scriptCompletedMusic.length
+            : null,
+          scriptAudioLengthMapSize: mapSize(scriptState.scriptAudioLengthMsByName),
+          scriptSpeechCompletionMapSize: mapSize(scriptState.scriptTestingSpeechCompletionFrameByName),
+          scriptAudioCompletionMapSize: mapSize(scriptState.scriptTestingAudioCompletionFrameByName),
+          scriptCountersSize: mapSize(scriptState.scriptCountersByName),
+          scriptFlagsSize: mapSize(scriptState.scriptFlagsByName),
+          scriptUIInteractionsSize: setSize(scriptState.scriptUIInteractions),
+          scriptActiveSize: mapSize(scriptState.scriptActiveByName),
+          scriptSubroutineCallsLength: Array.isArray(scriptState.scriptSubroutineCalls)
+            ? scriptState.scriptSubroutineCalls.length
+            : null,
+          scriptTeamCreatedReadySize: mapSize(scriptState.scriptTeamCreatedReadyFrameByName),
+          scriptTeamCreatedAutoClearSize: mapSize(scriptState.scriptTeamCreatedAutoClearFrameByName),
+          pendingReinforcementTransportArrivalSize:
+            mapSize(scriptState.pendingScriptReinforcementTransportArrivalByEntityId),
+          digests: {
+            coreScalars: digest({
+              frameCounter: coreState?.frameCounter ?? null,
+              nextId: coreState?.nextId ?? null,
+              animationTime: Object.is(coreState?.animationTime, -0) ? '-0' : coreState?.animationTime ?? null,
+              isAttackMoveToMode: logic.isAttackMoveToMode ?? null,
+              previousAttackMoveToggleDown: logic.previousAttackMoveToggleDown ?? null,
+              scriptInputDisabled: logic.scriptInputDisabled ?? null,
+            }),
+            scriptCompletion: digest({
+              scriptCompletedVideos: scriptState.scriptCompletedVideos,
+              scriptCompletedSpeech: scriptState.scriptCompletedSpeech,
+              scriptCompletedAudio: scriptState.scriptCompletedAudio,
+              scriptAudioLengthMsByName: scriptState.scriptAudioLengthMsByName,
+              scriptTestingSpeechCompletionFrameByName: scriptState.scriptTestingSpeechCompletionFrameByName,
+              scriptTestingAudioCompletionFrameByName: scriptState.scriptTestingAudioCompletionFrameByName,
+              scriptCompletedMusic: scriptState.scriptCompletedMusic,
+            }),
+            scriptCounters: digest(scriptState.scriptCountersByName),
+            scriptFlagsAndActivity: digest({
+              scriptFlagsByName: scriptState.scriptFlagsByName,
+              scriptUIInteractions: scriptState.scriptUIInteractions,
+              scriptActiveByName: scriptState.scriptActiveByName,
+              scriptSubroutineCalls: scriptState.scriptSubroutineCalls,
+              scriptCameraMovementFinished: scriptState.scriptCameraMovementFinished,
+              scriptRadarForced: scriptState.scriptRadarForced,
+              scriptRadarRefreshFrame: scriptState.scriptRadarRefreshFrame,
+            }),
+            scriptTeams: digest(teamsByName),
+            scriptCreatedTeamFrames: digest({
+              scriptTeamCreatedReadyFrameByName: scriptState.scriptTeamCreatedReadyFrameByName,
+              scriptTeamCreatedAutoClearFrameByName: scriptState.scriptTeamCreatedAutoClearFrameByName,
+            }),
+            pendingReinforcements: digest(scriptState.pendingScriptReinforcementTransportArrivalByEntityId),
+            config: digest({
+              renderUnknownObjects: logic.config?.renderUnknownObjects,
+              attackUsesLineOfSight: logic.config?.attackUsesLineOfSight,
+              defaultMoveSpeed: logic.config?.defaultMoveSpeed,
+              terrainSnapSpeed: logic.config?.terrainSnapSpeed,
+              sellPercentage: logic.config?.sellPercentage,
+            }),
+            runtimeAiConfig: digest(logic.runtimeAiConfig),
+            commandQueue: digest(commandQueue ?? []),
+          },
+          teamDigests: teamsByName instanceof Map
+            ? [...teamsByName.entries()]
+              .map(([name, team]) => [String(name), digest(team)] as const)
+              .sort(([left], [right]) => left.localeCompare(right))
+            : [],
+          teamRecords: teamsByName instanceof Map
+            ? [...teamsByName.entries()]
+              .map(([name, team]) => [String(name), normalizeForDigest(team)] as const)
+              .sort(([left], [right]) => left.localeCompare(right))
+            : [],
+        };
+        if (!(teamsByName instanceof Map)) {
+          return {
+            teamCount: null,
+            sourceTeamCount: null,
+            centralGuardSide: null,
+            aiSummary,
+          };
+        }
+        const names = [...teamsByName.keys()].map((name) => String(name));
+        const centralGuard = teamsByName.get('CENTRAL_GUARD');
+        return {
+          teamCount: names.length,
+          sourceTeamCount: names.filter((name) => /^__SOURCE_TEAM_PROTOTYPE_\d+$/i.test(name)).length,
+          centralGuardSide: centralGuard?.controllingSide ?? null,
+          aiSummary,
+        };
+      };
       hook.setSimulationPaused?.(true);
       const visual = hook.getVisualDebugState();
       const snapshot = {
@@ -183,9 +326,13 @@ for (const fixture of roundtripFixtures) {
         mapHeight: logic.loadedMapData?.heightmap?.height ?? null,
         playerSide0: typeof logic.getPlayerSide === 'function' ? logic.getPlayerSide(0) : null,
         endState: typeof hook.getGameEndState === 'function' ? hook.getGameEndState() : null,
+        ...summarizeTeamFactory(),
       };
       const savedSlotId = await hook.saveGame(slotId, saveDescription);
-      return { savedSlotId, snapshot };
+      const savedSlotInspection = typeof hook.inspectRuntimeSaveSlot === 'function'
+        ? await hook.inspectRuntimeSaveSlot(savedSlotId)
+        : null;
+      return { savedSlotId, snapshot, savedSlotInspection };
     }, { slotId, saveDescription });
 
     const importedSnapshot = importedState?.snapshot ?? null;
@@ -218,6 +365,149 @@ for (const fixture of roundtripFixtures) {
       if (!hook || !logic) {
         return null;
       }
+      const summarizeTeamFactory = () => {
+        const teamFactory = logic.captureSourceTeamFactoryRuntimeSaveState?.();
+        const teamsByName = teamFactory?.state?.scriptTeamsByName;
+        const scriptEngine = logic.captureSourceScriptEngineRuntimeSaveState?.();
+        const scriptState = scriptEngine?.state ?? {};
+        const coreState = logic.captureSourceGameLogicRuntimeSaveState?.();
+        const mapSize = (value: unknown): number | null => value instanceof Map ? value.size : null;
+        const setSize = (value: unknown): number | null => value instanceof Set ? value.size : null;
+        const commandQueue = Array.isArray(logic.commandQueue) ? logic.commandQueue : null;
+        const normalizeForDigest = (value: unknown): unknown => {
+          if (value instanceof Map) {
+            return [...value.entries()]
+              .sort(([left], [right]) => String(left).localeCompare(String(right)))
+              .map(([key, entry]) => [key, normalizeForDigest(entry)]);
+          }
+          if (value instanceof Set) {
+            return [...value.values()].sort((left, right) => String(left).localeCompare(String(right)));
+          }
+          if (Array.isArray(value)) {
+            return value.map((entry) => normalizeForDigest(entry));
+          }
+          if (value && typeof value === 'object') {
+            return Object.fromEntries(
+              Object.entries(value)
+                .sort(([left], [right]) => left.localeCompare(right))
+                .map(([key, entry]) => [key, normalizeForDigest(entry)]),
+            );
+          }
+          return value;
+        };
+        const digest = (value: unknown): number => {
+          const text = JSON.stringify(normalizeForDigest(value));
+          let hash = 2166136261;
+          for (let i = 0; i < text.length; i += 1) {
+            hash ^= text.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+          }
+          return hash >>> 0;
+        };
+        const aiSummary = {
+          logicFrame: coreState?.frameCounter ?? null,
+          nextId: coreState?.nextId ?? null,
+          animationTime: Object.is(coreState?.animationTime, -0) ? '-0' : coreState?.animationTime ?? null,
+          commandQueueLength: commandQueue?.length ?? null,
+          commandQueueTypes: commandQueue?.map((command: { type?: string }) => command?.type ?? '') ?? null,
+          scriptCompletedVideosLength: Array.isArray(scriptState.scriptCompletedVideos)
+            ? scriptState.scriptCompletedVideos.length
+            : null,
+          scriptCompletedSpeechLength: Array.isArray(scriptState.scriptCompletedSpeech)
+            ? scriptState.scriptCompletedSpeech.length
+            : null,
+          scriptCompletedAudioLength: Array.isArray(scriptState.scriptCompletedAudio)
+            ? scriptState.scriptCompletedAudio.length
+            : null,
+          scriptCompletedMusicLength: Array.isArray(scriptState.scriptCompletedMusic)
+            ? scriptState.scriptCompletedMusic.length
+            : null,
+          scriptAudioLengthMapSize: mapSize(scriptState.scriptAudioLengthMsByName),
+          scriptSpeechCompletionMapSize: mapSize(scriptState.scriptTestingSpeechCompletionFrameByName),
+          scriptAudioCompletionMapSize: mapSize(scriptState.scriptTestingAudioCompletionFrameByName),
+          scriptCountersSize: mapSize(scriptState.scriptCountersByName),
+          scriptFlagsSize: mapSize(scriptState.scriptFlagsByName),
+          scriptUIInteractionsSize: setSize(scriptState.scriptUIInteractions),
+          scriptActiveSize: mapSize(scriptState.scriptActiveByName),
+          scriptSubroutineCallsLength: Array.isArray(scriptState.scriptSubroutineCalls)
+            ? scriptState.scriptSubroutineCalls.length
+            : null,
+          scriptTeamCreatedReadySize: mapSize(scriptState.scriptTeamCreatedReadyFrameByName),
+          scriptTeamCreatedAutoClearSize: mapSize(scriptState.scriptTeamCreatedAutoClearFrameByName),
+          pendingReinforcementTransportArrivalSize:
+            mapSize(scriptState.pendingScriptReinforcementTransportArrivalByEntityId),
+          digests: {
+            coreScalars: digest({
+              frameCounter: coreState?.frameCounter ?? null,
+              nextId: coreState?.nextId ?? null,
+              animationTime: Object.is(coreState?.animationTime, -0) ? '-0' : coreState?.animationTime ?? null,
+              isAttackMoveToMode: logic.isAttackMoveToMode ?? null,
+              previousAttackMoveToggleDown: logic.previousAttackMoveToggleDown ?? null,
+              scriptInputDisabled: logic.scriptInputDisabled ?? null,
+            }),
+            scriptCompletion: digest({
+              scriptCompletedVideos: scriptState.scriptCompletedVideos,
+              scriptCompletedSpeech: scriptState.scriptCompletedSpeech,
+              scriptCompletedAudio: scriptState.scriptCompletedAudio,
+              scriptAudioLengthMsByName: scriptState.scriptAudioLengthMsByName,
+              scriptTestingSpeechCompletionFrameByName: scriptState.scriptTestingSpeechCompletionFrameByName,
+              scriptTestingAudioCompletionFrameByName: scriptState.scriptTestingAudioCompletionFrameByName,
+              scriptCompletedMusic: scriptState.scriptCompletedMusic,
+            }),
+            scriptCounters: digest(scriptState.scriptCountersByName),
+            scriptFlagsAndActivity: digest({
+              scriptFlagsByName: scriptState.scriptFlagsByName,
+              scriptUIInteractions: scriptState.scriptUIInteractions,
+              scriptActiveByName: scriptState.scriptActiveByName,
+              scriptSubroutineCalls: scriptState.scriptSubroutineCalls,
+              scriptCameraMovementFinished: scriptState.scriptCameraMovementFinished,
+              scriptRadarForced: scriptState.scriptRadarForced,
+              scriptRadarRefreshFrame: scriptState.scriptRadarRefreshFrame,
+            }),
+            scriptTeams: digest(teamsByName),
+            scriptCreatedTeamFrames: digest({
+              scriptTeamCreatedReadyFrameByName: scriptState.scriptTeamCreatedReadyFrameByName,
+              scriptTeamCreatedAutoClearFrameByName: scriptState.scriptTeamCreatedAutoClearFrameByName,
+            }),
+            pendingReinforcements: digest(scriptState.pendingScriptReinforcementTransportArrivalByEntityId),
+            config: digest({
+              renderUnknownObjects: logic.config?.renderUnknownObjects,
+              attackUsesLineOfSight: logic.config?.attackUsesLineOfSight,
+              defaultMoveSpeed: logic.config?.defaultMoveSpeed,
+              terrainSnapSpeed: logic.config?.terrainSnapSpeed,
+              sellPercentage: logic.config?.sellPercentage,
+            }),
+            runtimeAiConfig: digest(logic.runtimeAiConfig),
+            commandQueue: digest(commandQueue ?? []),
+          },
+          teamDigests: teamsByName instanceof Map
+            ? [...teamsByName.entries()]
+              .map(([name, team]) => [String(name), digest(team)] as const)
+              .sort(([left], [right]) => left.localeCompare(right))
+            : [],
+          teamRecords: teamsByName instanceof Map
+            ? [...teamsByName.entries()]
+              .map(([name, team]) => [String(name), normalizeForDigest(team)] as const)
+              .sort(([left], [right]) => left.localeCompare(right))
+            : [],
+        };
+        if (!(teamsByName instanceof Map)) {
+          return {
+            teamCount: null,
+            sourceTeamCount: null,
+            centralGuardSide: null,
+            aiSummary,
+          };
+        }
+        const names = [...teamsByName.keys()].map((name) => String(name));
+        const centralGuard = teamsByName.get('CENTRAL_GUARD');
+        return {
+          teamCount: names.length,
+          sourceTeamCount: names.filter((name) => /^__SOURCE_TEAM_PROTOTYPE_\d+$/i.test(name)).length,
+          centralGuardSide: centralGuard?.controllingSide ?? null,
+          aiSummary,
+        };
+      };
       const visual = hook.getVisualDebugState();
       return {
         frame: visual.frame,
@@ -227,9 +517,9 @@ for (const fixture of roundtripFixtures) {
         mapHeight: logic.loadedMapData?.heightmap?.height ?? null,
         playerSide0: typeof logic.getPlayerSide === 'function' ? logic.getPlayerSide(0) : null,
         endState: typeof hook.getGameEndState === 'function' ? hook.getGameEndState() : null,
+        ...summarizeTeamFactory(),
       };
     });
-
     expect(importedSnapshot?.crc).toEqual(expect.any(Number));
     expect(restoredSnapshot?.crc).toEqual(expect.any(Number));
     expect(importedSnapshot?.crcSections).toEqual(expect.objectContaining({
@@ -244,17 +534,9 @@ for (const fixture of roundtripFixtures) {
       partitionManager: expect.any(Number),
       playerList: expect.any(Number),
     }));
-    expect(restoredSnapshot?.crcSections.partitionManager)
-      .toBe(importedSnapshot?.crcSections.partitionManager);
-    // Follow-up(source-save): close Objects / PlayerList / AI CRC drift between a
-    // native imported source save and the first TS runtime-save restore.
-    // Visible map/player/end-state parity is preserved below; the section CRCs
-    // make the remaining owner-state gap explicit for the next xfer pass.
-    const { crc: _importedCrc, crcSections: _importedCrcSections, ...importedComparable } =
-      importedSnapshot!;
-    const { crc: _restoredCrc, crcSections: _restoredCrcSections, ...restoredComparable } =
-      restoredSnapshot!;
-    expect(restoredComparable).toEqual(importedComparable);
+    expect(restoredSnapshot?.crc).toBe(importedSnapshot?.crc);
+    expect(restoredSnapshot?.crcSections).toEqual(importedSnapshot?.crcSections);
+    expect(restoredSnapshot).toEqual(importedSnapshot);
     expect(errors).toEqual([]);
   });
 }

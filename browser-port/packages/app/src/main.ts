@@ -1150,6 +1150,7 @@ interface PreInitContext {
 
 interface RuntimeSaveLoadContext {
   runtimeSave: RuntimeSaveBootstrap;
+  data?: ArrayBuffer;
 }
 
 interface RuntimeSaveCampaignServices {
@@ -1475,7 +1476,7 @@ async function startGame(
   const gameSubsystems = new SubsystemRegistry();
   const replayManager = new ReplayManager();
   const activeMapPath = mapPath ?? runtimeSaveLoadContext?.runtimeSave.mapPath ?? null;
-  const restoredInGameUiState = runtimeSaveLoadContext?.runtimeSave.inGameUiState ?? null;
+  let restoredInGameUiState = runtimeSaveLoadContext?.runtimeSave.inGameUiState ?? null;
   let replayRecordFrame = 0;
   let replayRecordingPersisted = false;
   let replaySkirmishSettings = skirmishSettings;
@@ -1742,6 +1743,14 @@ async function startGame(
     mapData = demo.mapData;
   }
 
+  if (runtimeSaveLoadContext?.data) {
+    runtimeSaveLoadContext.runtimeSave = parseRuntimeSaveFile(
+      runtimeSaveLoadContext.data,
+      { mapDataOverride: mapData },
+    );
+    restoredInGameUiState = runtimeSaveLoadContext.runtimeSave.inGameUiState ?? null;
+  }
+
   // If loaded from JSON, build terrain (demo path already builds it)
   if (loadedFromJSON) {
     setLoadingProgress(64, 'Building terrain...');
@@ -1864,7 +1873,13 @@ async function startGame(
         runtimeSaveLoadContext.runtimeSave.gameLogicSidesListState,
       );
     }
-    if (runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState) {
+    const shouldRestoreBrowserTeamFactoryAfterCore =
+      runtimeSaveLoadContext.runtimeSave.hasBrowserRuntimeCoreState
+      && runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState !== null;
+    if (
+      runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState
+      && !shouldRestoreBrowserTeamFactoryAfterCore
+    ) {
       setLoadingProgress(68, 'Restoring teams...');
       gameLogic.restoreSourceTeamFactoryRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState,
@@ -1891,7 +1906,15 @@ async function startGame(
         runtimeSaveLoadContext.runtimeSave.gameLogicInGameUiState,
       );
     }
-    if (runtimeSaveLoadContext.runtimeSave.sourceGameLogicImportState) {
+    if (
+      runtimeSaveLoadContext.runtimeSave.hasBrowserRuntimeCoreState
+      && runtimeSaveLoadContext.runtimeSave.gameLogicCoreState
+    ) {
+      setLoadingProgress(68, 'Restoring game logic core...');
+      gameLogic.restoreSourceGameLogicRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicCoreState,
+      );
+    } else if (runtimeSaveLoadContext.runtimeSave.sourceGameLogicImportState) {
       setLoadingProgress(68, 'Importing source objects...');
       gameLogic.restoreSourceGameLogicImportSaveState(
         runtimeSaveLoadContext.runtimeSave.sourceGameLogicImportState,
@@ -1900,6 +1923,15 @@ async function startGame(
       setLoadingProgress(68, 'Restoring game logic core...');
       gameLogic.restoreSourceGameLogicRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicCoreState,
+      );
+    }
+    if (
+      shouldRestoreBrowserTeamFactoryAfterCore
+      && runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState
+    ) {
+      setLoadingProgress(68, 'Restoring teams...');
+      gameLogic.restoreSourceTeamFactoryRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState,
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicScriptEngineState) {
@@ -1988,10 +2020,12 @@ async function startGame(
     }
   }
 
-  // Run one update cycle so fog-of-war registers entity lookers before
-  // the initial visual sync.  Without this, every entity starts SHROUDED
-  // because the fog grid has no lookers yet.
-  gameLogic.update(0);
+  // Fresh maps need one bootstrap update so fog-of-war registers entity
+  // lookers before the initial visual sync. Runtime saves already carry their
+  // source partition/player state; advancing here would mutate the loaded frame.
+  if (!runtimeSaveLoadContext) {
+    gameLogic.update(0);
+  }
 
   const persistRecordedReplay = async (): Promise<void> => {
     if (replayRecordingPersisted || replayManager.getState() !== 'recording') {
@@ -5519,7 +5553,7 @@ async function startGame(
       gameClientBriefingLines: scriptMessageRuntimeBridge.getBriefingHistory(),
       passthroughBlocks: runtimeSaveLoadContext?.runtimeSave.passthroughBlocks ?? [],
       mapDrawableIdCounter: runtimeSaveLoadContext?.runtimeSave.mapDrawableIdCounter ?? null,
-      browserRuntimeState: null,
+      includeBrowserRuntimeCoreState: true,
       campaign: activeCampaign && activeMission
         ? {
             version: runtimeSaveLoadContext?.runtimeSave.campaign?.version,
@@ -5709,6 +5743,42 @@ async function startGame(
     loadGameFromSlot: (slotId: string) => loadSavedGameSlot(slotId),
     listSaves: () => ctx.saveStorage.listSaves(),
     findNextSaveSlotId: () => ctx.saveStorage.findNextSourceSaveSlotId(),
+    inspectRuntimeSaveSlot: async (slotId: string) => {
+      const save = await ctx.saveStorage.loadFromDB(slotId);
+      if (!save) {
+        return null;
+      }
+      const parsed = parseRuntimeSaveFile(save.data, { mapDataOverride: mapData });
+      const playerState = parsed.gameLogicPlayersState?.state as Record<string, unknown> | undefined;
+      const scriptState = parsed.gameLogicScriptEngineState?.state as Record<string, unknown> | undefined;
+      const teamFactoryState = parsed.gameLogicTeamFactoryState?.state as Record<string, unknown> | undefined;
+      const teamFactoryTeamsByName = teamFactoryState?.scriptTeamsByName;
+      const teamFactoryTeamNames = teamFactoryTeamsByName instanceof Map
+        ? [...teamFactoryTeamsByName.keys()].map((name) => String(name))
+        : [];
+      const teamFactoryCentralGuard = teamFactoryTeamsByName instanceof Map
+        ? teamFactoryTeamsByName.get('CENTRAL_GUARD') as { controllingSide?: string } | undefined
+        : undefined;
+      return {
+        sizeBytes: save.data.byteLength,
+        hasBrowserRuntimeCoreState: parsed.hasBrowserRuntimeCoreState,
+        gameLogicCoreFrame: parsed.gameLogicCoreState?.frameCounter ?? null,
+        gameLogicCoreEntityCount: parsed.gameLogicCoreState?.spawnedEntities.length ?? null,
+        sourceImportEntityCount: parsed.sourceGameLogicImportState?.objects.length ?? null,
+        teamFactoryTeamsByNameSize: teamFactoryTeamNames.length,
+        teamFactorySourcePrototypeCount: teamFactoryTeamNames
+          .filter((name) => /^__SOURCE_TEAM_PROTOTYPE_\d+$/i.test(name))
+          .length,
+        teamFactoryCentralGuardSide: teamFactoryCentralGuard?.controllingSide ?? null,
+        sideRadarStateSize: playerState?.sideRadarState instanceof Map
+          ? playerState.sideRadarState.size
+          : null,
+        scriptTeamsByNameSize: scriptState?.scriptTeamsByName instanceof Map
+          ? scriptState.scriptTeamsByName.size
+          : null,
+        passthroughBlocks: parsed.passthroughBlocks.map((block) => block.blockName),
+      };
+    },
     setSimulationPaused: (paused: boolean) => {
       gameLoop.paused = paused;
     },
@@ -5834,7 +5904,10 @@ async function startGameFromRuntimeSave(
     };
   }
 
-  await startGame(ctx, resolvedMapPath, null, restoredCampaignContext, undefined, { runtimeSave });
+  await startGame(ctx, resolvedMapPath, null, restoredCampaignContext, undefined, {
+    runtimeSave,
+    data,
+  });
 }
 
 // ============================================================================

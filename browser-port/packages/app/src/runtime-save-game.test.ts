@@ -10734,7 +10734,7 @@ describe('runtime-save-game', () => {
       recruitableOverride: null,
       isAIRecruitable: true,
       homeWaypointName: 'HOME',
-      controllingSide: 'USA',
+      controllingSide: 'america',
       controllingPlayerToken: 'the_player',
       isSingleton: true,
       maxInstances: 1,
@@ -12078,7 +12078,7 @@ describe('runtime-save-game', () => {
           gameRandomSeed: 99,
           nextId: 10,
           nextProjectileVisualId: 1,
-          animationTime: 0,
+          animationTime: -0,
           selectedEntityId: null,
           selectedEntityIds: [],
           scriptSelectionChangedFrame: -1,
@@ -12144,6 +12144,125 @@ describe('runtime-save-game', () => {
     });
     expect(parsed.gameLogicState).toBeNull();
     expect(parsed.gameLogicCoreState?.gameRandomSeed).toBe(99);
+    expect(Object.is(parsed.gameLogicCoreState?.animationTime, -0)).toBe(true);
+    expect(parsed.hasBrowserRuntimeCoreState).toBe(true);
+  });
+
+  it('preserves imported source TeamFactory prototypes without mutating live team records', () => {
+    const mapData = {
+      ...createTinyRuntimeMapData(),
+      sidesList: {
+        sides: [{
+          dict: {
+            playerName: 'PlyrGLA',
+            playerFaction: 'GLA',
+          },
+        }],
+        teams: [{
+          dict: {
+            teamName: 'CENTRAL_GUARD',
+            teamOwner: 'PlyrGLA',
+            teamIsSingleton: 'FALSE',
+            teamMaxInstances: '1',
+          },
+        }],
+      },
+    };
+    const makeTeam = (
+      nameUpper: string,
+      prototypeNameUpper: string,
+      memberEntityIds: number[],
+    ) => ({
+      nameUpper,
+      prototypeNameUpper,
+      sourcePrototypeId: nameUpper.startsWith('__SOURCE_TEAM_PROTOTYPE_') ? 1 : undefined,
+      sourceTeamId: memberEntityIds.length > 0 ? 1 : null,
+      memberEntityIds: new Set(memberEntityIds),
+      created: memberEntityIds.length > 0,
+      stateName: '',
+      attackPrioritySetName: '',
+      recruitableOverride: null,
+      isAIRecruitable: false,
+      homeWaypointName: '',
+      controllingSide: 'gla',
+      controllingPlayerToken: 'PlyrGLA',
+      isSingleton: memberEntityIds.length > 0,
+      maxInstances: memberEntityIds.length > 0 ? 0 : 1,
+      productionPriority: 0,
+      productionPrioritySuccessIncrease: 0,
+      productionPriorityFailureDecrease: 0,
+      reinforcementUnitEntries: [],
+      reinforcementTransportTemplateName: '',
+      reinforcementStartWaypointName: '',
+      reinforcementTeamStartsFull: false,
+      reinforcementTransportsExit: false,
+    });
+    const centralGuard = makeTeam('CENTRAL_GUARD', 'CENTRAL_GUARD', []);
+    const sourcePrototype = makeTeam('__SOURCE_TEAM_PROTOTYPE_1', '__SOURCE_TEAM_PROTOTYPE_1', [7]);
+    sourcePrototype.controllingSide = null;
+    sourcePrototype.controllingPlayerToken = null;
+    const teamFactoryState = {
+      version: 1 as const,
+      state: {
+        scriptTeamsByName: new Map([
+          ['CENTRAL_GUARD', centralGuard],
+          ['__SOURCE_TEAM_PROTOTYPE_1', sourcePrototype],
+        ]),
+        scriptTeamInstanceNamesByPrototypeName: new Map([
+          ['CENTRAL_GUARD', ['CENTRAL_GUARD']],
+          ['__SOURCE_TEAM_PROTOTYPE_1', ['__SOURCE_TEAM_PROTOTYPE_1']],
+        ]),
+        scriptNextSourceTeamId: 2,
+        scriptNextSourceTeamPrototypeId: 2,
+      },
+    };
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Imported Source TeamFactory',
+      mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
+      mapData,
+      cameraState: null,
+      includeBrowserRuntimeCoreState: true,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourceTeamFactoryRuntimeSaveState: () => teamFactoryState,
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'FactionCivilian']]),
+          },
+        }),
+        captureSourceSidesListRuntimeSaveState: () => ({
+          version: 2,
+          state: {
+            scriptPlayerSideByName: new Map([['PLYRGLA', 'gla']]),
+            scriptDefaultTeamNameBySide: new Map([['gla', 'CENTRAL_GUARD']]),
+            mapScriptSideByIndex: ['gla'],
+            mapScriptDifficultyByIndex: [1],
+            mapScriptDifficultyByPlayerToken: new Map([['PLYRGLA', 1]]),
+            scriptAiBuildListEntriesBySide: new Map(),
+          },
+          scriptLists: [],
+        }),
+      }),
+    });
+
+    expect(centralGuard.controllingSide).toBe('gla');
+    expect(sourcePrototype.controllingSide).toBeNull();
+    expect(sourcePrototype.controllingPlayerToken).toBeNull();
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+    const teamsByName = parsed.gameLogicTeamFactoryState?.state.scriptTeamsByName;
+    expect(teamsByName).toBeInstanceOf(Map);
+    expect((teamsByName as Map<string, unknown>).has('CENTRAL_GUARD')).toBe(true);
+    expect((teamsByName as Map<string, unknown>).has('__SOURCE_TEAM_PROTOTYPE_1')).toBe(true);
+    expect(((teamsByName as Map<string, { controllingSide?: string }>).get('CENTRAL_GUARD'))?.controllingSide)
+      .toBe('gla');
+    const restoredSourcePrototype = (teamsByName as Map<string, {
+      controllingSide?: string | null;
+      controllingPlayerToken?: string | null;
+      memberEntityIds?: Set<number>;
+    }>).get('__SOURCE_TEAM_PROTOTYPE_1')!;
+    expect(restoredSourcePrototype.controllingSide).toBeNull();
+    expect(restoredSourcePrototype.controllingPlayerToken).toBeNull();
+    expect([...restoredSourcePrototype.memberEntityIds!]).toEqual([7]);
   });
 
   it('treats embedded retail map bytes as non-JSON payloads and falls back to map path reload', () => {
@@ -12904,11 +13023,11 @@ describe('runtime-save-game', () => {
       blendTileCount: 0,
     };
 
-    const rawGameLogicBytes = new Uint8Array([0x06, 0xde, 0xad, 0xbe, 0xef]);
-    const rawScriptEngineBytes = new Uint8Array([0x05, 0x34, 0x12, 0x78]);
-    const rawInGameUiBytes = new Uint8Array([0x03, 0xaa, 0xbb, 0xcc]);
-    const rawPlayersBytes = new Uint8Array([0x7f, 0x11, 0x22, 0x33]);
-    const rawTeamFactoryBytes = new Uint8Array([0x7f, 0x44, 0x55, 0x66]);
+    const rawGameLogicBytes = new Uint8Array([]);
+    const rawScriptEngineBytes = new Uint8Array([]);
+    const rawInGameUiBytes = new Uint8Array([]);
+    const rawPlayersBytes = new Uint8Array([]);
+    const rawTeamFactoryBytes = new Uint8Array([]);
     const saveFile = buildRuntimeSaveFile({
       description: 'Passthrough Save',
       mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
@@ -12973,6 +13092,7 @@ describe('runtime-save-game', () => {
         captureBrowserRuntimeSaveState: () => ({ version: 1, spawnedEntities: [] }),
         getObjectIdCounter: () => 10,
       },
+      preservePassthroughBlockBytes: true,
     });
     const terrainVisualBytes = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
 
@@ -13054,6 +13174,7 @@ describe('runtime-save-game', () => {
         captureBrowserRuntimeSaveState: () => parsed.gameLogicState ?? { version: 1, spawnedEntities: [] },
         getObjectIdCounter: () => parsed.gameLogicCoreState?.nextId ?? 10,
       },
+      preservePassthroughBlockBytes: true,
     });
 
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_TeamFactory')).toEqual(rawTeamFactoryBytes);

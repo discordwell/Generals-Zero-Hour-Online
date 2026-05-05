@@ -172,5 +172,13 @@ describe('trigger area save-state', () => {
       { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
       { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
     ]);
+    expect(coreState.objectTriggerAreaStates).toEqual([{
+      entityId: 9,
+      enteredOrExitedFrame: 123,
+      triggerAreas: [
+        { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+        { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
+      ],
+    }]);
   });
 });

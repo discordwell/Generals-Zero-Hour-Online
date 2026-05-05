@@ -44488,7 +44488,12 @@ export class GameLogicSubsystem implements Subsystem {
       const membership = this.scriptTriggerMembershipByEntityId.get(entity.id) ?? null;
       const entered = this.scriptTriggerEnteredByEntityId.get(entity.id) ?? null;
       const exited = this.scriptTriggerExitedByEntityId.get(entity.id) ?? null;
-      const enteredOrExitedFrame = this.scriptTriggerEnterExitFrameByEntityId.get(entity.id) ?? 0;
+      const liveEnteredOrExitedFrame = this.scriptTriggerEnterExitFrameByEntityId.get(entity.id);
+      const sourceEnteredOrExitedFrame = Number(entity.sourceObjectEnteredOrExitedFrame);
+      const enteredOrExitedFrame = liveEnteredOrExitedFrame
+        ?? (Number.isFinite(sourceEnteredOrExitedFrame)
+          ? Math.max(0, Math.trunc(sourceEnteredOrExitedFrame))
+          : 0);
       const sourceTriggerAreas = this.cloneSourceObjectTriggerAreas(entity.sourceObjectTriggerAreas);
       const triggerIndexes = new Set<number>();
       for (const triggerIndex of membership ?? []) {
@@ -44514,7 +44519,7 @@ export class GameLogicSubsystem implements Subsystem {
           exited: exited?.has(triggerIndex) ? 1 : 0,
           isInside: membership?.has(triggerIndex) ? 1 : 0,
         }));
-      const orderedTriggerAreas = this.sourceTriggerAreasMatchLiveState(sourceTriggerAreas, triggerAreas)
+      const orderedTriggerAreas = sourceTriggerAreas.length > 0
         ? sourceTriggerAreas
         : triggerAreas;
       if (orderedTriggerAreas.length === 0 && enteredOrExitedFrame <= 0) {
@@ -44528,36 +44533,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
     states.sort((left, right) => left.entityId - right.entityId);
     return states;
-  }
-
-  private sourceTriggerAreasMatchLiveState(
-    sourceTriggerAreas: SourceMapEntitySaveState['triggerAreas'],
-    liveTriggerAreas: GameLogicObjectTriggerAreaEntrySaveState[],
-  ): boolean {
-    if (sourceTriggerAreas.length === 0 || sourceTriggerAreas.length !== liveTriggerAreas.length) {
-      return false;
-    }
-    const serialize = (triggerArea: GameLogicObjectTriggerAreaEntrySaveState) =>
-      `${triggerArea.triggerName.trim().toUpperCase()}\0${triggerArea.entered ? 1 : 0}`
-      + `\0${triggerArea.exited ? 1 : 0}\0${triggerArea.isInside ? 1 : 0}`;
-    const liveCounts = new Map<string, number>();
-    for (const triggerArea of liveTriggerAreas) {
-      const key = serialize(triggerArea);
-      liveCounts.set(key, (liveCounts.get(key) ?? 0) + 1);
-    }
-    for (const triggerArea of sourceTriggerAreas) {
-      const key = serialize(triggerArea);
-      const count = liveCounts.get(key) ?? 0;
-      if (count <= 0) {
-        return false;
-      }
-      if (count === 1) {
-        liveCounts.delete(key);
-      } else {
-        liveCounts.set(key, count - 1);
-      }
-    }
-    return liveCounts.size === 0;
   }
 
   private restoreSourceObjectTriggerAreaSaveState(
