@@ -68,122 +68,165 @@ const simulationFixtures: SimulationFixture[] = [
   },
 ];
 
+interface SourceSaveSimulationSnapshot {
+  frame: number;
+  entityCount: number;
+  nanCount: number;
+  sampleNanIds: number[];
+  endState: unknown;
+  crc: number;
+}
+
+interface SourceSaveSimulationRun {
+  initialSnapshot: SourceSaveSimulationSnapshot;
+  finalSnapshot: SourceSaveSimulationSnapshot;
+}
+
+async function loadSourceSaveAndAdvance(
+  page: import('@playwright/test').Page,
+  fixture: SimulationFixture,
+  diagnostics: readonly string[],
+): Promise<SourceSaveSimulationRun> {
+  await openLoadGameScreen(page);
+
+  const fixturePath = resolve('fixtures/source-saves', fixture.fileName);
+  await page.locator('[data-ref="load-game-import-input"]').setInputFiles(fixturePath);
+  await expect(page.locator('.load-game-row-title', { hasText: fixture.title })).toBeVisible({
+    timeout: 120_000,
+  });
+
+  // Pause on the next load so we can record initial state before frames advance.
+  await page.evaluate(() => {
+    (window as Record<string, unknown>)['__GENERALS_E2E_AUTO_PAUSE__'] = true;
+  });
+
+  await page.locator('.load-game-overlay [data-action="load"]').click();
+  await page.locator('.load-game-overlay [data-action="confirm-load"]').click();
+
+  await waitForE2EHook(page, diagnostics);
+  await expect(page.locator('#loading-screen')).toBeHidden({ timeout: 120_000 });
+  await expect(page.locator('#game-canvas')).toBeVisible({ timeout: 120_000 });
+
+  const initialSnapshot = await page.evaluate((): SourceSaveSimulationSnapshot => {
+    const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
+    const visual = hook.getVisualDebugState();
+    const states = hook.getRenderableEntityStates();
+    let nanCount = 0;
+    const sampleNanIds: number[] = [];
+    for (const state of states) {
+      if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !Number.isFinite(state.z)) {
+        nanCount++;
+        if (sampleNanIds.length < 5) {
+          sampleNanIds.push(state.id ?? -1);
+        }
+      }
+    }
+    return {
+      frame: visual.frame,
+      entityCount: states.length,
+      nanCount,
+      sampleNanIds,
+      endState: hook.getGameEndState(),
+      crc: hook.computeGameLogicCrc(visual.frame),
+    };
+  });
+
+  expect(initialSnapshot.frame).not.toBeNull();
+  expect(initialSnapshot.entityCount).toBeGreaterThan(0);
+  expect(initialSnapshot.nanCount).toBe(0);
+  expect(initialSnapshot.endState).toBeNull();
+  expect(Number.isInteger(initialSnapshot.crc)).toBe(true);
+
+  const targetFrame = initialSnapshot.frame + SIMULATION_FRAME_COUNT;
+
+  // Step exactly 300 fixed-timestep frames while paused. This avoids wall-clock
+  // overshoot and makes the CRC checkpoint deterministic across repeated loads.
+  await page.evaluate((frameCount) => {
+    const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
+    hook.stepSimulationFrames(frameCount);
+  }, SIMULATION_FRAME_COUNT);
+
+  await page.evaluate(() => {
+    const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
+    hook.setSimulationPaused(true);
+  });
+
+  const finalSnapshot = await page.evaluate((): SourceSaveSimulationSnapshot => {
+    const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
+    const visual = hook.getVisualDebugState();
+    const states = hook.getRenderableEntityStates();
+    let nanCount = 0;
+    const sampleNanIds: number[] = [];
+    for (const state of states) {
+      if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !Number.isFinite(state.z)) {
+        nanCount++;
+        if (sampleNanIds.length < 5) {
+          sampleNanIds.push(state.id ?? -1);
+        }
+      }
+    }
+    return {
+      frame: visual.frame,
+      entityCount: states.length,
+      nanCount,
+      sampleNanIds,
+      endState: hook.getGameEndState(),
+      crc: hook.computeGameLogicCrc(visual.frame),
+    };
+  });
+
+  expect(finalSnapshot.frame).toBe(targetFrame);
+  expect(
+    finalSnapshot.nanCount,
+    `entities with NaN position after ${SIMULATION_FRAME_COUNT} frames: ${finalSnapshot.sampleNanIds.join(',')}`,
+  ).toBe(0);
+  expect(Number.isInteger(finalSnapshot.crc)).toBe(true);
+  // Some entities can be destroyed in combat over 300 frames; require at least
+  // half the initial population to survive as a basic sanity check.
+  expect(finalSnapshot.entityCount).toBeGreaterThanOrEqual(Math.floor(initialSnapshot.entityCount / 2));
+
+  return { initialSnapshot, finalSnapshot };
+}
+
+function installPageDiagnostics(page: import('@playwright/test').Page): {
+  errors: string[];
+  diagnostics: string[];
+} {
+  const errors: string[] = [];
+  const diagnostics: string[] = [];
+  page.on('pageerror', (err) => errors.push(err.message));
+  page.on('console', (message) => {
+    diagnostics.push(`console:${message.type()}: ${message.text()}`);
+  });
+  page.on('requestfailed', (request) => {
+    diagnostics.push(`requestfailed: ${request.url()} ${request.failure()?.errorText ?? ''}`);
+  });
+  return { errors, diagnostics };
+}
+
 for (const fixture of simulationFixtures) {
   test(`source save survives 300-frame simulation: ${fixture.fileName}`, async ({ page }) => {
     test.setTimeout(180_000);
-    const errors: string[] = [];
-    const diagnostics: string[] = [];
-    page.on('pageerror', (err) => errors.push(err.message));
-    page.on('console', (message) => {
-      diagnostics.push(`console:${message.type()}: ${message.text()}`);
-    });
-    page.on('requestfailed', (request) => {
-      diagnostics.push(`requestfailed: ${request.url()} ${request.failure()?.errorText ?? ''}`);
-    });
+    const { errors, diagnostics } = installPageDiagnostics(page);
 
-    await openLoadGameScreen(page);
+    await loadSourceSaveAndAdvance(page, fixture, diagnostics);
 
-    const fixturePath = resolve('fixtures/source-saves', fixture.fileName);
-    await page.locator('[data-ref="load-game-import-input"]').setInputFiles(fixturePath);
-    await expect(page.locator('.load-game-row-title', { hasText: fixture.title })).toBeVisible({
-      timeout: 120_000,
-    });
+    expect(errors).toEqual([]);
+  });
+}
 
-    // Pause on the next load so we can record initial state before frames advance.
-    await page.evaluate(() => {
-      (window as Record<string, unknown>)['__GENERALS_E2E_AUTO_PAUSE__'] = true;
-    });
+for (const fixture of simulationFixtures.slice(0, 2)) {
+  test(`source save CRC repeats across two 300-frame resumes: ${fixture.fileName}`, async ({ page }) => {
+    test.setTimeout(360_000);
+    const { errors, diagnostics } = installPageDiagnostics(page);
 
-    await page.locator('.load-game-overlay [data-action="load"]').click();
-    await page.locator('.load-game-overlay [data-action="confirm-load"]').click();
+    const first = await loadSourceSaveAndAdvance(page, fixture, diagnostics);
+    const second = await loadSourceSaveAndAdvance(page, fixture, diagnostics);
 
-    await waitForE2EHook(page, diagnostics);
-    await expect(page.locator('#loading-screen')).toBeHidden({ timeout: 120_000 });
-    await expect(page.locator('#game-canvas')).toBeVisible({ timeout: 120_000 });
-
-    const initialSnapshot = await page.evaluate(() => {
-      const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
-      const visual = hook.getVisualDebugState();
-      const states = hook.getRenderableEntityStates();
-      let nanCount = 0;
-      for (const state of states) {
-        if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !Number.isFinite(state.z)) {
-          nanCount++;
-        }
-      }
-      return {
-        frame: visual.frame,
-        entityCount: states.length,
-        nanCount,
-        endState: hook.getGameEndState(),
-      };
-    });
-
-    expect(initialSnapshot.frame).not.toBeNull();
-    expect(initialSnapshot.entityCount).toBeGreaterThan(0);
-    expect(initialSnapshot.nanCount).toBe(0);
-    expect(initialSnapshot.endState).toBeNull();
-
-    const initialFrame = initialSnapshot.frame ?? 0;
-    const targetFrame = initialFrame + SIMULATION_FRAME_COUNT;
-
-    // Unpause and let the simulation advance 300 frames (~10s wall clock at 30Hz).
-    await page.evaluate(() => {
-      const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
-      hook.setSimulationPaused(false);
-    });
-
-    try {
-      await page.waitForFunction(
-        (target) => {
-          const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
-          const visual = hook?.getVisualDebugState?.();
-          return typeof visual?.frame === 'number' && visual.frame >= target;
-        },
-        targetFrame,
-        { timeout: 60_000 },
-      );
-    } catch (error) {
-      throw new Error([
-        `Simulation did not advance to frame ${targetFrame} within 60s.`,
-        ...diagnostics.slice(-20),
-        error instanceof Error ? error.message : String(error),
-      ].join('\n'));
-    }
-
-    await page.evaluate(() => {
-      const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
-      hook.setSimulationPaused(true);
-    });
-
-    const finalSnapshot = await page.evaluate(() => {
-      const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
-      const visual = hook.getVisualDebugState();
-      const states = hook.getRenderableEntityStates();
-      let nanCount = 0;
-      const sampleNanIds: number[] = [];
-      for (const state of states) {
-        if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !Number.isFinite(state.z)) {
-          nanCount++;
-          if (sampleNanIds.length < 5) {
-            sampleNanIds.push(state.id ?? -1);
-          }
-        }
-      }
-      return {
-        frame: visual.frame,
-        entityCount: states.length,
-        nanCount,
-        sampleNanIds,
-        endState: hook.getGameEndState(),
-      };
-    });
-
-    expect(finalSnapshot.frame).toBeGreaterThanOrEqual(targetFrame);
-    expect(finalSnapshot.nanCount, `entities with NaN position after ${SIMULATION_FRAME_COUNT} frames: ${finalSnapshot.sampleNanIds.join(',')}`).toBe(0);
-    // Some entities can be destroyed in combat over 300 frames; require at least
-    // half the initial population to survive as a basic sanity check.
-    expect(finalSnapshot.entityCount).toBeGreaterThanOrEqual(Math.floor(initialSnapshot.entityCount / 2));
+    expect(second.initialSnapshot.frame).toBe(first.initialSnapshot.frame);
+    expect(second.finalSnapshot.frame).toBe(first.finalSnapshot.frame);
+    expect(second.initialSnapshot.crc).toBe(first.initialSnapshot.crc);
+    expect(second.finalSnapshot.crc).toBe(first.finalSnapshot.crc);
     expect(errors).toEqual([]);
   });
 }

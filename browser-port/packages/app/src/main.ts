@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { GameRandom } from '@generals/core';
 import {
+  DeterministicStateKernel,
   GameLoop,
   ReplayManager,
   ReplayStorage,
@@ -5573,6 +5574,9 @@ async function startGame(
     }
     await loadSavedGameData(loadedSave.data);
   };
+  const deterministicCrcKernel = new DeterministicStateKernel({
+    gameLogicCrcSectionWriters: gameLogic.createDeterministicGameLogicCrcSectionWriters(),
+  });
 
   window.addEventListener('pagehide', disposeGame, { signal: gameAbort.signal });
   window.addEventListener('beforeunload', disposeGame, { signal: gameAbort.signal });
@@ -5589,6 +5593,13 @@ async function startGame(
       getCachedRenderStates(),
     getGameEndState: (): ReturnType<GameLogicSubsystem['getGameEndState']> =>
       gameLogic.getGameEndState(),
+    computeGameLogicCrc: (frame?: number): number => {
+      const crc = deterministicCrcKernel.computeGameLogicCrc(frame ?? gameLoop.getFrameNumber());
+      if (crc === null) {
+        throw new Error('GameLogic CRC section writers are unavailable.');
+      }
+      return crc;
+    },
     setScriptTeamMembers: (teamName: string, entityIds: readonly number[]): boolean =>
       gameLogic.setScriptTeamMembers(teamName, entityIds),
     setScriptTeamControllingSide: (teamName: string, side: string): boolean =>
@@ -5675,6 +5686,9 @@ async function startGame(
     findNextSaveSlotId: () => ctx.saveStorage.findNextSourceSaveSlotId(),
     setSimulationPaused: (paused: boolean) => {
       gameLoop.paused = paused;
+    },
+    stepSimulationFrames: (frameCount: number): void => {
+      gameLoop.stepSimulationFrames(frameCount);
     },
     setAutoPauseOnNextLoad: (paused: boolean) => {
       if (paused) {

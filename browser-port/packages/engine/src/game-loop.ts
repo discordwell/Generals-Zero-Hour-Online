@@ -87,6 +87,30 @@ export class GameLoop {
     return this.running;
   }
 
+  stepSimulationFrames(frameCount = 1): void {
+    if (!Number.isInteger(frameCount) || frameCount < 0) {
+      throw new Error(`frameCount must be a non-negative integer, got ${frameCount}`);
+    }
+    if (frameCount === 0) {
+      return;
+    }
+    const callbacks = this.callbacks;
+    if (!callbacks) {
+      return;
+    }
+
+    for (let index = 0; index < frameCount; index += 1) {
+      try {
+        callbacks.onSimulationStep(this.frameNumber, this.simulationDt / 1000);
+      } catch (err) {
+        console.error(`Game loop error on frame ${this.frameNumber}:`, err);
+      }
+      this.frameNumber += 1;
+    }
+    this.accumulator = 0;
+    callbacks.onRender(0);
+  }
+
   private readonly tick = (timestamp: number): void => {
     if (!this.running) {
       return;

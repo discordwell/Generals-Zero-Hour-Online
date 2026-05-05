@@ -128,6 +128,40 @@ describe('GameLoop', () => {
     expect(renderCount).toBeGreaterThan(0);
   });
 
+  it('manually steps exact simulation frames while paused', () => {
+    const scheduler = new ManualScheduler();
+    const loop = new GameLoop(30, scheduler);
+
+    const simulationFrames: number[] = [];
+    const renderAlphas: number[] = [];
+
+    loop.start({
+      onSimulationStep: (frameNumber) => {
+        simulationFrames.push(frameNumber);
+      },
+      onRender: (alpha) => {
+        renderAlphas.push(alpha);
+      },
+    });
+
+    loop.paused = true;
+    loop.stepSimulationFrames(3);
+
+    expect(simulationFrames).toEqual([0, 1, 2]);
+    expect(loop.getFrameNumber()).toBe(3);
+    expect(renderAlphas.at(-1)).toBe(0);
+
+    scheduler.step(1000);
+    expect(simulationFrames).toEqual([0, 1, 2]);
+    expect(loop.getFrameNumber()).toBe(3);
+
+    loop.stepSimulationFrames(2);
+    expect(simulationFrames).toEqual([0, 1, 2, 3, 4]);
+    expect(loop.getFrameNumber()).toBe(5);
+
+    loop.stop();
+  });
+
   it('runs simulation faster at 2x speed', () => {
     const scheduler = new ManualScheduler();
     // 10 FPS = 100ms per simulation step
