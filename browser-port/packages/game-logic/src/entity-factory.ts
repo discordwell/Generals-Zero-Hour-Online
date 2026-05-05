@@ -6490,7 +6490,7 @@ export function extractNeutronMissileSlowDeathProfile(self: GL, objectDef: Objec
     const blasts: NeutronMissileBlastInfo[] = [];
     // Source parity: MAX_NEUTRON_BLASTS = 9 (indices 1-9 in INI).
     for (const fields of NEUTRON_MISSILE_BLAST_FIELDS) {
-      const enabled = (readStringField(block.fields, [fields.enabled]) ?? 'No').toUpperCase() === 'YES';
+      const enabled = readBooleanField(block.fields, [fields.enabled]) === true;
       blasts.push({
         enabled,
         delay: self.msToLogicFrames(readNumericField(block.fields, [fields.delay]) ?? 0),

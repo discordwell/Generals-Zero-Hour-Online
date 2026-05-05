@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-05T15:01:58.424Z",
+  "generatedAt": "2026-05-05T15:05:53.303Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -30,7 +30,7 @@
     "sourceKnownGameplayReferencedIniModuleFields": 1120,
     "sourceKnownFieldGaps": 0,
     "sourceUnknownIniModuleFields": 0,
-    "sourceKnownUntestedRuntimeFields": 84
+    "sourceKnownUntestedRuntimeFields": 47
   },
   "sourceKnownFieldGaps": [],
   "sourceUnknownIniModuleFields": [],
@@ -442,1782 +442,6 @@
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
         "packages/game-logic/src/status-effects.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast2PushForce",
-      "normalizedFieldName": "BLAST2PUSHFORCE",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast3PushForce",
-      "normalizedFieldName": "BLAST3PUSHFORCE",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast4Delay",
-      "normalizedFieldName": "BLAST4DELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast4InnerRadius",
-      "normalizedFieldName": "BLAST4INNERRADIUS",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast4MaxDamage",
-      "normalizedFieldName": "BLAST4MAXDAMAGE",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast4MinDamage",
-      "normalizedFieldName": "BLAST4MINDAMAGE",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast4OuterRadius",
-      "normalizedFieldName": "BLAST4OUTERRADIUS",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast4ScorchDelay",
-      "normalizedFieldName": "BLAST4SCORCHDELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast4ToppleSpeed",
-      "normalizedFieldName": "BLAST4TOPPLESPEED",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast5Delay",
-      "normalizedFieldName": "BLAST5DELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast5Enabled",
-      "normalizedFieldName": "BLAST5ENABLED",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast5InnerRadius",
-      "normalizedFieldName": "BLAST5INNERRADIUS",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast5MaxDamage",
-      "normalizedFieldName": "BLAST5MAXDAMAGE",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast5MinDamage",
-      "normalizedFieldName": "BLAST5MINDAMAGE",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast5OuterRadius",
-      "normalizedFieldName": "BLAST5OUTERRADIUS",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast5PushForce",
-      "normalizedFieldName": "BLAST5PUSHFORCE",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast5ScorchDelay",
-      "normalizedFieldName": "BLAST5SCORCHDELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast5ToppleSpeed",
-      "normalizedFieldName": "BLAST5TOPPLESPEED",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast6Delay",
-      "normalizedFieldName": "BLAST6DELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast6InnerRadius",
-      "normalizedFieldName": "BLAST6INNERRADIUS",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast6MaxDamage",
-      "normalizedFieldName": "BLAST6MAXDAMAGE",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast6MinDamage",
-      "normalizedFieldName": "BLAST6MINDAMAGE",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast6OuterRadius",
-      "normalizedFieldName": "BLAST6OUTERRADIUS",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast6ScorchDelay",
-      "normalizedFieldName": "BLAST6SCORCHDELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast6ToppleSpeed",
-      "normalizedFieldName": "BLAST6TOPPLESPEED",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast7Delay",
-      "normalizedFieldName": "BLAST7DELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast7Enabled",
-      "normalizedFieldName": "BLAST7ENABLED",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast7OuterRadius",
-      "normalizedFieldName": "BLAST7OUTERRADIUS",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast7ScorchDelay",
-      "normalizedFieldName": "BLAST7SCORCHDELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast8Delay",
-      "normalizedFieldName": "BLAST8DELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast8Enabled",
-      "normalizedFieldName": "BLAST8ENABLED",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast8OuterRadius",
-      "normalizedFieldName": "BLAST8OUTERRADIUS",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast8ScorchDelay",
-      "normalizedFieldName": "BLAST8SCORCHDELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast9Delay",
-      "normalizedFieldName": "BLAST9DELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast9Enabled",
-      "normalizedFieldName": "BLAST9ENABLED",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast9OuterRadius",
-      "normalizedFieldName": "BLAST9OUTERRADIUS",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "NEUTRONMISSILESLOWDEATHBEHAVIOR",
-      "fieldName": "Blast9ScorchDelay",
-      "normalizedFieldName": "BLAST9SCORCHDELAY",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_08"
-      ],
-      "exampleObjectNames": [
-        "BaikonurRocketDetonation",
-        "CargoTruckNuke",
-        "NeutronMissile",
-        "SupW_NeutronMissile"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "NeutronMissileSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/NeutronMissileSlowDeathUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
       "testReferenceFiles": [],
@@ -46963,6 +45187,7 @@
         "packages/game-logic/src/parity-float-stream.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
         "packages/game-logic/src/player-save-state.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/skirmish-ai-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-create-upgrade-collide-runtime.test.ts",
@@ -51673,7 +49898,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -51725,7 +49951,8 @@
       "testReferenceFiles": [
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -51776,7 +50003,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -51827,7 +50055,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -51878,7 +50107,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -51929,7 +50159,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -51979,7 +50210,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-factory-missing-fields.test.ts"
+        "packages/game-logic/src/entity-factory-missing-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52030,7 +50262,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52081,7 +50314,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52132,7 +50366,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52183,7 +50418,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52234,7 +50470,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52285,7 +50522,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52336,7 +50574,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52387,7 +50626,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52435,8 +50675,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -52486,7 +50728,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52537,7 +50780,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52587,7 +50831,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52637,7 +50882,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52687,7 +50933,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52737,7 +50984,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52787,7 +51035,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52837,7 +51086,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52885,8 +51135,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -52935,7 +51187,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -52985,7 +51238,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts"
+        "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -53033,8 +51287,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53083,7 +51339,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-factory-missing-fields.test.ts"
+        "packages/game-logic/src/entity-factory-missing-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -53131,8 +51388,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53179,8 +51438,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53227,8 +51488,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53275,8 +51538,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53325,7 +51590,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-factory-missing-fields.test.ts"
+        "packages/game-logic/src/entity-factory-missing-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -53373,8 +51639,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53421,8 +51689,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53469,8 +51739,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53517,8 +51789,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53565,8 +51839,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53613,8 +51889,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53661,8 +51939,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53709,8 +51989,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53757,8 +52039,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53805,8 +52089,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53853,8 +52139,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53901,8 +52189,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -53951,7 +52241,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-factory-missing-fields.test.ts"
+        "packages/game-logic/src/entity-factory-missing-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -53999,8 +52290,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54047,8 +52340,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54095,8 +52390,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54143,8 +52440,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54193,7 +52492,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-factory-missing-fields.test.ts"
+        "packages/game-logic/src/entity-factory-missing-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -54241,8 +52541,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54289,8 +52591,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54337,8 +52641,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54385,8 +52691,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54433,8 +52741,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54481,8 +52791,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54529,8 +52841,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54577,8 +52891,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54625,8 +52941,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54673,8 +52991,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54721,8 +53041,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54769,8 +53091,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54817,8 +53141,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -54865,8 +53191,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -60296,6 +58624,7 @@
         "packages/game-logic/src/parity-float-stream.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
         "packages/game-logic/src/player-save-state.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/skirmish-ai-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-create-upgrade-collide-runtime.test.ts",

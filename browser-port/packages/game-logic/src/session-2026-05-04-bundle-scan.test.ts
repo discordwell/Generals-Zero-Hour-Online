@@ -23,6 +23,7 @@ import {
   extractGenerateMinefieldProfile,
   extractIniValueTokens,
   extractLeafletDropProfile,
+  extractNeutronMissileSlowDeathProfile,
   extractRiderChangeContainProfile,
   extractSalvageCrateProfile,
   extractSpecialAbilityProfile,
@@ -335,6 +336,72 @@ describe('session 2026-05-04 — bundle-wide scanner over touched fields', () =>
       expect(profile, `CrateCollideProfile null for ${obj.name}`).not.toBeNull();
       expect(profile!.addsOwnerVeterancy, `AddsOwnerVeterancy mismatch on ${obj.name}`).toBe(bundleValue);
     }
+  });
+
+  it('NeutronMissileSlowDeathBehavior blast fields flow through every retail neutron blast', () => {
+    const neutronBlastFieldNames = [
+      'Blast1Enabled', 'Blast1Delay', 'Blast1ScorchDelay', 'Blast1InnerRadius',
+      'Blast1OuterRadius', 'Blast1MaxDamage', 'Blast1MinDamage', 'Blast1ToppleSpeed', 'Blast1PushForce',
+      'Blast2Enabled', 'Blast2Delay', 'Blast2ScorchDelay', 'Blast2InnerRadius',
+      'Blast2OuterRadius', 'Blast2MaxDamage', 'Blast2MinDamage', 'Blast2ToppleSpeed', 'Blast2PushForce',
+      'Blast3Enabled', 'Blast3Delay', 'Blast3ScorchDelay', 'Blast3InnerRadius',
+      'Blast3OuterRadius', 'Blast3MaxDamage', 'Blast3MinDamage', 'Blast3ToppleSpeed', 'Blast3PushForce',
+      'Blast4Enabled', 'Blast4Delay', 'Blast4ScorchDelay', 'Blast4InnerRadius',
+      'Blast4OuterRadius', 'Blast4MaxDamage', 'Blast4MinDamage', 'Blast4ToppleSpeed', 'Blast4PushForce',
+      'Blast5Enabled', 'Blast5Delay', 'Blast5ScorchDelay', 'Blast5InnerRadius',
+      'Blast5OuterRadius', 'Blast5MaxDamage', 'Blast5MinDamage', 'Blast5ToppleSpeed', 'Blast5PushForce',
+      'Blast6Enabled', 'Blast6Delay', 'Blast6ScorchDelay', 'Blast6InnerRadius',
+      'Blast6OuterRadius', 'Blast6MaxDamage', 'Blast6MinDamage', 'Blast6ToppleSpeed', 'Blast6PushForce',
+      'Blast7Enabled', 'Blast7Delay', 'Blast7ScorchDelay', 'Blast7InnerRadius',
+      'Blast7OuterRadius', 'Blast7MaxDamage', 'Blast7MinDamage', 'Blast7ToppleSpeed', 'Blast7PushForce',
+      'Blast8Enabled', 'Blast8Delay', 'Blast8ScorchDelay', 'Blast8InnerRadius',
+      'Blast8OuterRadius', 'Blast8MaxDamage', 'Blast8MinDamage', 'Blast8ToppleSpeed', 'Blast8PushForce',
+      'Blast9Enabled', 'Blast9Delay', 'Blast9ScorchDelay', 'Blast9InnerRadius',
+      'Blast9OuterRadius', 'Blast9MaxDamage', 'Blast9MinDamage', 'Blast9ToppleSpeed', 'Blast9PushForce',
+    ] as const;
+    const propertyBySuffix: Record<string, string> = {
+      Enabled: 'enabled',
+      Delay: 'delay',
+      ScorchDelay: 'scorchDelay',
+      InnerRadius: 'innerRadius',
+      OuterRadius: 'outerRadius',
+      MaxDamage: 'maxDamage',
+      MinDamage: 'minDamage',
+      ToppleSpeed: 'toppleSpeed',
+      PushForce: 'pushForce',
+    };
+
+    let checked = 0;
+    for (const obj of bundle.objects ?? []) {
+      for (const block of obj.blocks ?? []) {
+        const moduleType = (block.name ?? '').split(/\s+/)[0];
+        if (moduleType !== 'NeutronMissileSlowDeathBehavior') continue;
+        const profile = extractNeutronMissileSlowDeathProfile(makeSelfStub(), obj as never);
+        expect(profile, `NeutronMissileSlowDeathProfile null for ${obj.name}`).not.toBeNull();
+
+        const fields = block.fields ?? {};
+        for (const fieldName of neutronBlastFieldNames) {
+          if (!(fieldName in fields)) continue;
+          const match = /^Blast([1-9])(.+)$/.exec(fieldName);
+          expect(match, `unexpected neutron blast field ${fieldName}`).not.toBeNull();
+          const blastIndex = Number(match![1]) - 1;
+          const suffix = match![2]!;
+          const propertyName = propertyBySuffix[suffix];
+          expect(propertyName, `unmapped neutron blast suffix ${suffix}`).toBeTruthy();
+
+          const actual = (profile!.blasts[blastIndex] as Record<string, unknown>)[propertyName!];
+          const bundleValue = fields[fieldName];
+          const expected = suffix === 'Enabled'
+            ? bundleValue
+            : suffix === 'Delay' || suffix === 'ScorchDelay'
+              ? makeSelfStub().msToLogicFrames(Number(bundleValue))
+              : bundleValue;
+          expect(actual, `${fieldName} mismatch on ${obj.name}`).toBe(expected);
+          checked++;
+        }
+      }
+    }
+    expect(checked, 'expected shipped NeutronMissileSlowDeathBehavior blast fields').toBeGreaterThan(0);
   });
 });
 
