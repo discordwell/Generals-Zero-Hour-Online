@@ -19,6 +19,7 @@ import {
   ReplayStorage,
   SaveStorage,
   SubsystemRegistry,
+  XferCrcAccumulator,
   type ReplayFile,
   type ReplayPlayerInfo,
 } from '@generals/engine';
@@ -5599,6 +5600,30 @@ async function startGame(
         throw new Error('GameLogic CRC section writers are unavailable.');
       }
       return crc;
+    },
+    computeGameLogicCrcSections: (frame?: number): Record<string, number> => {
+      const resolvedFrame = frame ?? gameLoop.getFrameNumber();
+      const writers = deterministicCrcKernel.getGameLogicCrcSectionWriters();
+      if (!writers) {
+        throw new Error('GameLogic CRC section writers are unavailable.');
+      }
+      const snapshot = deterministicCrcKernel.createSnapshot(resolvedFrame);
+      const writeSection = (
+        writer: (
+          crc: XferCrcAccumulator,
+          snapshot: ReturnType<DeterministicStateKernel['createSnapshot']>,
+        ) => void,
+      ): number => {
+        const crc = new XferCrcAccumulator();
+        writer(crc, snapshot);
+        return crc.getCrc();
+      };
+      return {
+        objects: writeSection(writers.writeObjects),
+        partitionManager: writeSection(writers.writePartitionManager),
+        playerList: writeSection(writers.writePlayerList),
+        ai: writeSection(writers.writeAi),
+      };
     },
     setScriptTeamMembers: (teamName: string, entityIds: readonly number[]): boolean =>
       gameLogic.setScriptTeamMembers(teamName, entityIds),

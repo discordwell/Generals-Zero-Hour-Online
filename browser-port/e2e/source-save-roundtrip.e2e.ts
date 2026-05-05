@@ -174,7 +174,11 @@ for (const fixture of roundtripFixtures) {
         return null;
       }
       hook.setSimulationPaused?.(true);
+      const visual = hook.getVisualDebugState();
       const snapshot = {
+        frame: visual.frame,
+        crc: hook.computeGameLogicCrc(visual.frame),
+        crcSections: hook.computeGameLogicCrcSections(visual.frame),
         mapWidth: logic.loadedMapData?.heightmap?.width ?? null,
         mapHeight: logic.loadedMapData?.heightmap?.height ?? null,
         playerSide0: typeof logic.getPlayerSide === 'function' ? logic.getPlayerSide(0) : null,
@@ -214,7 +218,11 @@ for (const fixture of roundtripFixtures) {
       if (!hook || !logic) {
         return null;
       }
+      const visual = hook.getVisualDebugState();
       return {
+        frame: visual.frame,
+        crc: hook.computeGameLogicCrc(visual.frame),
+        crcSections: hook.computeGameLogicCrcSections(visual.frame),
         mapWidth: logic.loadedMapData?.heightmap?.width ?? null,
         mapHeight: logic.loadedMapData?.heightmap?.height ?? null,
         playerSide0: typeof logic.getPlayerSide === 'function' ? logic.getPlayerSide(0) : null,
@@ -222,7 +230,31 @@ for (const fixture of roundtripFixtures) {
       };
     });
 
-    expect(restoredSnapshot).toEqual(importedSnapshot);
+    expect(importedSnapshot?.crc).toEqual(expect.any(Number));
+    expect(restoredSnapshot?.crc).toEqual(expect.any(Number));
+    expect(importedSnapshot?.crcSections).toEqual(expect.objectContaining({
+      ai: expect.any(Number),
+      objects: expect.any(Number),
+      partitionManager: expect.any(Number),
+      playerList: expect.any(Number),
+    }));
+    expect(restoredSnapshot?.crcSections).toEqual(expect.objectContaining({
+      ai: expect.any(Number),
+      objects: expect.any(Number),
+      partitionManager: expect.any(Number),
+      playerList: expect.any(Number),
+    }));
+    expect(restoredSnapshot?.crcSections.partitionManager)
+      .toBe(importedSnapshot?.crcSections.partitionManager);
+    // Follow-up(source-save): close Objects / PlayerList / AI CRC drift between a
+    // native imported source save and the first TS runtime-save restore.
+    // Visible map/player/end-state parity is preserved below; the section CRCs
+    // make the remaining owner-state gap explicit for the next xfer pass.
+    const { crc: _importedCrc, crcSections: _importedCrcSections, ...importedComparable } =
+      importedSnapshot!;
+    const { crc: _restoredCrc, crcSections: _restoredCrcSections, ...restoredComparable } =
+      restoredSnapshot!;
+    expect(restoredComparable).toEqual(importedComparable);
     expect(errors).toEqual([]);
   });
 }
