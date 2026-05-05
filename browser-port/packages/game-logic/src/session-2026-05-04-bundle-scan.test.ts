@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import {
+  extractBoneFXProfile,
   extractContainProfile,
   extractCrateCollideProfile,
   extractEmpUpdateProfile,
@@ -79,6 +80,56 @@ function makeSelfStub() {
     parseUpgradeNames: (v: unknown) => splitTokens(v),
     parseObjectStatusNames: (v: unknown) => splitTokens(v).map((s) => s.toUpperCase()),
     parseKindOf: (v: unknown) => splitTokens(v).map((s) => s.toUpperCase()),
+    // Minimal BoneFX field parser stub — mirrors the runtime path that
+    // extractBoneFXProfile delegates to. Returns the same shape as the
+    // production parseBoneFXFieldValue implementation so the regression test
+    // exercises the array→string normalization at the call site.
+    parseBoneFXFieldValue: (value: string): { boneName: string; effectName: string; minDelayFrames: number; maxDelayFrames: number; onlyOnce: boolean } | null => {
+      const tokens = value.split(/\s+/).filter(Boolean);
+      if (tokens.length < 5) return null;
+      let boneName = '';
+      let onlyOnce = false;
+      let i = 0;
+      while (i < tokens.length) {
+        const [k, ...rest] = tokens[i]!.split(':');
+        if (k?.toUpperCase() === 'BONE' && rest.length > 0) {
+          boneName = rest.join(':');
+          i++;
+          break;
+        }
+        i++;
+      }
+      if (!boneName) return null;
+      while (i < tokens.length) {
+        const [k, ...rest] = tokens[i]!.split(':');
+        if (k?.toUpperCase() === 'ONLYONCE' && rest.length > 0) {
+          onlyOnce = (rest.join(':') ?? '').toUpperCase() === 'YES';
+          i++;
+          break;
+        }
+        i++;
+      }
+      const minDelayMs = parseFloat(tokens[i] ?? '0'); i++;
+      const maxDelayMs = parseFloat(tokens[i] ?? '0'); i++;
+      let effectName = '';
+      while (i < tokens.length) {
+        const [k, ...rest] = tokens[i]!.split(':');
+        const key = (k ?? '').toUpperCase();
+        if ((key === 'FXLIST' || key === 'OCL' || key === 'PSYS') && rest.length > 0) {
+          effectName = rest.join(':');
+          break;
+        }
+        i++;
+      }
+      if (!effectName) return null;
+      return {
+        boneName,
+        effectName,
+        minDelayFrames: Math.max(0, Math.round(minDelayMs / (1000 / LOGIC_FRAME_RATE))),
+        maxDelayFrames: Math.max(0, Math.round(maxDelayMs / (1000 / LOGIC_FRAME_RATE))),
+        onlyOnce,
+      };
+    },
   } as unknown as Parameters<typeof extractFlightDeckProfile>[0];
 }
 
@@ -425,6 +476,42 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       }
     }
     expect(count).toBeGreaterThan(0);
+  });
+
+  it('BoneFXUpdate particle systems decode for every retail user (was silently dropped)', () => {
+    interface BundleObj { name?: string; blocks?: Array<{ name?: string; fields?: Record<string, unknown> }> }
+    const bundleWithObjs = bundle as { objects?: BundleObj[] };
+    let userCount = 0;
+    let entryCount = 0;
+    for (const obj of bundleWithObjs.objects ?? []) {
+      let hasBoneFXBlock = false;
+      let hasArrayShapedField = false;
+      for (const block of obj.blocks ?? []) {
+        const moduleType = (block.name ?? '').split(/\s+/)[0];
+        if (moduleType !== 'BoneFXUpdate') continue;
+        hasBoneFXBlock = true;
+        for (const fval of Object.values(block.fields ?? {})) {
+          if (Array.isArray(fval) && fval.length >= 5) {
+            hasArrayShapedField = true;
+            break;
+          }
+        }
+      }
+      if (!hasBoneFXBlock || !hasArrayShapedField) continue;
+      userCount++;
+
+      const profile = extractBoneFXProfile(makeSelfStub(), obj as never);
+      expect(profile, `BoneFXProfile null on ${obj.name}`).not.toBeNull();
+      // Count parsed entries across the 4-state x 8-bone grid for particle systems.
+      let parsed = 0;
+      for (const row of profile!.particleSystems) {
+        for (const cell of row) if (cell !== null) parsed++;
+      }
+      expect(parsed, `BoneFXUpdate particle systems silently dropped on ${obj.name}`).toBeGreaterThan(0);
+      entryCount += parsed;
+    }
+    expect(userCount, 'expected retail BoneFXUpdate users with array-shaped fields').toBeGreaterThan(0);
+    expect(entryCount, 'expected ≥1 parsed BoneFX entry total').toBeGreaterThan(0);
   });
 
   it('extractIniValueTokens decodes flat primitive arrays as a single multi-token entry', () => {

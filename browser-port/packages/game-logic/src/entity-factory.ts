@@ -5347,9 +5347,28 @@ export function extractBoneFXProfile(self: GL, objectDef: ObjectDef | undefined)
         for (const group of BONE_FX_FIELD_GROUPS) {
           for (let boneIndex = 0; boneIndex < group.fields.length; boneIndex++) {
             const fieldValue = self.readIniFieldValue(block.fields, group.fields[boneIndex]!);
-            if (typeof fieldValue !== 'string') continue;
+            // Source parity: the bundle may emit a multi-token field as a flat
+            // array of single-token strings (e.g.
+            //   ['bone:NULL', 'OnlyOnce:Yes', '0', '0', 'PSys:CleanupTrail01']).
+            // Join arrays back into a whitespace-separated string before
+            // parsing — the parser splits on whitespace anyway and silently
+            // dropped every retail BoneFX entry before this fix.
+            let stringValue: string;
+            if (typeof fieldValue === 'string') {
+              stringValue = fieldValue;
+            } else if (Array.isArray(fieldValue)) {
+              stringValue = fieldValue
+                .filter((entry): entry is string | number | boolean =>
+                  typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean')
+                .map((entry) => String(entry).trim())
+                .filter((entry) => entry.length > 0)
+                .join(' ');
+            } else {
+              continue;
+            }
+            if (!stringValue) continue;
 
-            const entry = self.parseBoneFXFieldValue(fieldValue);
+            const entry = self.parseBoneFXFieldValue(stringValue);
             if (entry) {
               const target =
                 group.target === 'fxLists' ? fxLists :
