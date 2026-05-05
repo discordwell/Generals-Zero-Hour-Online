@@ -20,6 +20,7 @@ import {
   extractEmpUpdateProfile,
   extractFXListDieProfiles,
   extractGenerateMinefieldProfile,
+  extractIniValueTokens,
   extractLeafletDropProfile,
   extractRiderChangeContainProfile,
   extractSalvageCrateProfile,
@@ -424,5 +425,53 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       }
     }
     expect(count).toBeGreaterThan(0);
+  });
+
+  it('extractIniValueTokens decodes flat primitive arrays as a single multi-token entry', () => {
+    // This regression bundle scan proves that EVERY shipped retail field
+    // emitted as a flat-token array (e.g. ['HEROIC', 'WeaponFX_X']) parses
+    // into exactly one entry whose tokens are the array elements. Before the
+    // fix in commit-pending, extractIniValueTokens treated such arrays as
+    // N entries of one token each, silently dropping every Heroic-vet weapon
+    // FX/Exhaust override (100+ retail weapons), every WeaponBonus
+    // PLAYER_UPGRADE / CONTINUOUS_FIRE_FAST modifier (85 retail weapons),
+    // and the Boss_Barracks QuantityModifier production multiplier.
+    interface BundleWeapon { name?: string; fields?: Record<string, unknown> }
+    const bundleWithLists = bundle as { weapons?: BundleWeapon[] };
+
+    // Audit: Heroic-vet FX override on machine-gun weapons.
+    const veterancyFireFXUsers = (bundleWithLists.weapons ?? [])
+      .filter((w) => Array.isArray((w.fields ?? {})['VeterancyFireFX']));
+    expect(veterancyFireFXUsers.length, 'expected retail VeterancyFireFX flat-array users').toBeGreaterThan(50);
+    for (const wpn of veterancyFireFXUsers.slice(0, 5)) {
+      const value = (wpn.fields ?? {})['VeterancyFireFX'] as unknown;
+      const tokens = extractIniValueTokens({} as never, value as never);
+      expect(tokens.length, `expected single entry for ${wpn.name}`).toBe(1);
+      expect(tokens[0]!.length, `expected ≥2 tokens for ${wpn.name}`).toBeGreaterThanOrEqual(2);
+      expect(tokens[0]![0]).toBe('HEROIC');
+      expect(tokens[0]![1]!.length).toBeGreaterThan(0);
+    }
+
+    // Audit: ProjectileExhaust Heroic override.
+    const projExhaustUsers = (bundleWithLists.weapons ?? [])
+      .filter((w) => Array.isArray((w.fields ?? {})['VeterancyProjectileExhaust']));
+    expect(projExhaustUsers.length).toBeGreaterThan(40);
+    for (const wpn of projExhaustUsers.slice(0, 5)) {
+      const tokens = extractIniValueTokens({} as never, (wpn.fields ?? {})['VeterancyProjectileExhaust'] as never);
+      expect(tokens.length).toBe(1);
+      expect(tokens[0]).toEqual(['HEROIC', expect.any(String)]);
+    }
+
+    // Audit: WeaponBonus 3-token entries.
+    const weaponBonusUsers = (bundleWithLists.weapons ?? [])
+      .filter((w) => Array.isArray((w.fields ?? {})['WeaponBonus']));
+    expect(weaponBonusUsers.length).toBeGreaterThan(50);
+    for (const wpn of weaponBonusUsers.slice(0, 5)) {
+      const tokens = extractIniValueTokens({} as never, (wpn.fields ?? {})['WeaponBonus'] as never);
+      expect(tokens.length).toBe(1);
+      expect(tokens[0]!.length).toBe(3);
+      // All 3 tokens are non-empty.
+      for (const tok of tokens[0]!) expect(tok.length).toBeGreaterThan(0);
+    }
   });
 });

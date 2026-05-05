@@ -1395,13 +1395,43 @@ export function extractIniValueTokens(self: GL, value: IniValue | undefined): st
     return [];
   }
   if (typeof value === 'string') {
-    return [value.split(/[\s,;|]+/).map((token) => token.trim()).filter(Boolean)];
+    const tokens = value.split(/[\s,;|]+/).map((token) => token.trim()).filter(Boolean);
+    return tokens.length > 0 ? [tokens] : [];
   }
   if (typeof value === 'number' || typeof value === 'boolean') {
     return [[String(value)]];
   }
   if (Array.isArray(value)) {
-    return value.flatMap((entry) => extractIniValueTokens(self, entry as IniValue));
+    // Bundle shape semantics:
+    //   ['HEROIC', 'WeaponFX_X']               → 1 entry, 2 tokens (multi-token field on one line)
+    //   ['VETERAN OCL_X', 'ELITE OCL_Y']       → 2 entries (each string is its own line)
+    //   [['VETERAN', 'OCL_X'], ['ELITE','OCL_Y']] → 2 entries (recursive multi-line)
+    // If any element is itself an array → recurse (multi-line via 2D shape).
+    if (value.some((entry) => Array.isArray(entry))) {
+      return value.flatMap((entry) => extractIniValueTokens(self, entry as IniValue));
+    }
+    // Pure-primitive array: distinguish "one multi-token line" from "multiple
+    // multi-token lines" by checking whether any string element contains
+    // whitespace. A whitespace-bearing element is a complete entry; a
+    // whitespace-free element is a single token within a shared entry.
+    const stringElems: string[] = [];
+    const otherElems: Array<number | boolean> = [];
+    for (const entry of value) {
+      if (typeof entry === 'string') stringElems.push(entry);
+      else if (typeof entry === 'number' || typeof entry === 'boolean') otherElems.push(entry);
+    }
+    const anyMultiTokenString = stringElems.some((s) => /\s/.test(s));
+    if (anyMultiTokenString) {
+      return value.flatMap((entry) => extractIniValueTokens(self, entry as IniValue));
+    }
+    const inlineTokens: string[] = [];
+    for (const entry of value) {
+      if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
+        const trimmed = String(entry).trim();
+        if (trimmed.length > 0) inlineTokens.push(trimmed);
+      }
+    }
+    return inlineTokens.length > 0 ? [inlineTokens] : [];
   }
   return [];
 }
