@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-05-04T01:05:38.733Z",
+  "generatedAt": "2026-05-05T14:41:44.458Z",
   "bundlePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\packages\\app\\public\\assets\\data\\ini-bundle.json",
   "summary": {
-    "objectPrerequisiteEdges": 0,
-    "sciencePrerequisiteEdges": 161,
+    "objectPrerequisiteEdges": 581,
+    "sciencePrerequisiteEdges": 196,
     "upgradePrerequisiteEdges": 0,
     "commandButtonPrerequisiteEdges": 583,
     "missingReferences": 0,

@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url';
 import type { IniBlock } from '@generals/core';
 import type { IniDataBundle, ObjectDef } from '@generals/ini-data';
 
-type ReferenceType = 'Object' | 'Science' | 'Upgrade';
+export type ReferenceType = 'Object' | 'Science' | 'Upgrade';
 
-interface MissingReference {
+export interface MissingReference {
   ownerType: 'Object' | 'Upgrade' | 'Science' | 'CommandButton';
   ownerName: string;
   referenceType: ReferenceType;
@@ -15,7 +15,7 @@ interface MissingReference {
   detail: string;
 }
 
-interface PrerequisiteChainReport {
+export interface PrerequisiteChainReport {
   generatedAt: string;
   bundlePath: string;
   summary: {
@@ -32,7 +32,7 @@ interface PrerequisiteChainReport {
   scienceCycles: string[][];
 }
 
-function normalizeToken(value: string | null | undefined): string {
+export function normalizeToken(value: string | null | undefined): string {
   return value?.trim().toUpperCase() ?? '';
 }
 
@@ -40,7 +40,7 @@ function isMeaningfulReferenceToken(token: string): boolean {
   return token.length > 0 && token !== 'NONE';
 }
 
-function extractTokens(value: unknown): string[] {
+export function extractTokens(value: unknown): string[] {
   if (typeof value === 'string') {
     return value
       .split(/[\s,;|]+/)
@@ -129,10 +129,11 @@ function detectCycles(graph: Map<string, Set<string>>): string[][] {
   return cycles.sort((left, right) => left.join('>').localeCompare(right.join('>')));
 }
 
-function collectPrerequisiteBlocks(objectDef: ObjectDef): IniBlock[] {
+export function collectPrerequisiteBlocks(objectDef: ObjectDef): IniBlock[] {
   const collected: IniBlock[] = [];
   const visit = (block: IniBlock): void => {
-    if (normalizeToken(block.type) === 'PREREQUISITE') {
+    const blockType = normalizeToken(block.type);
+    if (blockType === 'PREREQUISITE' || blockType === 'PREREQUISITES') {
       collected.push(block);
     }
     for (const child of block.blocks) {
@@ -145,33 +146,51 @@ function collectPrerequisiteBlocks(objectDef: ObjectDef): IniBlock[] {
   return collected;
 }
 
-function parsePrerequisiteBlock(block: IniBlock): { type: ReferenceType | null; names: string[] } {
+export function parsePrerequisiteBlockReferences(block: IniBlock): Array<{ type: ReferenceType; names: string[] }> {
+  const references: Array<{ type: ReferenceType; names: string[] }> = [];
+
+  const addReference = (type: ReferenceType, value: unknown): void => {
+    const names = extractTokens(value)
+      .map((token) => normalizeToken(token))
+      .filter(isMeaningfulReferenceToken);
+    if (names.length > 0) {
+      references.push({ type, names });
+    }
+  };
+
   const tokens = extractTokens(block.name);
-  if (tokens.length === 0) {
-    return { type: null, names: [] };
+  if (tokens.length > 0) {
+    const typeToken = normalizeToken(tokens[0]);
+    if (typeToken === 'OBJECT') {
+      addReference('Object', tokens.slice(1));
+    } else if (typeToken === 'SCIENCE') {
+      addReference('Science', tokens.slice(1));
+    } else if (typeToken === 'UPGRADE') {
+      addReference('Upgrade', tokens.slice(1));
+    }
   }
-  const typeToken = normalizeToken(tokens[0]);
-  let type: ReferenceType | null = null;
-  if (typeToken === 'OBJECT') {
-    type = 'Object';
-  } else if (typeToken === 'SCIENCE') {
-    type = 'Science';
-  } else if (typeToken === 'UPGRADE') {
-    type = 'Upgrade';
-  }
-  const names = tokens.slice(1).map((token) => normalizeToken(token)).filter(isMeaningfulReferenceToken);
-  return { type, names };
+
+  // Source/runtime parity: object templates typically use:
+  //
+  //   Prerequisites
+  //     Object = AmericaSupplyCenter
+  //     Science = SCIENCE_Pathfinder
+  //   End
+  //
+  // The old report only looked at singular `Prerequisite OBJECT Foo` headers,
+  // so every real object prerequisite edge in the retail bundle was omitted.
+  const fields = block.fields ?? {};
+  addReference('Object', fields['Object']);
+  addReference('Science', fields['Science']);
+  addReference('Upgrade', fields['Upgrade']);
+  addReference('Object', fields['OBJECT']);
+  addReference('Science', fields['SCIENCE']);
+  addReference('Upgrade', fields['UPGRADE']);
+
+  return references;
 }
 
-async function main(): Promise<void> {
-  const scriptPath = fileURLToPath(import.meta.url);
-  const projectRoot = path.resolve(path.dirname(scriptPath), '..');
-  const bundlePath = path.join(projectRoot, 'packages', 'app', 'public', 'assets', 'data', 'ini-bundle.json');
-  const outputPath = path.join(projectRoot, 'prerequisite-chain-report.json');
-
-  const bundleRaw = await fs.readFile(bundlePath, 'utf8');
-  const bundle = JSON.parse(bundleRaw) as IniDataBundle;
-
+export function buildPrerequisiteChainReport(bundle: IniDataBundle, bundlePath: string): PrerequisiteChainReport {
   const objectNames = new Set(bundle.objects.map((objectDef) => normalizeToken(objectDef.name)).filter(Boolean));
   const scienceNames = new Set(bundle.sciences.map((scienceDef) => normalizeToken(scienceDef.name)).filter(Boolean));
   const upgradeNames = new Set(bundle.upgrades.map((upgradeDef) => normalizeToken(upgradeDef.name)).filter(Boolean));
@@ -191,48 +210,46 @@ async function main(): Promise<void> {
       objectGraph.set(ownerName, new Set());
     }
     for (const prerequisiteBlock of collectPrerequisiteBlocks(objectDef)) {
-      const parsed = parsePrerequisiteBlock(prerequisiteBlock);
-      if (!parsed.type) {
-        continue;
-      }
-      for (const referenceName of parsed.names) {
-        if (parsed.type === 'Object') {
-          objectPrerequisiteEdges += 1;
-          addGraphEdge(objectGraph, ownerName, referenceName);
-          if (!objectNames.has(referenceName)) {
-            missingReferences.push({
-              ownerType: 'Object',
-              ownerName: objectDef.name,
-              referenceType: 'Object',
-              referenceName,
-              detail: 'Object Prerequisite references a missing object template.',
-            });
+      for (const parsed of parsePrerequisiteBlockReferences(prerequisiteBlock)) {
+        for (const referenceName of parsed.names) {
+          if (parsed.type === 'Object') {
+            objectPrerequisiteEdges += 1;
+            addGraphEdge(objectGraph, ownerName, referenceName);
+            if (!objectNames.has(referenceName)) {
+              missingReferences.push({
+                ownerType: 'Object',
+                ownerName: objectDef.name,
+                referenceType: 'Object',
+                referenceName,
+                detail: 'Object Prerequisite references a missing object template.',
+              });
+            }
+            continue;
           }
-          continue;
-        }
-        if (parsed.type === 'Science') {
-          sciencePrerequisiteEdges += 1;
-          if (!scienceNames.has(referenceName)) {
-            missingReferences.push({
-              ownerType: 'Object',
-              ownerName: objectDef.name,
-              referenceType: 'Science',
-              referenceName,
-              detail: 'Object Prerequisite references a missing science.',
-            });
+          if (parsed.type === 'Science') {
+            sciencePrerequisiteEdges += 1;
+            if (!scienceNames.has(referenceName)) {
+              missingReferences.push({
+                ownerType: 'Object',
+                ownerName: objectDef.name,
+                referenceType: 'Science',
+                referenceName,
+                detail: 'Object Prerequisite references a missing science.',
+              });
+            }
+            continue;
           }
-          continue;
-        }
-        if (parsed.type === 'Upgrade') {
-          upgradePrerequisiteEdges += 1;
-          if (!upgradeNames.has(referenceName)) {
-            missingReferences.push({
-              ownerType: 'Object',
-              ownerName: objectDef.name,
-              referenceType: 'Upgrade',
-              referenceName,
-              detail: 'Object Prerequisite references a missing upgrade.',
-            });
+          if (parsed.type === 'Upgrade') {
+            upgradePrerequisiteEdges += 1;
+            if (!upgradeNames.has(referenceName)) {
+              missingReferences.push({
+                ownerType: 'Object',
+                ownerName: objectDef.name,
+                referenceType: 'Upgrade',
+                referenceName,
+                detail: 'Object Prerequisite references a missing upgrade.',
+              });
+            }
           }
         }
       }
@@ -332,7 +349,7 @@ async function main(): Promise<void> {
   const objectCycles = detectCycles(objectGraph);
   const scienceCycles = detectCycles(scienceGraph);
 
-  const report: PrerequisiteChainReport = {
+  return {
     generatedAt: new Date().toISOString(),
     bundlePath,
     summary: {
@@ -352,6 +369,17 @@ async function main(): Promise<void> {
     objectCycles,
     scienceCycles,
   };
+}
+
+async function main(): Promise<void> {
+  const scriptPath = fileURLToPath(import.meta.url);
+  const projectRoot = path.resolve(path.dirname(scriptPath), '..');
+  const bundlePath = path.join(projectRoot, 'packages', 'app', 'public', 'assets', 'data', 'ini-bundle.json');
+  const outputPath = path.join(projectRoot, 'prerequisite-chain-report.json');
+
+  const bundleRaw = await fs.readFile(bundlePath, 'utf8');
+  const bundle = JSON.parse(bundleRaw) as IniDataBundle;
+  const report = buildPrerequisiteChainReport(bundle, bundlePath);
 
   await fs.writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 
@@ -369,4 +397,7 @@ async function main(): Promise<void> {
   ]);
 }
 
-await main();
+const invokedScriptPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
+if (invokedScriptPath === fileURLToPath(import.meta.url)) {
+  await main();
+}
