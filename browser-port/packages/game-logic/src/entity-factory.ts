@@ -5572,16 +5572,29 @@ export function extractTransitionDamageFXProfile(self: GL, objectDef: ObjectDef 
   const numStates = 4;
   const makeRows = (): TransitionDamageFXEntry[][] => Array.from({ length: numStates }, () => []);
 
-  let profile: TransitionDamageFXProfile | null = null;
+  const fxLists = makeRows();
+  const oclLists = makeRows();
+  const particleSystems = makeRows();
+  let damageFXTypes: TransitionDamageTypeFilter | null = null;
+  let damageOCLTypes: TransitionDamageTypeFilter | null = null;
+  let damageParticleTypes: TransitionDamageTypeFilter | null = null;
+  let hasEntries = false;
+
   const visitBlock = (block: IniBlock): void => {
-    if (profile) return;
     const blockType = block.type.toUpperCase();
     if (blockType === 'BEHAVIOR' || blockType === 'CLIENTUPDATE') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'TRANSITIONDAMAGEFX') {
-        const fxLists = makeRows();
-        const oclLists = makeRows();
-        const particleSystems = makeRows();
+        // Source parity: each TransitionDamageFX module instance has its own
+        // damage-type filters. The browser runtime flattens module instances
+        // into one profile, so attach the owning module's filter to each entry
+        // before merging the rows.
+        const blockDamageFXTypes = parseTransitionDamageTypeFilter(self.readIniFieldValue(block.fields, 'DamageFXTypes'));
+        const blockDamageOCLTypes = parseTransitionDamageTypeFilter(self.readIniFieldValue(block.fields, 'DamageOCLTypes'));
+        const blockDamageParticleTypes = parseTransitionDamageTypeFilter(self.readIniFieldValue(block.fields, 'DamageParticleTypes'));
+        damageFXTypes ??= blockDamageFXTypes;
+        damageOCLTypes ??= blockDamageOCLTypes;
+        damageParticleTypes ??= blockDamageParticleTypes;
 
         for (const [stateText, fieldNames] of Object.entries(TRANSITION_DAMAGE_FX_FIELD_NAMES_BY_STATE)) {
           const state = Number.parseInt(stateText, 10);
@@ -5590,28 +5603,24 @@ export function extractTransitionDamageFXProfile(self: GL, objectDef: ObjectDef 
             if (fieldValue === undefined) continue;
             if (fieldName.includes('FXList')) {
               const entry = parseTransitionDamageFXEntry(fieldValue as IniValue, 'FXLIST');
-              if (entry) fxLists[state]!.push(entry);
+              if (entry) {
+                fxLists[state]!.push({ ...entry, damageTypeFilter: blockDamageFXTypes });
+                hasEntries = true;
+              }
             } else if (fieldName.includes('OCL')) {
               const entry = parseTransitionDamageFXEntry(fieldValue as IniValue, 'OCL');
-              if (entry) oclLists[state]!.push(entry);
+              if (entry) {
+                oclLists[state]!.push({ ...entry, damageTypeFilter: blockDamageOCLTypes });
+                hasEntries = true;
+              }
             } else if (fieldName.includes('ParticleSystem')) {
               const entry = parseTransitionDamageFXEntry(fieldValue as IniValue, 'PSYS');
-              if (entry) particleSystems[state]!.push(entry);
+              if (entry) {
+                particleSystems[state]!.push({ ...entry, damageTypeFilter: blockDamageParticleTypes });
+                hasEntries = true;
+              }
             }
           }
-        }
-
-        const hasEntries = [fxLists, oclLists, particleSystems]
-          .some((rows) => rows.some((row) => row.length > 0));
-        if (hasEntries) {
-          profile = {
-            fxLists,
-            oclLists,
-            particleSystems,
-            damageFXTypes: parseTransitionDamageTypeFilter(self.readIniFieldValue(block.fields, 'DamageFXTypes')),
-            damageOCLTypes: parseTransitionDamageTypeFilter(self.readIniFieldValue(block.fields, 'DamageOCLTypes')),
-            damageParticleTypes: parseTransitionDamageTypeFilter(self.readIniFieldValue(block.fields, 'DamageParticleTypes')),
-          };
         }
       }
     }
@@ -5623,7 +5632,15 @@ export function extractTransitionDamageFXProfile(self: GL, objectDef: ObjectDef 
   for (const block of objectDef.blocks) {
     visitBlock(block);
   }
-  return profile;
+  if (!hasEntries) return null;
+  return {
+    fxLists,
+    oclLists,
+    particleSystems,
+    damageFXTypes,
+    damageOCLTypes,
+    damageParticleTypes,
+  };
 }
 
 export function extractSlowDeathProfiles(self: GL, objectDef: ObjectDef | undefined): SlowDeathProfile[] {

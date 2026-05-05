@@ -18,10 +18,13 @@ function makeTransitionDamageFXLogic(
   fields: Record<string, unknown>,
   extraObjects: ObjectDef[] = [],
   objectCreationLists: ObjectCreationListDef[] = [],
+  extraTransitionDamageFXModules: Record<string, unknown>[] = [],
 ) {
   const victimDef = makeObjectDef('VictimBuilding', 'America', ['STRUCTURE'], [
     makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
     makeBlock('Behavior', 'TransitionDamageFX ModuleTag_TDFX', fields),
+    ...extraTransitionDamageFXModules.map((moduleFields, index) =>
+      makeBlock('Behavior', `TransitionDamageFX ModuleTag_TDFX_${index + 2}`, moduleFields)),
   ]);
   const bundle = makeBundle({
     objects: [victimDef, ...extraObjects],
@@ -84,6 +87,51 @@ describe('TransitionDamageFX', () => {
     expect(logic.drainVisualEvents()).not.toContainEqual(expect.objectContaining({
       type: 'NAMED_FX',
       effectName: 'FX_FlameOnly',
+    }));
+  });
+
+  it('merges multiple TransitionDamageFX modules while preserving per-module filters', () => {
+    const logic = makeTransitionDamageFXLogic(
+      {
+        DamageFXTypes: ['FLAME'],
+        DamagedFXList1: ['Loc:', 'X:0', 'Y:0', 'Z:0', 'FXList:FX_FlameOnly'],
+      },
+      [],
+      [],
+      [{
+        DamagedParticleSystem1: ['Bone:Smoke', 'RandomBone:No', 'PSys:SmokeAnyDamage'],
+      }],
+    );
+
+    const internals = logic as unknown as {
+      spawnedEntities: Map<number, {
+        id: number;
+        transitionDamageFXProfile: {
+          fxLists: Array<Array<{ effectName: string }>>;
+          particleSystems: Array<Array<{ effectName: string }>>;
+        };
+      }>;
+      applyWeaponDamageAmount(sourceEntityId: number | null, target: unknown, amount: number, damageType: string): void;
+    };
+    const victim = internals.spawnedEntities.get(1)!;
+
+    expect(victim.transitionDamageFXProfile.fxLists[1]).toContainEqual(expect.objectContaining({
+      effectName: 'FX_FlameOnly',
+    }));
+    expect(victim.transitionDamageFXProfile.particleSystems[1]).toContainEqual(expect.objectContaining({
+      effectName: 'SmokeAnyDamage',
+    }));
+
+    internals.applyWeaponDamageAmount(null, victim, 60, 'SMALL_ARMS');
+
+    const events = logic.drainVisualEvents();
+    expect(events).not.toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_FlameOnly',
+    }));
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'NAMED_PARTICLE_SYSTEM',
+      effectName: 'SmokeAnyDamage',
     }));
   });
 

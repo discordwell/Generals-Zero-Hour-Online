@@ -6383,6 +6383,13 @@ interface TransitionDamageFXEntry {
   boneName: string | null;
   randomBone: boolean;
   loc: { x: number; y: number; z: number };
+  /**
+   * Source parity: every TransitionDamageFX module instance owns its damage-type
+   * filters. Extracted profiles flatten multiple module instances into shared
+   * rows, so new entries carry their original module filter here. Older save
+   * profiles may omit it and fall back to profile-level filters.
+   */
+  damageTypeFilter?: TransitionDamageTypeFilter | null;
 }
 
 /**
@@ -55633,8 +55640,8 @@ export class GameLogicSubsystem implements Subsystem {
     if (!profile || newState <= oldState) return;
 
     const fxEntries = profile.fxLists[newState] ?? [];
-    if (this.transitionDamageFXMatchesDamageType(profile.damageFXTypes, damageType)) {
-      for (const entry of fxEntries) {
+    for (const entry of fxEntries) {
+      if (this.transitionDamageFXEntryMatchesDamageType(entry, profile.damageFXTypes, damageType)) {
         const pos = this.transitionDamageFXWorldPosition(entity, entry);
         this.visualEventBuffer.push({
           type: 'NAMED_FX',
@@ -55650,16 +55657,16 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     const oclEntries = profile.oclLists[newState] ?? [];
-    if (this.transitionDamageFXMatchesDamageType(profile.damageOCLTypes, damageType)) {
-      for (const entry of oclEntries) {
+    for (const entry of oclEntries) {
+      if (this.transitionDamageFXEntryMatchesDamageType(entry, profile.damageOCLTypes, damageType)) {
         const pos = this.transitionDamageFXWorldPosition(entity, entry);
         this.executeTransitionDamageFXOCL(entity, entry.effectName, pos);
       }
     }
 
     const particleEntries = profile.particleSystems[newState] ?? [];
-    if (this.transitionDamageFXMatchesDamageType(profile.damageParticleTypes, damageType)) {
-      for (const entry of particleEntries) {
+    for (const entry of particleEntries) {
+      if (this.transitionDamageFXEntryMatchesDamageType(entry, profile.damageParticleTypes, damageType)) {
         const pos = this.transitionDamageFXWorldPosition(entity, entry);
         this.visualEventBuffer.push({
           type: 'NAMED_PARTICLE_SYSTEM',
@@ -55673,6 +55680,17 @@ export class GameLogicSubsystem implements Subsystem {
         });
       }
     }
+  }
+
+  private transitionDamageFXEntryMatchesDamageType(
+    entry: TransitionDamageFXEntry,
+    profileFilter: TransitionDamageTypeFilter | null,
+    damageType: string,
+  ): boolean {
+    const filter = Object.prototype.hasOwnProperty.call(entry, 'damageTypeFilter')
+      ? entry.damageTypeFilter ?? null
+      : profileFilter;
+    return this.transitionDamageFXMatchesDamageType(filter, damageType);
   }
 
   private transitionDamageFXMatchesDamageType(filter: TransitionDamageTypeFilter | null, damageType: string): boolean {

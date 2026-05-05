@@ -28,6 +28,7 @@ import {
   extractSlowDeathProfiles,
   extractStickyBombUpdateProfile,
   extractStructureCollapseProfile,
+  extractTransitionDamageFXProfile,
   extractUpgradeModulesFromBlocks,
 } from './entity-factory.js';
 import { extractFlightDeckProfile } from './flight-deck.js';
@@ -149,6 +150,21 @@ function* iterFieldUsages(moduleType: string, fieldName: string): Generator<{
       }
     }
   }
+}
+
+function transitionEffectName(value: unknown, effectKey: 'FXLIST' | 'PSYS'): string | null {
+  const tokens = splitTokens(value);
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i] ?? '';
+    const [rawKey, ...rest] = token.split(':');
+    const key = (rawKey ?? '').trim().toUpperCase();
+    if (key !== effectKey) continue;
+    const inlineValue = rest.join(':').trim();
+    if (inlineValue) return inlineValue;
+    const next = tokens[i + 1]?.trim();
+    if (next && !next.includes(':')) return next;
+  }
+  return null;
 }
 
 describe('session 2026-05-04 — bundle-wide scanner over touched fields', () => {
@@ -476,6 +492,49 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       }
     }
     expect(count).toBeGreaterThan(0);
+  });
+
+  it('TransitionDamageFX high-volume shipped fields flow through every retail user', () => {
+    const cases: Array<{
+      fieldName: string;
+      rowIndex: number;
+      profileKey: 'fxLists' | 'particleSystems';
+      effectKey: 'FXLIST' | 'PSYS';
+    }> = [
+      { fieldName: 'ReallyDamagedParticleSystem1', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'ReallyDamagedParticleSystem2', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'ReallyDamagedParticleSystem3', rowIndex: 2, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'ReallyDamagedFXList1', rowIndex: 2, profileKey: 'fxLists', effectKey: 'FXLIST' },
+      { fieldName: 'RubbleParticleSystem1', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'RubbleParticleSystem2', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'RubbleParticleSystem3', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
+      { fieldName: 'RubbleParticleSystem4', rowIndex: 3, profileKey: 'particleSystems', effectKey: 'PSYS' },
+    ];
+
+    for (const testCase of cases) {
+      let usageCount = 0;
+      for (const obj of bundle.objects ?? []) {
+        for (const block of obj.blocks ?? []) {
+          const moduleType = (block.name ?? '').split(/\s+/)[0];
+          if (moduleType !== 'TransitionDamageFX') continue;
+          const fields = block.fields ?? {};
+          if (!(testCase.fieldName in fields)) continue;
+          usageCount++;
+
+          const expectedEffectName = transitionEffectName(fields[testCase.fieldName], testCase.effectKey);
+          expect(expectedEffectName, `${testCase.fieldName} has no effect token on ${obj.name}`).toBeTruthy();
+
+          const profile = extractTransitionDamageFXProfile(makeSelfStub(), obj as never);
+          expect(profile, `TransitionDamageFXProfile null on ${obj.name}`).not.toBeNull();
+          const row = profile![testCase.profileKey][testCase.rowIndex] ?? [];
+          expect(
+            row.map((entry) => entry.effectName),
+            `${testCase.fieldName} missing ${expectedEffectName} on ${obj.name}`,
+          ).toContain(expectedEffectName);
+        }
+      }
+      expect(usageCount, `expected retail users for ${testCase.fieldName}`).toBeGreaterThan(0);
+    }
   });
 
   it('BoneFXUpdate particle systems decode for every retail user (was silently dropped)', () => {

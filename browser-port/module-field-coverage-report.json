@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-05T14:46:08.875Z",
+  "generatedAt": "2026-05-05T14:53:27.860Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -30,431 +30,11 @@
     "sourceKnownGameplayReferencedIniModuleFields": 1120,
     "sourceKnownFieldGaps": 0,
     "sourceUnknownIniModuleFields": 0,
-    "sourceKnownUntestedRuntimeFields": 102
+    "sourceKnownUntestedRuntimeFields": 93
   },
   "sourceKnownFieldGaps": [],
   "sourceUnknownIniModuleFields": [],
   "untestedRuntimeFieldSignals": [
-    {
-      "moduleType": "TRANSITIONDAMAGEFX",
-      "fieldName": "ReallyDamagedParticleSystem1",
-      "normalizedFieldName": "REALLYDAMAGEDPARTICLESYSTEM1",
-      "iniUsageCount": 666,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04",
-        "ModuleTag_05",
-        "ModuleTag_06",
-        "ModuleTag_07",
-        "ModuleTag_08",
-        "ModuleTag_09",
-        "ModuleTag_10",
-        "ModuleTag_11",
-        "ModuleTag_12",
-        "ModuleTag_13",
-        "ModuleTag_14",
-        "ModuleTag_15",
-        "ModuleTag_16",
-        "ModuleTag_17",
-        "ModuleTag_18",
-        "ModuleTag_19",
-        "ModuleTag_20",
-        "ModuleTag_22",
-        "ModuleTag_23",
-        "ModuleTag_24",
-        "ModuleTag_25",
-        "ModuleTag_26",
-        "ModuleTag_31",
-        "ModuleTag_36"
-      ],
-      "exampleObjectNames": [
-        "AFG_AmericaVehicleChinook",
-        "AirF_AmericaAirfield",
-        "AirF_AmericaBarracks",
-        "AirF_AmericaCommandCenter",
-        "AirF_AmericaFireBase"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "TransitionDamageFXModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P0"
-    },
-    {
-      "moduleType": "TRANSITIONDAMAGEFX",
-      "fieldName": "ReallyDamagedParticleSystem2",
-      "normalizedFieldName": "REALLYDAMAGEDPARTICLESYSTEM2",
-      "iniUsageCount": 425,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04",
-        "ModuleTag_05",
-        "ModuleTag_06",
-        "ModuleTag_07",
-        "ModuleTag_08",
-        "ModuleTag_09",
-        "ModuleTag_10",
-        "ModuleTag_12",
-        "ModuleTag_13",
-        "ModuleTag_14",
-        "ModuleTag_15",
-        "ModuleTag_16",
-        "ModuleTag_17",
-        "ModuleTag_18",
-        "ModuleTag_20",
-        "ModuleTag_23",
-        "ModuleTag_24",
-        "ModuleTag_25",
-        "ModuleTag_31"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaAirfield",
-        "AirF_AmericaBarracks",
-        "AirF_AmericaCommandCenter",
-        "AirF_AmericaFireBase",
-        "AirF_AmericaParticleCannonUplink"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "TransitionDamageFXModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P0"
-    },
-    {
-      "moduleType": "TRANSITIONDAMAGEFX",
-      "fieldName": "ReallyDamagedParticleSystem3",
-      "normalizedFieldName": "REALLYDAMAGEDPARTICLESYSTEM3",
-      "iniUsageCount": 417,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04",
-        "ModuleTag_05",
-        "ModuleTag_06",
-        "ModuleTag_07",
-        "ModuleTag_08",
-        "ModuleTag_09",
-        "ModuleTag_10",
-        "ModuleTag_12",
-        "ModuleTag_13",
-        "ModuleTag_14",
-        "ModuleTag_15",
-        "ModuleTag_16",
-        "ModuleTag_17",
-        "ModuleTag_18",
-        "ModuleTag_20",
-        "ModuleTag_23",
-        "ModuleTag_24",
-        "ModuleTag_25",
-        "ModuleTag_31"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaAirfield",
-        "AirF_AmericaBarracks",
-        "AirF_AmericaCommandCenter",
-        "AirF_AmericaFireBase",
-        "AirF_AmericaParticleCannonUplink"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "TransitionDamageFXModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P0"
-    },
-    {
-      "moduleType": "TRANSITIONDAMAGEFX",
-      "fieldName": "ReallyDamagedFXList1",
-      "normalizedFieldName": "REALLYDAMAGEDFXLIST1",
-      "iniUsageCount": 275,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_06",
-        "ModuleTag_07",
-        "ModuleTag_08",
-        "ModuleTag_09",
-        "ModuleTag_10",
-        "ModuleTag_11",
-        "ModuleTag_12",
-        "ModuleTag_13",
-        "ModuleTag_14",
-        "ModuleTag_15",
-        "ModuleTag_17",
-        "ModuleTag_18",
-        "ModuleTag_19",
-        "ModuleTag_22",
-        "ModuleTag_26",
-        "ModuleTag_31",
-        "ModuleTag_36"
-      ],
-      "exampleObjectNames": [
-        "AFG_AmericaVehicleChinook",
-        "AirF_AmericaJetAurora",
-        "AirF_AmericaJetB3",
-        "AirF_AmericaJetB52",
-        "AirF_AmericaJetCargoPlane"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "TransitionDamageFXModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P0"
-    },
-    {
-      "moduleType": "TRANSITIONDAMAGEFX",
-      "fieldName": "RubbleParticleSystem1",
-      "normalizedFieldName": "RUBBLEPARTICLESYSTEM1",
-      "iniUsageCount": 209,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04",
-        "ModuleTag_05",
-        "ModuleTag_06",
-        "ModuleTag_07",
-        "ModuleTag_10"
-      ],
-      "exampleObjectNames": [
-        "AirfieldHanger01",
-        "AirfieldHanger02",
-        "AmericanAirport02",
-        "AmericanDriveInEntrance",
-        "AmericanDriveInScreen"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "TransitionDamageFXModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P0"
-    },
-    {
-      "moduleType": "TRANSITIONDAMAGEFX",
-      "fieldName": "RubbleParticleSystem2",
-      "normalizedFieldName": "RUBBLEPARTICLESYSTEM2",
-      "iniUsageCount": 194,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04",
-        "ModuleTag_05",
-        "ModuleTag_06",
-        "ModuleTag_07",
-        "ModuleTag_10"
-      ],
-      "exampleObjectNames": [
-        "AirfieldHanger01",
-        "AirfieldHanger02",
-        "AmericanAirport02",
-        "AmericanDriveInEntrance",
-        "AmericanDriveInScreen"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "TransitionDamageFXModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P0"
-    },
-    {
-      "moduleType": "TRANSITIONDAMAGEFX",
-      "fieldName": "RubbleParticleSystem3",
-      "normalizedFieldName": "RUBBLEPARTICLESYSTEM3",
-      "iniUsageCount": 194,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04",
-        "ModuleTag_05",
-        "ModuleTag_06",
-        "ModuleTag_07",
-        "ModuleTag_10"
-      ],
-      "exampleObjectNames": [
-        "AirfieldHanger01",
-        "AirfieldHanger02",
-        "AmericanAirport02",
-        "AmericanDriveInEntrance",
-        "AmericanDriveInScreen"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "TransitionDamageFXModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P0"
-    },
-    {
-      "moduleType": "TRANSITIONDAMAGEFX",
-      "fieldName": "RubbleParticleSystem4",
-      "normalizedFieldName": "RUBBLEPARTICLESYSTEM4",
-      "iniUsageCount": 194,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04",
-        "ModuleTag_05",
-        "ModuleTag_06",
-        "ModuleTag_07",
-        "ModuleTag_10"
-      ],
-      "exampleObjectNames": [
-        "AirfieldHanger01",
-        "AirfieldHanger02",
-        "AmericanAirport02",
-        "AmericanDriveInEntrance",
-        "AmericanDriveInScreen"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "TransitionDamageFXModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DamageModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/TransitionDamageFX.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P0"
-    },
     {
       "moduleType": "GENERATEMINEFIELDBEHAVIOR",
       "fieldName": "AlwaysCircular",
@@ -3385,44 +2965,6 @@
       "priority": "P2"
     },
     {
-      "moduleType": "BONEFXUPDATE",
-      "fieldName": "RubbleParticleSystem1",
-      "normalizedFieldName": "RUBBLEPARTICLESYSTEM1",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_05"
-      ],
-      "exampleObjectNames": [
-        "MogadishuTower04",
-        "MogadishuTower05"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "BoneFXUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BoneFXUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BoneFXUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
       "moduleType": "FIRESTORMDYNAMICGEOMETRYINFOUPDATE",
       "fieldName": "ScorchSize",
       "normalizedFieldName": "SCORCHSIZE",
@@ -5922,8 +5464,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P0"
     },
     {
@@ -6264,8 +5808,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P0"
     },
     {
@@ -6323,8 +5869,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P0"
     },
     {
@@ -6907,8 +6455,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P0"
     },
     {
@@ -7231,8 +6781,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P0"
     },
     {
@@ -7786,8 +7338,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P0"
     },
     {
@@ -7831,8 +7385,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P0"
     },
     {
@@ -7876,8 +7432,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P0"
     },
     {
@@ -59815,8 +59373,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
