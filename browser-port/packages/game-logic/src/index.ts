@@ -4380,8 +4380,12 @@ export interface MapEntity {
   fireWeaponCollideEverFired: boolean[];
 
   // ── Source parity: EjectPilotDie — pilot eject on death ──
-  /** Template name of pilot unit to eject on death. Null = no eject. */
+  /** Legacy save field: OCL name previously stored as a template name. Null = no eject. */
   ejectPilotTemplateName: string | null;
+  /** Source parity: EjectPilotDieModuleData::m_oclOnGround. */
+  ejectPilotGroundCreationListName: string | null;
+  /** Source parity: EjectPilotDieModuleData::m_oclInAir. */
+  ejectPilotAirCreationListName: string | null;
   /** Minimum veterancy level to eject (default 1 = VETERAN). */
   ejectPilotMinVeterancy: number;
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-05T15:23:03.626Z",
+  "generatedAt": "2026-05-05T15:35:01.827Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -30,187 +30,11 @@
     "sourceKnownGameplayReferencedIniModuleFields": 1120,
     "sourceKnownFieldGaps": 0,
     "sourceUnknownIniModuleFields": 0,
-    "sourceKnownUntestedRuntimeFields": 4
+    "sourceKnownUntestedRuntimeFields": 0
   },
   "sourceKnownFieldGaps": [],
   "sourceUnknownIniModuleFields": [],
-  "untestedRuntimeFieldSignals": [
-    {
-      "moduleType": "EJECTPILOTDIE",
-      "fieldName": "AirCreationList",
-      "normalizedFieldName": "AIRCREATIONLIST",
-      "iniUsageCount": 48,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04",
-        "ModuleTag_06",
-        "ModuleTag_13",
-        "ModuleTag_16",
-        "ModuleTag_17"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaJetAurora",
-        "AirF_AmericaJetRaptor",
-        "AirF_AmericaJetStealthFighter",
-        "AirF_AmericaTankAvenger",
-        "AirF_AmericaTankMicrowave"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "EjectPilotDieModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DieModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/EjectPilotDie.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/EjectPilotDie.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DieModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/EjectPilotDie.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/EjectPilotDie.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/app/src/main.ts",
-        "packages/game-logic/src/entity-factory.ts",
-        "packages/game-logic/src/entity-lifecycle.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P1"
-    },
-    {
-      "moduleType": "EJECTPILOTDIE",
-      "fieldName": "GroundCreationList",
-      "normalizedFieldName": "GROUNDCREATIONLIST",
-      "iniUsageCount": 48,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04",
-        "ModuleTag_06",
-        "ModuleTag_13",
-        "ModuleTag_16",
-        "ModuleTag_17"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaJetAurora",
-        "AirF_AmericaJetRaptor",
-        "AirF_AmericaJetStealthFighter",
-        "AirF_AmericaTankAvenger",
-        "AirF_AmericaTankMicrowave"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "EjectPilotDieModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DieModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/EjectPilotDie.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/EjectPilotDie.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DieModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/EjectPilotDie.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/EjectPilotDie.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts",
-        "packages/game-logic/src/entity-lifecycle.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P1"
-    },
-    {
-      "moduleType": "SABOTAGEMILITARYFACTORYCRATECOLLIDE",
-      "fieldName": "SabotageDuration",
-      "normalizedFieldName": "SABOTAGEDURATION",
-      "iniUsageCount": 3,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [],
-      "exampleObjectNames": [
-        "Demo_GLAInfantrySaboteur",
-        "GLAInfantrySaboteur",
-        "Slth_GLAInfantrySaboteur"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SabotageMilitaryFactoryCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SabotageMilitaryFactoryCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/index.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "SABOTAGEINTERNETCENTERCRATECOLLIDE",
-      "fieldName": "SabotageDuration",
-      "normalizedFieldName": "SABOTAGEDURATION",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [],
-      "exampleObjectNames": [
-        "GLAInfantrySaboteur"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SabotageInternetCenterCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SabotageInternetCenterCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/index.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    }
-  ],
+  "untestedRuntimeFieldSignals": [],
   "rows": [
     {
       "moduleType": "SLOWDEATHBEHAVIOR",
@@ -662,6 +486,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -862,6 +687,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -2167,6 +1993,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -2372,6 +2199,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -9602,8 +9430,10 @@
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/entity-lifecycle.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P1"
     },
     {
@@ -9708,8 +9538,10 @@
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/entity-lifecycle.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P1"
     },
     {
@@ -11321,6 +11153,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -11519,6 +11352,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -17690,6 +17524,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -17889,6 +17724,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -24888,6 +24724,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -25085,6 +24922,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -27275,6 +27113,7 @@
         "packages/game-logic/src/containment-save-state.test.ts",
         "packages/game-logic/src/defector-undetected-runtime.test.ts",
         "packages/game-logic/src/deterministic-crc.test.ts",
+        "packages/game-logic/src/entity-lifecycle.test.ts",
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/gameplay-loop.test.ts",
         "packages/game-logic/src/index.test.ts",
@@ -41388,6 +41227,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -41583,6 +41423,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -54455,8 +54296,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/index.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/sabotage-building-profile.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -61843,8 +61686,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/index.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/sabotage-building-profile.test.ts"
+      ],
       "priority": "P2"
     },
     {

@@ -118,6 +118,7 @@ export function createMapEntity(self: GL,
   const parkingPlaceProfile = self.extractParkingPlaceProfile(objectDef);
   const flightDeckProfile = self.extractFlightDeckProfile(objectDef);
   const containProfile = extractContainProfile(self, objectDef);
+  const ejectPilotCreationLists = extractEjectPilotCreationListNames(self, objectDef);
   const createModuleStates = extractCreateModuleStates(objectDef);
   const radiusDecalModuleStates = extractRadiusDecalModuleStates(objectDef);
   const riderChangeContainProfile = extractRiderChangeContainProfile(self, objectDef);
@@ -668,7 +669,11 @@ export function createMapEntity(self: GL,
     mineIgnoreDamage: false,
     mineCreatorId: 0,
     // Pilot eject
-    ejectPilotTemplateName: extractEjectPilotTemplateName(self, objectDef),
+    ejectPilotTemplateName: ejectPilotCreationLists.groundCreationListName
+      ?? ejectPilotCreationLists.airCreationListName
+      ?? extractEjectPilotTemplateName(self, objectDef),
+    ejectPilotGroundCreationListName: ejectPilotCreationLists.groundCreationListName,
+    ejectPilotAirCreationListName: ejectPilotCreationLists.airCreationListName,
     ejectPilotMinVeterancy: 1,
     // Prone behavior
     proneDamageToFramesRatio: extractProneDamageToFramesRatio(self, objectDef),
@@ -6796,6 +6801,35 @@ export function extractMinefieldProfile(self: GL, objectDef: ObjectDef | undefin
   return profile;
 }
 
+export function extractEjectPilotCreationListNames(self: GL, objectDef: ObjectDef | undefined): {
+  groundCreationListName: string | null;
+  airCreationListName: string | null;
+} {
+  const result = {
+    groundCreationListName: null as string | null,
+    airCreationListName: null as string | null,
+  };
+  if (!objectDef) return result;
+  const visitBlock = (block: IniBlock): void => {
+    if (result.groundCreationListName !== null || result.airCreationListName !== null) return;
+    const blockType = block.type.toUpperCase();
+    if (blockType === 'BEHAVIOR' || blockType === 'DIE') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'EJECTPILOTDIE') {
+        result.groundCreationListName = readStringField(block.fields, ['GroundCreationList']);
+        result.airCreationListName = readStringField(block.fields, ['AirCreationList']);
+      }
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+  if (objectDef.blocks) {
+    for (const block of objectDef.blocks) visitBlock(block);
+  }
+  return result;
+}
+
 export function extractEjectPilotTemplateName(self: GL, objectDef: ObjectDef | undefined): string | null {
   if (!objectDef) return null;
   let pilotName: string | null = null;
@@ -6804,13 +6838,9 @@ export function extractEjectPilotTemplateName(self: GL, objectDef: ObjectDef | u
     const blockType = block.type.toUpperCase();
     if (blockType === 'BEHAVIOR' || blockType === 'DIE') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType === 'EJECTPILOTDIE' || moduleType === 'HELICOPTERSLOWDEATHBEHAVIOR') {
-        // Look for OCLEjectPilot or CreationList fields that reference an OCL containing the pilot
-        const oclName = readStringField(block.fields, ['GroundCreationList', 'AirCreationList', 'OCLEjectPilot']);
+      if (moduleType === 'HELICOPTERSLOWDEATHBEHAVIOR') {
+        const oclName = readStringField(block.fields, ['OCLEjectPilot']);
         if (oclName) {
-          // Resolve the OCL to find the pilot unit template name.
-          // For now, use a convention-based approach:
-          // Most EjectPilot OCLs create an infantry pilot unit like 'AmericaPilot' or 'ChinaPilot'.
           pilotName = oclName;
         }
       }

@@ -19,6 +19,7 @@ import {
   extractContainProfile,
   extractCrateCollideProfile,
   extractDemoTrapProfile,
+  extractEjectPilotCreationListNames,
   extractEmpUpdateProfile,
   extractFirestormDamageProfile,
   extractFXListDieProfiles,
@@ -600,6 +601,22 @@ describe('session 2026-05-04 — bundle-wide scanner over touched fields', () =>
       for (const token of splitTokens(bundleValue).map((value) => value.toUpperCase())) {
         expect(doesNotAffect, `DoesNotAffect missing ${token} on ${obj.name}`).toContain(token);
       }
+    }
+  });
+
+  it('EjectPilotDie Air/GroundCreationList flow through every retail user', () => {
+    const groundUsages = [...iterFieldUsages('EjectPilotDie', 'GroundCreationList')];
+    const airUsages = [...iterFieldUsages('EjectPilotDie', 'AirCreationList')];
+    expect(groundUsages.length).toBeGreaterThan(0);
+    expect(airUsages.length).toBeGreaterThan(0);
+
+    for (const { obj, bundleValue } of groundUsages) {
+      const profile = extractEjectPilotCreationListNames(makeSelfStub(), obj as never);
+      expect(profile.groundCreationListName, `GroundCreationList mismatch on ${obj.name}`).toBe(bundleValue);
+    }
+    for (const { obj, bundleValue } of airUsages) {
+      const profile = extractEjectPilotCreationListNames(makeSelfStub(), obj as never);
+      expect(profile.airCreationListName, `AirCreationList mismatch on ${obj.name}`).toBe(bundleValue);
     }
   });
 });

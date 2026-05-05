@@ -13,6 +13,7 @@ import { readBooleanField, readStringField } from './ini-readers.js';
 import {
   RELATIONSHIP_ALLIES,
   LOGIC_FRAME_RATE,
+  SIGNIFICANTLY_ABOVE_TERRAIN_THRESHOLD,
   SLOW_DEATH_BEGIN_MIDPOINT_RATIO,
   SLOW_DEATH_END_MIDPOINT_RATIO,
   HELICOPTER_GRAVITY,
@@ -1587,49 +1588,31 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
 }
 
 export function tryEjectPilotOnDeath(self: GL, entity: MapEntity): void {
-  if (!entity.ejectPilotTemplateName) return;
+  const groundOCLName = entity.ejectPilotGroundCreationListName ?? entity.ejectPilotTemplateName ?? null;
+  const airOCLName = entity.ejectPilotAirCreationListName ?? entity.ejectPilotTemplateName ?? null;
+  if (!groundOCLName && !airOCLName) return;
   if (entity.category !== 'vehicle' && entity.category !== 'air') return;
 
   // Source parity: Only VETERAN or higher eject a pilot.
   const vetLevel = entity.experienceState.currentLevel;
   if (vetLevel < entity.ejectPilotMinVeterancy) return;
 
-  // Try to resolve the pilot unit template. The ejectPilotTemplateName
-  // may be an OCL name rather than a direct unit template. Try to find
-  // a matching infantry template first, falling back to a side-specific pilot.
-  const registry = self.iniDataRegistry;
-  if (!registry) return;
+  const terrainY = typeof self.resolveGroundHeight === 'function'
+    ? self.resolveGroundHeight(entity.x, entity.z)
+    : self.mapHeightmap?.getInterpolatedHeight(entity.x, entity.z) ?? 0;
+  const significantlyAboveTerrain =
+    (entity.y - entity.baseHeight - terrainY) > SIGNIFICANTLY_ABOVE_TERRAIN_THRESHOLD;
+  const selectedOCLName = significantlyAboveTerrain ? airOCLName : groundOCLName;
+  if (!selectedOCLName || typeof self.executeOCL !== 'function') return;
 
-  // Convention: look for the OCL name as an object template first.
-  // If not found, try side-prefixed variants (e.g., AmericaPilot, ChinaPilot).
-  let pilotTemplateName = entity.ejectPilotTemplateName;
-  let pilotDef = findObjectDefByName(registry, pilotTemplateName);
-  if (!pilotDef && entity.side) {
-    // Try conventional pilot name: <Side>Pilot (e.g., AmericaPilot)
-    const sidePilot = entity.side + 'Pilot';
-    pilotDef = findObjectDefByName(registry, sidePilot);
-    if (pilotDef) pilotTemplateName = sidePilot;
-  }
-  if (!pilotDef) {
-    // Try generic Pilot template
-    pilotDef = findObjectDefByName(registry, 'Pilot');
-    if (pilotDef) pilotTemplateName = 'Pilot';
-  }
-  if (!pilotDef) return;
+  self.executeOCL(selectedOCLName, entity, undefined, entity.x, entity.z);
 
-  // Spawn the pilot at the vehicle's position.
-  const pilotEntity = self.spawnEntityFromTemplate(
-    pilotTemplateName,
-    entity.x,
-    entity.z,
-    entity.rotationY,
-    entity.side,
-  );
-  if (!pilotEntity) return;
-
-  // Inherit veterancy.
-  if (pilotEntity.experienceProfile) {
-    pilotEntity.experienceState.currentLevel = vetLevel;
+  const objectDef = typeof self.resolveObjectDefByTemplateName === 'function'
+    ? self.resolveObjectDefByTemplateName(entity.templateName)
+    : undefined;
+  if (objectDef) {
+    playEntitySound(self, entity, readStringField(objectDef.fields ?? {}, ['VoiceEject']));
+    playEntitySound(self, entity, readStringField(objectDef.fields ?? {}, ['SoundEject']));
   }
 }
 

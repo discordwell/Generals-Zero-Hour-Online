@@ -5,6 +5,9 @@ import type { ObjectDef } from '@generals/ini-data';
 
 import { createEmptySourceMapEntitySaveState, GameLogicSubsystem } from './index.js';
 import {
+  tryEjectPilotOnDeath,
+} from './entity-lifecycle.js';
+import {
   makeBlock,
   makeObjectDef,
   makeWeaponDef,
@@ -23,6 +26,51 @@ import {
   makeMapObject,
   makeInputState,
 } from './test-helpers.js';
+
+describe('EjectPilotDie', () => {
+  function makeEjectSelf() {
+    const executed: Array<{ name: string; x: number; z: number }> = [];
+    return {
+      executed,
+      resolveGroundHeight: () => 0,
+      executeOCL: (name: string, _source: unknown, _frames: unknown, x: number, z: number) => {
+        executed.push({ name, x, z });
+      },
+    };
+  }
+
+  function makeEjectEntity(y: number) {
+    return {
+      id: 1,
+      templateName: 'AmericaJetRaptor',
+      category: 'air',
+      x: 64,
+      y,
+      z: 96,
+      baseHeight: 0,
+      side: 'America',
+      experienceState: { currentLevel: 1 },
+      ejectPilotTemplateName: null,
+      ejectPilotGroundCreationListName: 'OCL_EjectPilotOnGround',
+      ejectPilotAirCreationListName: 'OCL_EjectPilotViaParachute',
+      ejectPilotMinVeterancy: 1,
+    };
+  }
+
+  it('executes GroundCreationList when the dying object is not significantly airborne', () => {
+    const self = makeEjectSelf();
+    tryEjectPilotOnDeath(self as never, makeEjectEntity(0) as never);
+
+    expect(self.executed).toEqual([{ name: 'OCL_EjectPilotOnGround', x: 64, z: 96 }]);
+  });
+
+  it('executes AirCreationList when the dying object is significantly above terrain', () => {
+    const self = makeEjectSelf();
+    tryEjectPilotOnDeath(self as never, makeEjectEntity(20) as never);
+
+    expect(self.executed).toEqual([{ name: 'OCL_EjectPilotViaParachute', x: 64, z: 96 }]);
+  });
+});
 
 describe('slow death behavior', () => {
   function makeSlowDeathBundle(slowDeathFields: Record<string, unknown> = {}) {

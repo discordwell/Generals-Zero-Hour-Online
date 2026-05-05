@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 67;
+const ENTITY_XFER_VERSION = 68;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2296,6 +2296,13 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
 
   // ── Eject Pilot ──
   e.ejectPilotTemplateName = xferNullableString(xfer, e.ejectPilotTemplateName as string | null);
+  if (version >= 68) {
+    e.ejectPilotGroundCreationListName = xferNullableString(xfer, e.ejectPilotGroundCreationListName as string | null);
+    e.ejectPilotAirCreationListName = xferNullableString(xfer, e.ejectPilotAirCreationListName as string | null);
+  } else {
+    e.ejectPilotGroundCreationListName = e.ejectPilotTemplateName as string | null;
+    e.ejectPilotAirCreationListName = e.ejectPilotTemplateName as string | null;
+  }
   e.ejectPilotMinVeterancy = xfer.xferInt(e.ejectPilotMinVeterancy as number);
 
   // ── Prone ──

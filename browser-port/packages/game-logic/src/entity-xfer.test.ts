@@ -379,6 +379,8 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
 
     // Eject
     ejectPilotTemplateName: null,
+    ejectPilotGroundCreationListName: null,
+    ejectPilotAirCreationListName: null,
     ejectPilotMinVeterancy: 1,
 
     // Prone
