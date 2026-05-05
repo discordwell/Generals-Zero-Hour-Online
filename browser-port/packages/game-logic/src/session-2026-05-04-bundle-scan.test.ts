@@ -18,7 +18,9 @@ import {
   extractBoneFXProfile,
   extractContainProfile,
   extractCrateCollideProfile,
+  extractDemoTrapProfile,
   extractEmpUpdateProfile,
+  extractFirestormDamageProfile,
   extractFXListDieProfiles,
   extractGenerateMinefieldProfile,
   extractIniValueTokens,
@@ -33,9 +35,12 @@ import {
   extractStructureCollapseProfile,
   extractTransitionDamageFXProfile,
   extractUpgradeModulesFromBlocks,
+  extractWaveGuideProfile,
 } from './entity-factory.js';
-import { extractJetSlowDeathProfiles } from './aircraft-ai.js';
+import { extractChinookAIProfile, extractJetSlowDeathProfiles } from './aircraft-ai.js';
 import { extractFlightDeckProfile } from './flight-deck.js';
+import { extractSlavedUpdateProfile } from './spawner-behavior.js';
+import { extractFireWhenDamagedProfiles } from './status-effects.js';
 import { LOGIC_FRAME_RATE } from './index.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -52,6 +57,10 @@ interface BundleBlock {
   blocks?: BundleBlock[];
 }
 const bundle = JSON.parse(readFileSync(BUNDLE_PATH, 'utf-8')) as { objects?: BundleObject[] };
+
+function moduleTagOf(block: BundleBlock): string | null {
+  return (block.name ?? '').split(/\s+/)[1]?.trim().toUpperCase() ?? null;
+}
 
 function splitTokens(value: unknown): string[] {
   if (typeof value === 'string') {
@@ -146,14 +155,24 @@ function* iterFieldUsages(moduleType: string, fieldName: string): Generator<{
   block: BundleBlock;
   bundleValue: unknown;
 }> {
-  for (const obj of bundle.objects ?? []) {
-    for (const block of obj.blocks ?? []) {
+  function* visitBlocks(obj: BundleObject, blocks: BundleBlock[]): Generator<{
+    obj: BundleObject;
+    block: BundleBlock;
+    bundleValue: unknown;
+  }> {
+    for (const block of blocks) {
       const parts = (block.name ?? '').split(/\s+/);
-      if (parts[0]?.toUpperCase() !== moduleType.toUpperCase()) continue;
-      if (block.fields && fieldName in block.fields) {
+      if (parts[0]?.toUpperCase() === moduleType.toUpperCase() && block.fields && fieldName in block.fields) {
         yield { obj, block, bundleValue: block.fields[fieldName] };
       }
+      if (block.blocks) {
+        yield* visitBlocks(obj, block.blocks);
+      }
     }
+  }
+
+  for (const obj of bundle.objects ?? []) {
+    yield* visitBlocks(obj, obj.blocks ?? []);
   }
 }
 
@@ -402,6 +421,186 @@ describe('session 2026-05-04 — bundle-wide scanner over touched fields', () =>
       }
     }
     expect(checked, 'expected shipped NeutronMissileSlowDeathBehavior blast fields').toBeGreaterThan(0);
+  });
+
+  it('SlavedUpdate StayOnSameLayerAsMaster parses retail bool values', () => {
+    const usages = [...iterFieldUsages('SlavedUpdate', 'StayOnSameLayerAsMaster')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, bundleValue } of usages) {
+      const profile = extractSlavedUpdateProfile(makeSelfStub(), obj as never);
+      expect(profile, `SlavedUpdateProfile null for ${obj.name}`).not.toBeNull();
+      expect(profile!.stayOnSameLayerAsMaster, `StayOnSameLayerAsMaster mismatch on ${obj.name}`)
+        .toBe(bundleValue === true);
+    }
+  });
+
+  it('RiderChangeContain BurnedDeathToUnits flows through every retail user', () => {
+    const usages = [...iterFieldUsages('RiderChangeContain', 'BurnedDeathToUnits')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, bundleValue } of usages) {
+      const profile = extractContainProfile(makeSelfStub(), obj as never);
+      expect(profile, `ContainProfile null for ${obj.name}`).not.toBeNull();
+      expect(profile!.burnedDeathToUnits, `BurnedDeathToUnits mismatch on ${obj.name}`).toBe(bundleValue);
+    }
+  });
+
+  it('ChinookAIUpdate rope geometry fields flow through every retail user', () => {
+    const ropeFinalHeightUsages = [...iterFieldUsages('ChinookAIUpdate', 'RopeFinalHeight')];
+    const ropeWobbleRateUsages = [...iterFieldUsages('ChinookAIUpdate', 'RopeWobbleRate')];
+    expect(ropeFinalHeightUsages.length).toBeGreaterThan(0);
+    expect(ropeWobbleRateUsages.length).toBeGreaterThan(0);
+
+    for (const { obj, bundleValue } of ropeFinalHeightUsages) {
+      const profile = extractChinookAIProfile(makeSelfStub(), obj as never);
+      expect(profile, `ChinookAIProfile null for ${obj.name}`).not.toBeNull();
+      expect(profile!.ropeFinalHeight, `RopeFinalHeight mismatch on ${obj.name}`).toBe(bundleValue);
+    }
+    for (const { obj, bundleValue } of ropeWobbleRateUsages) {
+      const profile = extractChinookAIProfile(makeSelfStub(), obj as never);
+      expect(profile, `ChinookAIProfile null for ${obj.name}`).not.toBeNull();
+      const expected = (Number(bundleValue) * Math.PI / 180) / LOGIC_FRAME_RATE;
+      expect(profile!.ropeWobbleRate, `RopeWobbleRate mismatch on ${obj.name}`).toBeCloseTo(expected, 10);
+    }
+  });
+
+  it('CleanupAreaPower MaxMoveDistanceFromLocation flows through every retail module', () => {
+    const usages = [...iterFieldUsages('CleanupAreaPower', 'MaxMoveDistanceFromLocation')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, block, bundleValue } of usages) {
+      const templateName = splitTokens(block.fields?.SpecialPowerTemplate)[0]?.toUpperCase() ?? '';
+      expect(templateName, `CleanupAreaPower missing SpecialPowerTemplate on ${obj.name}`).toBeTruthy();
+      const module = extractSpecialPowerModules(makeSelfStub(), obj as never).get(templateName);
+      expect(module, `CleanupAreaPower module ${templateName} missing on ${obj.name}`).toBeDefined();
+      expect(module!.cleanupMoveRange, `MaxMoveDistanceFromLocation mismatch on ${obj.name}`).toBe(bundleValue);
+    }
+  });
+
+  it('DemoTrapUpdate IgnoreTargetTypes flows through every retail user', () => {
+    const usages = [...iterFieldUsages('DemoTrapUpdate', 'IgnoreTargetTypes')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, bundleValue } of usages) {
+      const profile = extractDemoTrapProfile(makeSelfStub(), obj as never);
+      expect(profile, `DemoTrapProfile null for ${obj.name}`).not.toBeNull();
+      for (const token of splitTokens(bundleValue).map((value) => value.toUpperCase())) {
+        expect(profile!.ignoreKindOf, `IgnoreTargetTypes missing ${token} on ${obj.name}`).toContain(token);
+      }
+    }
+  });
+
+  it('FireWeaponWhenDamagedBehavior really-damaged weapon slots flow through every retail user', () => {
+    const cases: Array<{
+      fieldName: 'ReactionWeaponReallyDamaged' | 'ContinuousWeaponReallyDamaged';
+      profileKey: 'reactionWeapons' | 'continuousWeapons';
+    }> = [
+      { fieldName: 'ReactionWeaponReallyDamaged', profileKey: 'reactionWeapons' },
+      { fieldName: 'ContinuousWeaponReallyDamaged', profileKey: 'continuousWeapons' },
+    ];
+
+    for (const testCase of cases) {
+      let usageCount = 0;
+      for (const { obj, block, bundleValue } of iterFieldUsages('FireWeaponWhenDamagedBehavior', testCase.fieldName)) {
+        usageCount++;
+        const moduleTag = moduleTagOf(block);
+        const profiles = extractFireWhenDamagedProfiles(makeSelfStub(), obj as never);
+        const profile = profiles.find((entry) => entry.moduleTag === moduleTag);
+        expect(profile, `FireWeaponWhenDamaged profile ${moduleTag} missing on ${obj.name}`).toBeDefined();
+        expect(profile![testCase.profileKey][2], `${testCase.fieldName} mismatch on ${obj.name}/${moduleTag}`)
+          .toBe(String(bundleValue).trim());
+      }
+      expect(usageCount, `expected retail users for ${testCase.fieldName}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('FirestormDynamicGeometryInfoUpdate ScorchSize flows through every retail user', () => {
+    const usages = [...iterFieldUsages('FirestormDynamicGeometryInfoUpdate', 'ScorchSize')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, bundleValue } of usages) {
+      const profile = extractFirestormDamageProfile(makeSelfStub(), obj as never);
+      expect(profile, `FirestormDamageProfile null for ${obj.name}`).not.toBeNull();
+      expect(profile!.scorchSize, `ScorchSize mismatch on ${obj.name}`).toBe(bundleValue);
+    }
+  });
+
+  it('WaveGuideUpdate remaining shipped fields flow through every retail user', () => {
+    const numericCases: Array<{ fieldName: string; profileKey: string; scale?: number }> = [
+      { fieldName: 'YSize', profileKey: 'ySize' },
+      { fieldName: 'LinearWaveSpacing', profileKey: 'linearWaveSpacing' },
+      { fieldName: 'WaveBendMagnitude', profileKey: 'waveBendMagnitude' },
+      { fieldName: 'WaterVelocity', profileKey: 'waterVelocity', scale: 1 / LOGIC_FRAME_RATE },
+      { fieldName: 'ShorelineEffectDistance', profileKey: 'shorelineEffectDistance' },
+      { fieldName: 'ToppleForce', profileKey: 'toppleForce' },
+      { fieldName: 'RandomSplashSoundFrequency', profileKey: 'randomSplashSoundFrequency' },
+      { fieldName: 'BridgeParticleAngleFudge', profileKey: 'bridgeParticleAngleFudge', scale: Math.PI / 180 },
+    ];
+    const stringCases: Array<{ fieldName: string; profileKey: string }> = [
+      { fieldName: 'RandomSplashSound', profileKey: 'randomSplashSound' },
+      { fieldName: 'BridgeParticle', profileKey: 'bridgeParticle' },
+      { fieldName: 'LoopingSound', profileKey: 'loopingSound' },
+    ];
+
+    for (const testCase of numericCases) {
+      let usageCount = 0;
+      for (const { obj, bundleValue } of iterFieldUsages('WaveGuideUpdate', testCase.fieldName)) {
+        usageCount++;
+        const profile = extractWaveGuideProfile(makeSelfStub(), obj as never);
+        expect(profile, `WaveGuideProfile null for ${obj.name}`).not.toBeNull();
+        const expected = Number(bundleValue) * (testCase.scale ?? 1);
+        expect((profile as unknown as Record<string, number>)[testCase.profileKey], `${testCase.fieldName} mismatch on ${obj.name}`)
+          .toBeCloseTo(expected, 10);
+      }
+      expect(usageCount, `expected retail users for WaveGuideUpdate.${testCase.fieldName}`).toBeGreaterThan(0);
+    }
+
+    for (const testCase of stringCases) {
+      let usageCount = 0;
+      for (const { obj, bundleValue } of iterFieldUsages('WaveGuideUpdate', testCase.fieldName)) {
+        usageCount++;
+        const profile = extractWaveGuideProfile(makeSelfStub(), obj as never);
+        expect(profile, `WaveGuideProfile null for ${obj.name}`).not.toBeNull();
+        expect((profile as unknown as Record<string, string>)[testCase.profileKey], `${testCase.fieldName} mismatch on ${obj.name}`)
+          .toBe(splitTokens(bundleValue)[0] ?? String(bundleValue).trim());
+      }
+      expect(usageCount, `expected retail users for WaveGuideUpdate.${testCase.fieldName}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('CostModifierUpgrade EffectKindOf/Percentage flows through every retail user', () => {
+    const kindOfUsages = [...iterFieldUsages('CostModifierUpgrade', 'EffectKindOf')];
+    const percentUsages = [...iterFieldUsages('CostModifierUpgrade', 'Percentage')];
+    expect(kindOfUsages.length).toBeGreaterThan(0);
+    expect(percentUsages.length).toBeGreaterThan(0);
+
+    for (const { obj, block, bundleValue } of kindOfUsages) {
+      const moduleTag = moduleTagOf(block);
+      const modules = extractUpgradeModulesFromBlocks(makeSelfStub(), obj.blocks as never, null);
+      const module = modules.find((entry) => entry.moduleTag === moduleTag && entry.moduleType === 'COSTMODIFIERUPGRADE');
+      expect(module, `CostModifierUpgrade ${moduleTag} missing on ${obj.name}`).toBeDefined();
+      for (const token of splitTokens(bundleValue).map((value) => value.toUpperCase())) {
+        expect(module!.effectKindOf, `EffectKindOf missing ${token} on ${obj.name}/${moduleTag}`).toContain(token);
+      }
+    }
+
+    for (const { obj, block, bundleValue } of percentUsages) {
+      const moduleTag = moduleTagOf(block);
+      const modules = extractUpgradeModulesFromBlocks(makeSelfStub(), obj.blocks as never, null);
+      const module = modules.find((entry) => entry.moduleTag === moduleTag && entry.moduleType === 'COSTMODIFIERUPGRADE');
+      expect(module, `CostModifierUpgrade ${moduleTag} missing on ${obj.name}`).toBeDefined();
+      expect(module!.effectPercent, `Percentage mismatch on ${obj.name}/${moduleTag}`)
+        .toBe(makeSelfStub().parsePercent(bundleValue));
+    }
+  });
+
+  it('EMPUpdate DoesNotAffect flows through every retail user', () => {
+    const usages = [...iterFieldUsages('EMPUpdate', 'DoesNotAffect')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, bundleValue } of usages) {
+      const profile = extractEmpUpdateProfile(makeSelfStub(), obj as never);
+      expect(profile, `EMPUpdateProfile null for ${obj.name}`).not.toBeNull();
+      const doesNotAffect = (profile as unknown as { doesNotAffect: Set<string> }).doesNotAffect;
+      for (const token of splitTokens(bundleValue).map((value) => value.toUpperCase())) {
+        expect(doesNotAffect, `DoesNotAffect missing ${token} on ${obj.name}`).toContain(token);
+      }
+    }
   });
 });
 

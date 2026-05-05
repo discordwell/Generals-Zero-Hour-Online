@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-05T15:10:01.124Z",
+  "generatedAt": "2026-05-05T15:23:03.626Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -30,7 +30,7 @@
     "sourceKnownGameplayReferencedIniModuleFields": 1120,
     "sourceKnownFieldGaps": 0,
     "sourceUnknownIniModuleFields": 0,
-    "sourceKnownUntestedRuntimeFields": 27
+    "sourceKnownUntestedRuntimeFields": 4
   },
   "sourceKnownFieldGaps": [],
   "sourceUnknownIniModuleFields": [],
@@ -137,317 +137,6 @@
       "priority": "P1"
     },
     {
-      "moduleType": "SLAVEDUPDATE",
-      "fieldName": "StayOnSameLayerAsMaster",
-      "normalizedFieldName": "STAYONSAMELAYERASMASTER",
-      "iniUsageCount": 13,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_06",
-        "ModuleTag_07"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaVehicleBattleDrone",
-        "AirF_AmericaVehicleHellfireDrone",
-        "AirF_AmericaVehicleScoutDrone",
-        "AmericaVehicleBattleDrone",
-        "AmericaVehicleHellfireDrone"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SlavedUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/SlavedUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SlavedUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/spawner-behavior.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "RIDERCHANGECONTAIN",
-      "fieldName": "BurnedDeathToUnits",
-      "normalizedFieldName": "BURNEDDEATHTOUNITS",
-      "iniUsageCount": 10,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_16"
-      ],
-      "exampleObjectNames": [
-        "Boss_VehicleCombatBikeTerrorist",
-        "Chem_GLAVehicleCombatBike",
-        "Demo_GLAVehicleCombatBike",
-        "GC_Slth_GLAVehicleCombatBike",
-        "GC_Slth_GLAVehicleCombatBikeRocket"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "RiderChangeContainModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Contain/TransportContain.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/RiderChangeContain.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/RiderChangeContain.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/TransportContain.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "CHINOOKAIUPDATE",
-      "fieldName": "RopeFinalHeight",
-      "normalizedFieldName": "ROPEFINALHEIGHT",
-      "iniUsageCount": 6,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_07"
-      ],
-      "exampleObjectNames": [
-        "AFG_AmericaVehicleChinook",
-        "AirF_AmericaVehicleChinook",
-        "AmericaVehicleChinook",
-        "CINE_AmericaVehicleChinook",
-        "Lazr_AmericaVehicleChinook"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "ChinookAIUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/ChinookAIUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/SupplyTruckAIUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate/ChinookAIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/ChinookAIUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SupplyTruckAIUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate/ChinookAIUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "CHINOOKAIUPDATE",
-      "fieldName": "RopeWobbleRate",
-      "normalizedFieldName": "ROPEWOBBLERATE",
-      "iniUsageCount": 6,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_07"
-      ],
-      "exampleObjectNames": [
-        "AFG_AmericaVehicleChinook",
-        "AirF_AmericaVehicleChinook",
-        "AmericaVehicleChinook",
-        "CINE_AmericaVehicleChinook",
-        "Lazr_AmericaVehicleChinook"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "ChinookAIUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/ChinookAIUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/SupplyTruckAIUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate/ChinookAIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/ChinookAIUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SupplyTruckAIUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate/ChinookAIUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "CLEANUPAREAPOWER",
-      "fieldName": "MaxMoveDistanceFromLocation",
-      "normalizedFieldName": "MAXMOVEDISTANCEFROMLOCATION",
-      "iniUsageCount": 6,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaVehicleMedic",
-        "AmericaInfantryBiohazardTech",
-        "AmericaVehicleMedic",
-        "CINE_AmericaInfantryBiohazardTech",
-        "Lazr_AmericaVehicleMedic"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "CleanupAreaPowerModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CleanupAreaPower.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/SpecialPower/CleanupAreaPower.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/SpecialPower/SpecialPowerModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CleanupAreaPower.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/SpecialPower/CleanupAreaPower.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/SpecialPower/SpecialPowerModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "DEMOTRAPUPDATE",
-      "fieldName": "IgnoreTargetTypes",
-      "normalizedFieldName": "IGNORETARGETTYPES",
-      "iniUsageCount": 6,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "Chem_GLADemoTrap",
-        "Demo_GLADemoTrap",
-        "GC_Chem_GLADemoTrap",
-        "GC_Slth_GLADemoTrap",
-        "GLADemoTrap"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "DemoTrapUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/DemoTrapUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/DemoTrapUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DemoTrapUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/DemoTrapUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FIREWEAPONWHENDAMAGEDBEHAVIOR",
-      "fieldName": "ContinuousWeaponReallyDamaged",
-      "normalizedFieldName": "CONTINUOUSWEAPONREALLYDAMAGED",
-      "iniUsageCount": 5,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_05",
-        "ModuleTag_07",
-        "ModuleTag_SoloMissionChange"
-      ],
-      "exampleObjectNames": [
-        "AvalancheChunk",
-        "AvalancheLeadChunk",
-        "ChemicalBunker",
-        "ChemicalFactory",
-        "PharmaceuticalFactory"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FireWeaponWhenDamagedBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/FireWeaponWhenDamagedBehavior.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FireWeaponWhenDamagedBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/status-effects.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
       "moduleType": "SABOTAGEMILITARYFACTORYCRATECOLLIDE",
       "fieldName": "SabotageDuration",
       "normalizedFieldName": "SABOTAGEDURATION",
@@ -480,644 +169,6 @@
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
         "packages/game-logic/src/index.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FIRESTORMDYNAMICGEOMETRYINFOUPDATE",
-      "fieldName": "ScorchSize",
-      "normalizedFieldName": "SCORCHSIZE",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03"
-      ],
-      "exampleObjectNames": [
-        "BlackNapalmFirestormSmall",
-        "FirestormSmall"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FirestormDynamicGeometryInfoUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/FirestormDynamicGeometryInfoUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/DynamicGeometryInfoUpdate.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/FirestormDynamicGeometryInfoUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FirestormDynamicGeometryInfoUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/DynamicGeometryInfoUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/FirestormDynamicGeometryInfoUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/app/src/main.ts",
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "BridgeParticle",
-      "normalizedFieldName": "BRIDGEPARTICLE",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "BridgeParticleAngleFudge",
-      "normalizedFieldName": "BRIDGEPARTICLEANGLEFUDGE",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "LinearWaveSpacing",
-      "normalizedFieldName": "LINEARWAVESPACING",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "LoopingSound",
-      "normalizedFieldName": "LOOPINGSOUND",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "RandomSplashSound",
-      "normalizedFieldName": "RANDOMSPLASHSOUND",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "RandomSplashSoundFrequency",
-      "normalizedFieldName": "RANDOMSPLASHSOUNDFREQUENCY",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "ShorelineEffectDistance",
-      "normalizedFieldName": "SHORELINEEFFECTDISTANCE",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "ToppleForce",
-      "normalizedFieldName": "TOPPLEFORCE",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts",
-        "packages/app/src/load-game-screen.ts",
-        "packages/app/src/options-screen.ts",
-        "packages/app/src/replay-menu-screen.ts",
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "WaterVelocity",
-      "normalizedFieldName": "WATERVELOCITY",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "WaveBendMagnitude",
-      "normalizedFieldName": "WAVEBENDMAGNITUDE",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "WAVEGUIDEUPDATE",
-      "fieldName": "YSize",
-      "normalizedFieldName": "YSIZE",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "WaveGuide",
-        "WaveGuideGLA01"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "WaveGuideUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/WaveGuideUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/WaveGuideUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "COSTMODIFIERUPGRADE",
-      "fieldName": "EffectKindOf",
-      "normalizedFieldName": "EFFECTKINDOF",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_05"
-      ],
-      "exampleObjectNames": [
-        "TechOilRefinery"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "CostModifierUpgradeModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CostModifierUpgrade.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Upgrade/CostModifierUpgrade.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CostModifierUpgrade.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/CostModifierUpgrade.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/upgrade-modules.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "COSTMODIFIERUPGRADE",
-      "fieldName": "Percentage",
-      "normalizedFieldName": "PERCENTAGE",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_05"
-      ],
-      "exampleObjectNames": [
-        "TechOilRefinery"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "CostModifierUpgradeModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CostModifierUpgrade.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Upgrade/CostModifierUpgrade.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CostModifierUpgrade.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/CostModifierUpgrade.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/script-actions.ts",
-        "packages/game-logic/src/upgrade-modules.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "EMPUPDATE",
-      "fieldName": "DoesNotAffect",
-      "normalizedFieldName": "DOESNOTAFFECT",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_02"
-      ],
-      "exampleObjectNames": [
-        "EMPMineEffectSpheroid"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "EMPUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/EMPUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/EMPUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FIREWEAPONWHENDAMAGEDBEHAVIOR",
-      "fieldName": "ReactionWeaponReallyDamaged",
-      "normalizedFieldName": "REACTIONWEAPONREALLYDAMAGED",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03"
-      ],
-      "exampleObjectNames": [
-        "AmericaBattleshipBogusTarget"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FireWeaponWhenDamagedBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/FireWeaponWhenDamagedBehavior.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FireWeaponWhenDamagedBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/status-effects.ts"
       ],
       "testReferenced": false,
       "testReferenceFiles": [],
@@ -24282,8 +23333,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/spawner-behavior.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -29806,8 +28859,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -38373,8 +37428,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -38567,8 +37624,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -38830,8 +37889,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -39296,8 +38357,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -44351,8 +43414,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/status-effects.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -57164,8 +56229,10 @@
         "packages/app/src/main.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58486,8 +57553,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58526,8 +57595,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58659,8 +57730,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58699,8 +57772,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58784,8 +57859,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58824,8 +57901,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58864,8 +57943,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58908,8 +57989,10 @@
         "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58948,8 +58031,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58988,8 +58073,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -59070,8 +58157,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -59548,8 +58637,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/upgrade-modules.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -59588,8 +58679,10 @@
         "packages/game-logic/src/script-actions.ts",
         "packages/game-logic/src/upgrade-modules.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -59937,8 +59030,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -60059,8 +59154,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/status-effects.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {

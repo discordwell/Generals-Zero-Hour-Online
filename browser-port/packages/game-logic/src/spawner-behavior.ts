@@ -132,7 +132,7 @@ export function extractSlavedUpdateProfile(self: GL, objectDef: ObjectDef | unde
           repairMaxWeldFrames: self.msToLogicFrames(readNumericField(block.fields, ['RepairMaxWeldTime']) ?? 0),
           repairWeldingSysName: readStringField(block.fields, ['RepairWeldingSys'])?.trim() ?? '',
           repairWeldingFXBone: readStringField(block.fields, ['RepairWeldingFXBone'])?.trim() ?? '',
-          stayOnSameLayerAsMaster: readStringField(block.fields, ['StayOnSameLayerAsMaster'])?.toUpperCase() === 'YES',
+          stayOnSameLayerAsMaster: readBooleanField(block.fields, ['StayOnSameLayerAsMaster']) === true,
         };
       }
     }
