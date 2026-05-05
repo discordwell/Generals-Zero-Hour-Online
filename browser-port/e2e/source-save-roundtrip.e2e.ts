@@ -179,6 +179,8 @@ for (const fixture of roundtripFixtures) {
         const scriptEngine = logic.captureSourceScriptEngineRuntimeSaveState?.();
         const scriptState = scriptEngine?.state ?? {};
         const coreState = logic.captureSourceGameLogicRuntimeSaveState?.();
+        const playerSnapshot = logic.captureSourcePlayerRuntimeSaveState?.();
+        const playerState = playerSnapshot?.state ?? {};
         const mapSize = (value: unknown): number | null => value instanceof Map ? value.size : null;
         const setSize = (value: unknown): number | null => value instanceof Set ? value.size : null;
         const commandQueue = Array.isArray(logic.commandQueue) ? logic.commandQueue : null;
@@ -211,6 +213,14 @@ for (const fixture of roundtripFixtures) {
             hash = Math.imul(hash, 16777619);
           }
           return hash >>> 0;
+        };
+        const playerSummary = {
+          digests: Object.fromEntries(
+            Object.entries(playerState)
+              .sort(([left], [right]) => left.localeCompare(right))
+              .map(([key, value]) => [key, digest(value)]),
+          ),
+          tunnelTrackers: digest(playerSnapshot?.tunnelTrackers ?? []),
         };
         const aiSummary = {
           logicFrame: coreState?.frameCounter ?? null,
@@ -313,6 +323,7 @@ for (const fixture of roundtripFixtures) {
           teamCount: names.length,
           sourceTeamCount: names.filter((name) => /^__SOURCE_TEAM_PROTOTYPE_\d+$/i.test(name)).length,
           centralGuardSide: centralGuard?.controllingSide ?? null,
+          playerSummary,
           aiSummary,
         };
       };
@@ -336,6 +347,7 @@ for (const fixture of roundtripFixtures) {
     }, { slotId, saveDescription });
 
     const importedSnapshot = importedState?.snapshot ?? null;
+    const savedSlotInspection = importedState?.savedSlotInspection ?? null;
     const savedSlotId = importedState?.savedSlotId ?? slotId;
 
     expect(importedSnapshot).not.toBeNull();
@@ -371,6 +383,8 @@ for (const fixture of roundtripFixtures) {
         const scriptEngine = logic.captureSourceScriptEngineRuntimeSaveState?.();
         const scriptState = scriptEngine?.state ?? {};
         const coreState = logic.captureSourceGameLogicRuntimeSaveState?.();
+        const playerSnapshot = logic.captureSourcePlayerRuntimeSaveState?.();
+        const playerState = playerSnapshot?.state ?? {};
         const mapSize = (value: unknown): number | null => value instanceof Map ? value.size : null;
         const setSize = (value: unknown): number | null => value instanceof Set ? value.size : null;
         const commandQueue = Array.isArray(logic.commandQueue) ? logic.commandQueue : null;
@@ -403,6 +417,14 @@ for (const fixture of roundtripFixtures) {
             hash = Math.imul(hash, 16777619);
           }
           return hash >>> 0;
+        };
+        const playerSummary = {
+          digests: Object.fromEntries(
+            Object.entries(playerState)
+              .sort(([left], [right]) => left.localeCompare(right))
+              .map(([key, value]) => [key, digest(value)]),
+          ),
+          tunnelTrackers: digest(playerSnapshot?.tunnelTrackers ?? []),
         };
         const aiSummary = {
           logicFrame: coreState?.frameCounter ?? null,
@@ -505,6 +527,7 @@ for (const fixture of roundtripFixtures) {
           teamCount: names.length,
           sourceTeamCount: names.filter((name) => /^__SOURCE_TEAM_PROTOTYPE_\d+$/i.test(name)).length,
           centralGuardSide: centralGuard?.controllingSide ?? null,
+          playerSummary,
           aiSummary,
         };
       };
@@ -520,6 +543,41 @@ for (const fixture of roundtripFixtures) {
         ...summarizeTeamFactory(),
       };
     });
+
+    if (
+      restoredSnapshot?.crc !== importedSnapshot?.crc
+      || JSON.stringify(restoredSnapshot?.crcSections ?? null) !== JSON.stringify(importedSnapshot?.crcSections ?? null)
+    ) {
+      const summarizeMismatch = (snapshot: unknown): unknown => {
+        const record = snapshot as {
+          crc?: number;
+          crcSections?: unknown;
+          teamCount?: number | null;
+          sourceTeamCount?: number | null;
+          centralGuardSide?: string | null;
+          playerSummary?: unknown;
+          aiSummary?: { digests?: unknown };
+        } | null;
+        return record
+          ? {
+              crc: record.crc ?? null,
+              crcSections: record.crcSections ?? null,
+              teamCount: record.teamCount ?? null,
+              sourceTeamCount: record.sourceTeamCount ?? null,
+              centralGuardSide: record.centralGuardSide ?? null,
+              playerSummary: record.playerSummary ?? null,
+              aiDigests: record.aiSummary?.digests ?? null,
+            }
+          : null;
+      };
+      console.log(JSON.stringify({
+        fixture: fixture.fileName,
+        importedSnapshot: summarizeMismatch(importedSnapshot),
+        savedSlotInspection,
+        restoredSnapshot: summarizeMismatch(restoredSnapshot),
+      }, null, 2));
+    }
+
     expect(importedSnapshot?.crc).toEqual(expect.any(Number));
     expect(restoredSnapshot?.crc).toEqual(expect.any(Number));
     expect(importedSnapshot?.crcSections).toEqual(expect.objectContaining({

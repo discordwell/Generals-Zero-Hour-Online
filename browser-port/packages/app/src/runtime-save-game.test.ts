@@ -10678,11 +10678,15 @@ describe('runtime-save-game', () => {
       pendingUndoShroudReveals: [],
     });
     expect(playerState?.state.playerSideByIndex).toEqual(new Map([[0, 'USA']]));
-    expect(playerState?.state.controllingPlayerScriptCredits).toEqual(new Map([['the_player', 1337]]));
+    expect(playerState?.state.sideCredits).toEqual(new Map([['USA', 1337]]));
+    expect(playerState?.state.sideSciences).toEqual(
+      new Map([['USA', new Set(['SCIENCE_ANTHRAX_BOMB'])]]),
+    );
+    expect(playerState?.state.controllingPlayerScriptCredits).toEqual(new Map([['the_player', 900]]));
     expect(playerState?.state.controllingPlayerScriptSciences).toEqual(
       new Map([['the_player', new Set(['SCIENCE_ANTHRAX_BOMB'])]]),
     );
-    expect(playerState?.state.sideMissionAttempts).toBeUndefined();
+    expect(playerState?.state.sideMissionAttempts).toEqual(new Map([['USA', 2]]));
     expect(playerState?.tunnelTrackers).toEqual([{
       side: 'USA',
       tracker: {

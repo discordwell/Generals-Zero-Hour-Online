@@ -777,6 +777,7 @@ export interface BrowserRuntimeSavePayload {
   cameraState: BrowserRuntimeCameraSaveState | null;
   gameLogicState: unknown;
   gameLogicCoreState?: GameLogicCoreSaveState | null;
+  gameLogicPlayersState?: GameLogicPlayersSaveState | null;
   gameLogicTeamFactoryState?: GameLogicTeamFactorySaveState | null;
   sourceTeamPrototypeNames?: readonly string[] | null;
 }
@@ -1602,6 +1603,44 @@ function cloneRuntimeSaveTeamFactoryState(
   return {
     version: state.version,
     state: nextState,
+  };
+}
+
+function cloneRuntimeSaveValue<T>(value: T): T {
+  if (value instanceof Map) {
+    return new Map(
+      [...value.entries()].map(([key, entry]) => [
+        cloneRuntimeSaveValue(key),
+        cloneRuntimeSaveValue(entry),
+      ]),
+    ) as T;
+  }
+  if (value instanceof Set) {
+    return new Set(
+      [...value.values()].map((entry) => cloneRuntimeSaveValue(entry)),
+    ) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => cloneRuntimeSaveValue(entry)) as T;
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .map(([key, entry]) => [key, cloneRuntimeSaveValue(entry)]),
+    ) as T;
+  }
+  return value;
+}
+
+function cloneRuntimeSavePlayersState(
+  state: GameLogicPlayersSaveState,
+): GameLogicPlayersSaveState {
+  return {
+    version: state.version,
+    state: cloneRuntimeSaveValue(state.state),
+    tunnelTrackers: state.tunnelTrackers
+      ? cloneRuntimeSaveValue(state.tunnelTrackers)
+      : undefined,
   };
 }
 
@@ -29666,7 +29705,9 @@ export function buildRuntimeSaveFile(params: {
     : buildRuntimeSaveInGameUiState({
         gameLogicState: inGameUiLogicPayload,
       });
-  const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
+  const playerPayload = cloneRuntimeSavePlayersState(
+    params.gameLogic.captureSourcePlayerRuntimeSaveState(),
+  );
   const gameLogicPayload = params.gameLogic.captureSourceGameLogicRuntimeSaveState();
   const objectXferOverlayPayload = typeof params.gameLogic.captureSourceObjectXferOverlayState === 'function'
     ? params.gameLogic.captureSourceObjectXferOverlayState()
@@ -29725,6 +29766,7 @@ export function buildRuntimeSaveFile(params: {
     cameraState: buildBrowserRuntimeCameraSaveState(params.cameraState),
     gameLogicState: browserGameLogicState,
     gameLogicCoreState: includeBrowserRuntimeCoreState ? gameLogicPayload : null,
+    gameLogicPlayersState: includeBrowserRuntimeCoreState ? cloneRuntimeSavePlayersState(playerPayload) : null,
     gameLogicTeamFactoryState: includeBrowserRuntimeCoreState ? teamFactoryPayload : null,
   };
   const mergedGameClientBriefingLines = mergeBriefingLines(
@@ -30151,7 +30193,8 @@ export function parseRuntimeSaveFile(
   const legacyPlayersState = sourcePlayersState === null && playersChunk
     ? tryParseLegacyPlayersChunk(playersChunk)
     : null;
-  const resolvedPlayersState = sourcePlayersState ?? legacyPlayersState;
+  const browserRuntimePlayersState = payload?.gameLogicPlayersState ?? null;
+  const resolvedPlayersState = browserRuntimePlayersState ?? sourcePlayersState ?? legacyPlayersState;
   const gameLogicChunk = extractSaveChunkData(data, SOURCE_GAME_LOGIC_BLOCK);
   const sourceGameLogicState = gameLogicChunk
     ? parseSourceGameLogicChunkState(gameLogicChunk)
