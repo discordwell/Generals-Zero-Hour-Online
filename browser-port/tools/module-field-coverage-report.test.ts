@@ -120,6 +120,79 @@ describe('module field coverage report', () => {
     ]));
   });
 
+  it('attaches inline buildFieldParse to the enclosing module data class after nested structs', () => {
+    const registrations = parseSourceModuleRegistrations(`
+      addModule( GarrisonContain );
+    `, 'ModuleFactory.cpp');
+    const sourceIndex = parseSourceModuleFieldParses([{
+      relativePath: 'GarrisonContain.h',
+      source: `
+        class Thing;
+        class OpenContainModuleData
+        {
+        public:
+          static void buildFieldParse(MultiIniFieldParse& p)
+          {
+            static const FieldParse dataFieldParse[] =
+            {
+              { "ContainMax", INI::parseInt, NULL, 0 },
+              { 0, 0, 0, 0 }
+            };
+            p.add(dataFieldParse);
+          }
+        };
+        class GarrisonContainModuleData : public OpenContainModuleData
+        {
+        public:
+          struct InitialRoster
+          {
+            AsciiString templateName;
+            Int count;
+          };
+
+          static void buildFieldParse(MultiIniFieldParse& p)
+          {
+            OpenContainModuleData::buildFieldParse(p);
+            static const FieldParse dataFieldParse[] =
+            {
+              { "MobileGarrison", INI::parseBool, NULL, 0 },
+              { "InitialRoster", parseInitialRoster, NULL, 0 },
+              { "ImmuneToClearBuildingAttacks", INI::parseBool, NULL, 0 },
+              { "IsEnclosingContainer", INI::parseBool, NULL, 0 },
+              { 0, 0, 0, 0 }
+            };
+            p.add(dataFieldParse);
+          };
+        };
+        class GarrisonContain
+        {
+          MAKE_STANDARD_MODULE_MACRO_WITH_MODULE_DATA( GarrisonContain, GarrisonContainModuleData )
+        };
+      `,
+    }]);
+
+    const descriptors = buildSourceModuleFieldDescriptors(registrations, sourceIndex);
+    expect(descriptors).toEqual([
+      expect.objectContaining({
+        moduleType: 'GARRISONCONTAIN',
+        dataClasses: ['GarrisonContainModuleData'],
+        directFieldNames: [
+          'ImmuneToClearBuildingAttacks',
+          'InitialRoster',
+          'IsEnclosingContainer',
+          'MobileGarrison',
+        ],
+        fieldNames: [
+          'ContainMax',
+          'ImmuneToClearBuildingAttacks',
+          'InitialRoster',
+          'IsEnclosingContainer',
+          'MobileGarrison',
+        ],
+      }),
+    ]);
+  });
+
   it('counts shipped INI fields recursively by module type', () => {
     const usage = collectIniModuleFieldUsage({
       objects: [{

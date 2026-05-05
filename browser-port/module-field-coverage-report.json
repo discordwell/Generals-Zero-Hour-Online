@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-04T01:44:19.066Z",
+  "generatedAt": "2026-05-05T14:46:08.875Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -26,200 +26,14 @@
     "sourceModuleTypesWithParsedFields": 191,
     "iniUsedModuleFields": 1271,
     "sourceDeclaredIniModuleFields": 1120,
-    "sourceKnownIniModuleFields": 1116,
-    "sourceKnownGameplayReferencedIniModuleFields": 1116,
+    "sourceKnownIniModuleFields": 1120,
+    "sourceKnownGameplayReferencedIniModuleFields": 1120,
     "sourceKnownFieldGaps": 0,
-    "sourceUnknownIniModuleFields": 4,
-    "sourceKnownUntestedRuntimeFields": 109
+    "sourceUnknownIniModuleFields": 0,
+    "sourceKnownUntestedRuntimeFields": 102
   },
   "sourceKnownFieldGaps": [],
-  "sourceUnknownIniModuleFields": [
-    {
-      "moduleType": "GARRISONCONTAIN",
-      "fieldName": "ImmuneToClearBuildingAttacks",
-      "normalizedFieldName": "IMMUNETOCLEARBUILDINGATTACKS",
-      "iniUsageCount": 15,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_07",
-        "ModuleTag_08",
-        "ModuleTag_10"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaFireBase",
-        "AmericaFireBase",
-        "Boss_Bunker",
-        "Chem_GLAPalace",
-        "ChinaBunker"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": false,
-      "sourceDataClasses": [
-        "GarrisonContainModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/GarrisonContain.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/GarrisonContain.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/parity-missing-fields.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "GARRISONCONTAIN",
-      "fieldName": "IsEnclosingContainer",
-      "normalizedFieldName": "ISENCLOSINGCONTAINER",
-      "iniUsageCount": 4,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_07"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaFireBase",
-        "AmericaFireBase",
-        "Lazr_AmericaFireBase",
-        "SupW_AmericaFireBase"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": false,
-      "sourceDataClasses": [
-        "GarrisonContainModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/GarrisonContain.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/GarrisonContain.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/parity-missing-fields.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "GARRISONCONTAIN",
-      "fieldName": "MobileGarrison",
-      "normalizedFieldName": "MOBILEGARRISON",
-      "iniUsageCount": 3,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_04"
-      ],
-      "exampleObjectNames": [
-        "CabooseFullOfTerrorists",
-        "TrainCar04",
-        "TrainEngineVerySlow"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": false,
-      "sourceDataClasses": [
-        "GarrisonContainModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/GarrisonContain.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/GarrisonContain.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/parity-missing-fields.test.ts"
-      ],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "GARRISONCONTAIN",
-      "fieldName": "InitialRoster",
-      "normalizedFieldName": "INITIALROSTER",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03"
-      ],
-      "exampleObjectNames": [
-        "CabooseFullOfTerrorists",
-        "TrainCar04"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": false,
-      "sourceDataClasses": [
-        "GarrisonContainModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/GarrisonContain.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/GarrisonContain.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": true,
-      "testReferenceFiles": [
-        "packages/game-logic/src/parity-missing-fields.test.ts"
-      ],
-      "priority": "P2"
-    }
-  ],
+  "sourceUnknownIniModuleFields": [],
   "untestedRuntimeFieldSignals": [
     {
       "moduleType": "TRANSITIONDAMAGEFX",
@@ -4714,159 +4528,6 @@
       "priority": "P2"
     },
     {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway1CatapultSystem",
-      "normalizedFieldName": "RUNWAY1CATAPULTSYSTEM",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/flight-deck.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "FLIGHTDECKBEHAVIOR",
-      "fieldName": "Runway2CatapultSystem",
-      "normalizedFieldName": "RUNWAY2CATAPULTSYSTEM",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "AmericaAircraftCarrier"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "FlightDeckBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/FlightDeckBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/flight-deck.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "GENERATEMINEFIELDBEHAVIOR",
-      "fieldName": "GenerationFX",
-      "normalizedFieldName": "GENERATIONFX",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_05"
-      ],
-      "exampleObjectNames": [
-        "ClusterMinesBomb"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "GenerateMinefieldBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/GenerateMinefieldBehavior.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/GenerateMinefieldBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/GenerateMinefieldBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/GenerateMinefieldBehavior.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "LEAFLETDROPBEHAVIOR",
-      "fieldName": "LeafletFXParticleSystem",
-      "normalizedFieldName": "LEAFLETFXPARTICLESYSTEM",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_11"
-      ],
-      "exampleObjectNames": [
-        "LeafletContainer"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "LeafletDropBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/EMPUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
       "moduleType": "SABOTAGEINTERNETCENTERCRATECOLLIDE",
       "fieldName": "SabotageDuration",
       "normalizedFieldName": "SABOTAGEDURATION",
@@ -4897,121 +4558,6 @@
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
         "packages/game-logic/src/index.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "SALVAGECRATECOLLIDE",
-      "fieldName": "MoneyChance",
-      "normalizedFieldName": "MONEYCHANCE",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_02"
-      ],
-      "exampleObjectNames": [
-        "SalvageCrate"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SalvageCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "SALVAGECRATECOLLIDE",
-      "fieldName": "PickupScience",
-      "normalizedFieldName": "PICKUPSCIENCE",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_02"
-      ],
-      "exampleObjectNames": [
-        "SalvageCrate"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SalvageCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SalvageCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "STICKYBOMBUPDATE",
-      "fieldName": "GeometryBasedDamageFX",
-      "normalizedFieldName": "GEOMETRYBASEDDAMAGEFX",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03"
-      ],
-      "exampleObjectNames": [
-        "BoobyTrap"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "StickyBombUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/StickyBombUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/StickyBombUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
       "testReferenceFiles": [],
@@ -5227,6 +4773,7 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P0"
@@ -5812,7 +5359,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-lifecycle.test.ts"
+        "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P0"
     },
@@ -5888,6 +5436,7 @@
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-eva-specialpower-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
@@ -6557,6 +6106,7 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P0"
@@ -6842,6 +6392,7 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P0"
@@ -7531,6 +7082,7 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P0"
@@ -7904,7 +7456,8 @@
         "packages/game-logic/src/zh-ai-niche-fixes.test.ts",
         "packages/game-logic/src/zh-ai-state-machine-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
-        "packages/game-logic/src/zh-turret-weapon-bonus.test.ts"
+        "packages/game-logic/src/zh-turret-weapon-bonus.test.ts",
+        "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P0"
     },
@@ -8089,6 +7642,7 @@
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-eva-specialpower-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
@@ -10853,6 +10407,7 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P0"
@@ -12286,6 +11841,7 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P1"
@@ -13371,7 +12927,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-lifecycle.test.ts"
+        "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P1"
     },
@@ -13425,7 +12982,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-lifecycle.test.ts"
+        "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P1"
     },
@@ -15734,6 +15292,7 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P1"
@@ -16514,6 +16073,7 @@
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-eva-specialpower-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
@@ -17564,7 +17124,8 @@
       "testReferenceFiles": [
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
+        "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P1"
     },
@@ -19120,7 +18681,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
+        "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P1"
     },
@@ -21365,6 +20927,7 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
@@ -24121,7 +23684,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
+        "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P2"
     },
@@ -24174,7 +23738,8 @@
       "testReferenceFiles": [
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
+        "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P2"
     },
@@ -25009,6 +24574,7 @@
       "testReferenceFiles": [
         "packages/game-logic/src/render-profile-helpers.test.ts",
         "packages/game-logic/src/render-state.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/upgrade-modules.test.ts"
       ],
       "priority": "P2"
@@ -25854,7 +25420,7 @@
         "ChinaBunker"
       ],
       "sourceDeclared": true,
-      "sourceKnown": false,
+      "sourceKnown": true,
       "sourceDataClasses": [
         "GarrisonContainModuleData"
       ],
@@ -25878,7 +25444,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-missing-fields.test.ts"
+        "packages/game-logic/src/parity-missing-fields.test.ts",
+        "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
     },
@@ -26161,7 +25728,8 @@
         "packages/game-logic/src/zh-ai-niche-fixes.test.ts",
         "packages/game-logic/src/zh-ai-state-machine-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
-        "packages/game-logic/src/zh-turret-weapon-bonus.test.ts"
+        "packages/game-logic/src/zh-turret-weapon-bonus.test.ts",
+        "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
     },
@@ -28180,6 +27748,7 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
@@ -28502,6 +28071,7 @@
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-eva-specialpower-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
@@ -29184,6 +28754,7 @@
       "testReferenceFiles": [
         "packages/game-logic/src/render-profile-helpers.test.ts",
         "packages/game-logic/src/render-state.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/upgrade-modules.test.ts"
       ],
       "priority": "P2"
@@ -30632,7 +30203,8 @@
       "testReferenceFiles": [
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/index.test.ts",
-        "packages/game-logic/src/parity-rider-change-contain.test.ts"
+        "packages/game-logic/src/parity-rider-change-contain.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -31136,7 +30708,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-rider-change-contain.test.ts"
+        "packages/game-logic/src/parity-rider-change-contain.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -33018,7 +32591,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-heightdie-firespread.test.ts"
+        "packages/game-logic/src/parity-heightdie-firespread.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P2"
     },
@@ -33256,7 +32830,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-heightdie-firespread.test.ts"
+        "packages/game-logic/src/parity-heightdie-firespread.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P2"
     },
@@ -33793,6 +33368,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -34106,6 +33682,7 @@
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-eva-specialpower-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
@@ -35241,6 +34818,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -37702,7 +37280,8 @@
       "testReferenceFiles": [
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/index.test.ts",
-        "packages/game-logic/src/parity-rider-change-contain.test.ts"
+        "packages/game-logic/src/parity-rider-change-contain.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -41191,6 +40770,7 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
@@ -41440,7 +41020,8 @@
       "testReferenceFiles": [
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
+        "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P2"
     },
@@ -47211,6 +46792,7 @@
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-eva-specialpower-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
@@ -47814,6 +47396,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/status-effects.test.ts"
       ],
       "priority": "P2"
@@ -47905,6 +47488,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/status-effects.test.ts"
       ],
       "priority": "P2"
@@ -52263,7 +51847,7 @@
         "SupW_AmericaFireBase"
       ],
       "sourceDeclared": true,
-      "sourceKnown": false,
+      "sourceKnown": true,
       "sourceDataClasses": [
         "GarrisonContainModuleData"
       ],
@@ -52287,7 +51871,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-missing-fields.test.ts"
+        "packages/game-logic/src/parity-missing-fields.test.ts",
+        "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
     },
@@ -56248,6 +55833,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -56353,6 +55939,7 @@
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-eva-specialpower-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
@@ -58091,7 +57678,7 @@
         "TrainEngineVerySlow"
       ],
       "sourceDeclared": true,
-      "sourceKnown": false,
+      "sourceKnown": true,
       "sourceDataClasses": [
         "GarrisonContainModuleData"
       ],
@@ -58115,7 +57702,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-missing-fields.test.ts"
+        "packages/game-logic/src/parity-missing-fields.test.ts",
+        "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
     },
@@ -58163,7 +57751,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/containment.test.ts",
-        "packages/game-logic/src/parity-contain-fields.test.ts"
+        "packages/game-logic/src/parity-contain-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P2"
     },
@@ -60528,6 +60117,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -60966,7 +60556,7 @@
         "TrainCar04"
       ],
       "sourceDeclared": true,
-      "sourceKnown": false,
+      "sourceKnown": true,
       "sourceDataClasses": [
         "GarrisonContainModuleData"
       ],
@@ -60990,7 +60580,9 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/parity-missing-fields.test.ts"
+        "packages/game-logic/src/parity-missing-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
     },
@@ -61311,6 +60903,7 @@
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-eva-specialpower-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
@@ -62778,6 +62371,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/zh-create-upgrade-collide-runtime.test.ts"
       ],
       "priority": "P2"
@@ -63395,7 +62989,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/index.test.ts"
+        "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
       "priority": "P2"
     },
@@ -64352,8 +63947,11 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/flight-deck.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -64596,8 +64194,11 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/flight-deck.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -64976,8 +64577,11 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -65328,6 +64932,7 @@
         "packages/game-logic/src/bridge-mechanics.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -65405,8 +65010,11 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -65621,6 +65229,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/zh-create-upgrade-collide-runtime.test.ts"
       ],
       "priority": "P2"
@@ -65702,6 +65311,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
         "packages/game-logic/src/zh-update-runtime-audit.test.ts"
       ],
@@ -66602,8 +66212,11 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -66641,8 +66254,11 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -66804,8 +66420,11 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {

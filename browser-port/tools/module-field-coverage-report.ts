@@ -206,15 +206,35 @@ function findMatchingBrace(source: string, start: number): number {
   return -1;
 }
 
-function nearestClassName(source: string, index: number): string | null {
-  const prefix = source.slice(0, index);
+function enclosingClassName(source: string, index: number): string | null {
   const classRegex = /\b(?:class|struct)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
   let match: RegExpExecArray | null;
-  let lastClassName: string | null = null;
-  while ((match = classRegex.exec(prefix)) !== null) {
-    lastClassName = match[1] ?? null;
+  let bestClassName: string | null = null;
+  let bestBodyStart = -1;
+  while ((match = classRegex.exec(source)) !== null) {
+    if (match.index > index) {
+      break;
+    }
+    const bodyStart = source.indexOf('{', match.index);
+    if (bodyStart < 0 || bodyStart > index) {
+      continue;
+    }
+    const declarationText = source.slice(match.index, bodyStart);
+    if (declarationText.includes(';')) {
+      // Forward declarations such as `class Thing;` precede many headers. The
+      // next brace after them belongs to a later class, not to the declaration.
+      continue;
+    }
+    const bodyEnd = findMatchingBrace(source, bodyStart);
+    if (bodyEnd < 0 || bodyEnd < index) {
+      continue;
+    }
+    if (bodyStart > bestBodyStart) {
+      bestBodyStart = bodyStart;
+      bestClassName = match[1] ?? null;
+    }
   }
-  return lastClassName;
+  return bestClassName;
 }
 
 function extractFieldParseEntries(body: string): string[] {
@@ -290,7 +310,7 @@ function parseFieldParseMethods(source: string, sourceFile: string): ClassFieldP
   const methodRegex = /(?:^|\n)\s*(?:(?:static)\s+)?(?:void|const\s+FieldParse\s*\*)\s+(?:(?:([A-Za-z_][A-Za-z0-9_]*)::)?(buildFieldParse|getFieldParse))\s*\([^)]*\)\s*(?:const\s*)?\{/g;
   let match: RegExpExecArray | null;
   while ((match = methodRegex.exec(cleanSource)) !== null) {
-    const className = match[1] ?? nearestClassName(cleanSource, match.index);
+    const className = match[1] ?? enclosingClassName(cleanSource, match.index);
     if (!className) {
       continue;
     }
