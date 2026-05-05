@@ -25,12 +25,15 @@ import {
   extractLeafletDropProfile,
   extractRiderChangeContainProfile,
   extractSalvageCrateProfile,
+  extractSpecialAbilityProfile,
+  extractSpecialPowerModules,
   extractSlowDeathProfiles,
   extractStickyBombUpdateProfile,
   extractStructureCollapseProfile,
   extractTransitionDamageFXProfile,
   extractUpgradeModulesFromBlocks,
 } from './entity-factory.js';
+import { extractJetSlowDeathProfiles } from './aircraft-ai.js';
 import { extractFlightDeckProfile } from './flight-deck.js';
 import { LOGIC_FRAME_RATE } from './index.js';
 
@@ -139,6 +142,7 @@ function makeSelfStub() {
  *  touched field through the matching extractor. */
 function* iterFieldUsages(moduleType: string, fieldName: string): Generator<{
   obj: BundleObject;
+  block: BundleBlock;
   bundleValue: unknown;
 }> {
   for (const obj of bundle.objects ?? []) {
@@ -146,7 +150,7 @@ function* iterFieldUsages(moduleType: string, fieldName: string): Generator<{
       const parts = (block.name ?? '').split(/\s+/);
       if (parts[0]?.toUpperCase() !== moduleType.toUpperCase()) continue;
       if (block.fields && fieldName in block.fields) {
-        yield { obj, bundleValue: block.fields[fieldName] };
+        yield { obj, block, bundleValue: block.fields[fieldName] };
       }
     }
   }
@@ -198,6 +202,16 @@ describe('session 2026-05-04 — bundle-wide scanner over touched fields', () =>
     }
   });
 
+  it('GenerateMinefieldBehavior AlwaysCircular flows through every retail user', () => {
+    const usages = [...iterFieldUsages('GenerateMinefieldBehavior', 'AlwaysCircular')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, bundleValue } of usages) {
+      const profile = extractGenerateMinefieldProfile(makeSelfStub(), obj as never);
+      expect(profile, `GenerateMinefieldProfile null for ${obj.name}`).not.toBeNull();
+      expect(profile!.alwaysCircular, `AlwaysCircular mismatch on ${obj.name}`).toBe(bundleValue);
+    }
+  });
+
   it('LeafletDropBehavior LeafletFXParticleSystem flows through every retail user', () => {
     const usages = [...iterFieldUsages('LeafletDropBehavior', 'LeafletFXParticleSystem')];
     expect(usages.length).toBeGreaterThan(0);
@@ -235,6 +249,91 @@ describe('session 2026-05-04 — bundle-wide scanner over touched fields', () =>
       const profile = extractStickyBombUpdateProfile(makeSelfStub(), obj as never);
       expect(profile, `StickyBombUpdateProfile null for ${obj.name}`).not.toBeNull();
       expect(profile!.geometryBasedDamageFX, `GeometryBasedDamageFX mismatch on ${obj.name}`).toBe(bundleValue);
+    }
+  });
+
+  it('JetSlowDeathBehavior OCL timeline fields flow through every non-NONE retail user', () => {
+    const cases: Array<{
+      fieldName: string;
+      profileKey: 'oclInitialDeath' | 'oclSecondary' | 'oclOnGroundDeath';
+    }> = [
+      { fieldName: 'OCLInitialDeath', profileKey: 'oclInitialDeath' },
+      { fieldName: 'OCLSecondary', profileKey: 'oclSecondary' },
+      { fieldName: 'OCLOnGroundDeath', profileKey: 'oclOnGroundDeath' },
+    ];
+
+    for (const testCase of cases) {
+      let nonNoneCount = 0;
+      for (const { obj, bundleValue } of iterFieldUsages('JetSlowDeathBehavior', testCase.fieldName)) {
+        const expected = splitTokens(bundleValue)[0] ?? '';
+        if (!expected || expected.toUpperCase() === 'NONE') continue;
+        nonNoneCount++;
+
+        const profiles = extractJetSlowDeathProfiles(makeSelfStub(), obj as never);
+        expect(
+          profiles.some((profile) => profile[testCase.profileKey].includes(expected)),
+          `${testCase.fieldName} missing ${expected} on ${obj.name}`,
+        ).toBe(true);
+      }
+      expect(nonNoneCount, `expected non-NONE retail users for ${testCase.fieldName}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('TransportContain DestroyRidersWhoAreNotFreeToExit flows through every retail user', () => {
+    const usages = [...iterFieldUsages('TransportContain', 'DestroyRidersWhoAreNotFreeToExit')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, bundleValue } of usages) {
+      const profile = extractContainProfile(makeSelfStub(), obj as never);
+      expect(profile, `ContainProfile null for ${obj.name}`).not.toBeNull();
+      expect(
+        profile!.destroyRidersWhoAreNotFreeToExit,
+        `DestroyRidersWhoAreNotFreeToExit mismatch on ${obj.name}`,
+      ).toBe(bundleValue);
+    }
+  });
+
+  it('CashBountyPower Bounty flows through every retail special-power module', () => {
+    const usages = [...iterFieldUsages('CashBountyPower', 'Bounty')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, block, bundleValue } of usages) {
+      const templateName = String(block.fields?.SpecialPowerTemplate ?? '').trim().toUpperCase();
+      expect(templateName, `CashBountyPower missing SpecialPowerTemplate on ${obj.name}`).toBeTruthy();
+
+      const modules = extractSpecialPowerModules(makeSelfStub(), obj as never);
+      const module = modules.get(templateName);
+      expect(module, `SpecialPower module ${templateName} missing on ${obj.name}`).toBeDefined();
+      expect(module!.cashBountyPercent, `Bounty mismatch on ${obj.name}/${templateName}`).toBe(bundleValue);
+    }
+  });
+
+  it('SpecialAbilityUpdate PreTriggerUnstealthTime flows through every retail user', () => {
+    const usages = [...iterFieldUsages('SpecialAbilityUpdate', 'PreTriggerUnstealthTime')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, bundleValue } of usages) {
+      const profile = extractSpecialAbilityProfile(makeSelfStub(), obj as never);
+      expect(profile, `SpecialAbilityProfile null for ${obj.name}`).not.toBeNull();
+      expect(
+        profile!.preTriggerUnstealthFrames,
+        `PreTriggerUnstealthTime mismatch on ${obj.name}`,
+      ).toBe(makeSelfStub().msToLogicFrames(Number(bundleValue)));
+    }
+  });
+
+  it('VeterancyCrateCollide EffectRange/AddsOwnerVeterancy flow through every retail user', () => {
+    const effectRangeUsages = [...iterFieldUsages('VeterancyCrateCollide', 'EffectRange')];
+    const ownerVetUsages = [...iterFieldUsages('VeterancyCrateCollide', 'AddsOwnerVeterancy')];
+    expect(effectRangeUsages.length).toBeGreaterThan(0);
+    expect(ownerVetUsages.length).toBeGreaterThan(0);
+
+    for (const { obj, bundleValue } of effectRangeUsages) {
+      const profile = extractCrateCollideProfile(makeSelfStub(), obj as never);
+      expect(profile, `CrateCollideProfile null for ${obj.name}`).not.toBeNull();
+      expect(profile!.veterancyRange, `EffectRange mismatch on ${obj.name}`).toBe(bundleValue);
+    }
+    for (const { obj, bundleValue } of ownerVetUsages) {
+      const profile = extractCrateCollideProfile(makeSelfStub(), obj as never);
+      expect(profile, `CrateCollideProfile null for ${obj.name}`).not.toBeNull();
+      expect(profile!.addsOwnerVeterancy, `AddsOwnerVeterancy mismatch on ${obj.name}`).toBe(bundleValue);
     }
   });
 });

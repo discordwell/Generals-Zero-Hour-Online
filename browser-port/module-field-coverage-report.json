@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-05T14:53:27.860Z",
+  "generatedAt": "2026-05-05T15:01:58.424Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -30,66 +30,11 @@
     "sourceKnownGameplayReferencedIniModuleFields": 1120,
     "sourceKnownFieldGaps": 0,
     "sourceUnknownIniModuleFields": 0,
-    "sourceKnownUntestedRuntimeFields": 93
+    "sourceKnownUntestedRuntimeFields": 84
   },
   "sourceKnownFieldGaps": [],
   "sourceUnknownIniModuleFields": [],
   "untestedRuntimeFieldSignals": [
-    {
-      "moduleType": "GENERATEMINEFIELDBEHAVIOR",
-      "fieldName": "AlwaysCircular",
-      "normalizedFieldName": "ALWAYSCIRCULAR",
-      "iniUsageCount": 63,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_04",
-        "ModuleTag_05",
-        "ModuleTag_09",
-        "ModuleTag_11",
-        "ModuleTag_12",
-        "ModuleTag_13",
-        "ModuleTag_14",
-        "ModuleTag_15",
-        "ModuleTag_16",
-        "ModuleTag_20",
-        "ModuleTag_21",
-        "ModuleTag_22",
-        "ModuleTag_23"
-      ],
-      "exampleObjectNames": [
-        "Boss_Airfield",
-        "Boss_Barracks",
-        "Boss_Bunker",
-        "Boss_CommandCenter",
-        "Boss_GattlingCannon"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "GenerateMinefieldBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/GenerateMinefieldBehavior.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/GenerateMinefieldBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/GenerateMinefieldBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpgradeModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/GenerateMinefieldBehavior.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P1"
-    },
     {
       "moduleType": "EJECTPILOTDIE",
       "fieldName": "AirCreationList",
@@ -192,301 +137,6 @@
       "priority": "P1"
     },
     {
-      "moduleType": "JETSLOWDEATHBEHAVIOR",
-      "fieldName": "OCLInitialDeath",
-      "normalizedFieldName": "OCLINITIALDEATH",
-      "iniUsageCount": 48,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_04",
-        "ModuleTag_05",
-        "ModuleTag_10",
-        "ModuleTag_11",
-        "ModuleTag_12"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaJetA10Thunderbolt",
-        "AirF_AmericaJetB3",
-        "AirF_AmericaJetB52",
-        "AirF_AmericaJetCargoPlane",
-        "AirF_AmericaJetRaptor"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "JetSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/JetSlowDeathBehavior.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/JetSlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/JetSlowDeathBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/JetSlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P1"
-    },
-    {
-      "moduleType": "JETSLOWDEATHBEHAVIOR",
-      "fieldName": "OCLSecondary",
-      "normalizedFieldName": "OCLSECONDARY",
-      "iniUsageCount": 48,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_04",
-        "ModuleTag_05",
-        "ModuleTag_10",
-        "ModuleTag_11",
-        "ModuleTag_12"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaJetA10Thunderbolt",
-        "AirF_AmericaJetB3",
-        "AirF_AmericaJetB52",
-        "AirF_AmericaJetCargoPlane",
-        "AirF_AmericaJetRaptor"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "JetSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/JetSlowDeathBehavior.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/JetSlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/JetSlowDeathBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/JetSlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P1"
-    },
-    {
-      "moduleType": "JETSLOWDEATHBEHAVIOR",
-      "fieldName": "OCLOnGroundDeath",
-      "normalizedFieldName": "OCLONGROUNDDEATH",
-      "iniUsageCount": 25,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03",
-        "ModuleTag_05"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaJetAurora",
-        "AirF_AmericaJetRaptor",
-        "AirF_AmericaJetStealthFighter",
-        "AmericaJetAircraftCarrierRaptor",
-        "AmericaJetAurora"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "JetSlowDeathBehaviorModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/JetSlowDeathBehavior.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/JetSlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/JetSlowDeathBehavior.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/JetSlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P1"
-    },
-    {
-      "moduleType": "TRANSPORTCONTAIN",
-      "fieldName": "DestroyRidersWhoAreNotFreeToExit",
-      "normalizedFieldName": "DESTROYRIDERSWHOARENOTFREETOEXIT",
-      "iniUsageCount": 23,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_06",
-        "ModuleTag_08",
-        "ModuleTag_09",
-        "ModuleTag_10"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaJetB3",
-        "AirF_AmericaJetB52",
-        "AirF_AmericaJetCargoPlane",
-        "AmericaJetB3",
-        "AmericaJetB52"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "TransportContainModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/TransportContain.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Contain/TransportContain.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/TransportContain.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/OpenContain.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/TransportContain.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "CASHBOUNTYPOWER",
-      "fieldName": "Bounty",
-      "normalizedFieldName": "BOUNTY",
-      "iniUsageCount": 21,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_15",
-        "ModuleTag_16",
-        "ModuleTag_17",
-        "ModuleTag_96",
-        "ModuleTag_97",
-        "ModuleTag_98"
-      ],
-      "exampleObjectNames": [
-        "Boss_CommandCenter",
-        "Chem_GLACommandCenter",
-        "Demo_GLACommandCenter",
-        "GC_Chem_GLACommandCenter",
-        "GC_Slth_GLACommandCenter"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "CashBountyPowerModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CashBountyPower.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/SpecialPower/CashBountyPower.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/SpecialPower/SpecialPowerModule.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CashBountyPower.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/SpecialPower/CashBountyPower.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/SpecialPower/SpecialPowerModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "SPECIALABILITYUPDATE",
-      "fieldName": "PreTriggerUnstealthTime",
-      "normalizedFieldName": "PRETRIGGERUNSTEALTHTIME",
-      "iniUsageCount": 14,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_09",
-        "ModuleTag_11",
-        "ModuleTag_19",
-        "ModuleTag_Plant02",
-        "ModuleTag_Plant04"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaInfantryColonelBurton",
-        "AmericaInfantryCIAOfficer",
-        "AmericaInfantryColonelBurton",
-        "Boss_InfantryColonelBurton",
-        "Demo_GLAInfantryJarmenKell"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "SpecialAbilityUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/SpecialAbilityUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/SpecialAbilityUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
       "moduleType": "SLAVEDUPDATE",
       "fieldName": "StayOnSameLayerAsMaster",
       "normalizedFieldName": "STAYONSAMELAYERASMASTER",
@@ -566,50 +216,6 @@
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/RiderChangeContain.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/TransportContain.cpp",
         "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "VETERANCYCRATECOLLIDE",
-      "fieldName": "EffectRange",
-      "normalizedFieldName": "EFFECTRANGE",
-      "iniUsageCount": 7,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_02",
-        "ModuleTag_03"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaInfantryPilot",
-        "AmericaInfantryPilot",
-        "CINE_AmericaInfantryPilot",
-        "Lazr_AmericaInfantryPilot",
-        "MediumLevelUpCrate"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "VeterancyCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/VeterancyCrateCollide.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/VeterancyCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
@@ -836,49 +442,6 @@
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
         "packages/game-logic/src/status-effects.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "VETERANCYCRATECOLLIDE",
-      "fieldName": "AddsOwnerVeterancy",
-      "normalizedFieldName": "ADDSOWNERVETERANCY",
-      "iniUsageCount": 5,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_03"
-      ],
-      "exampleObjectNames": [
-        "AirF_AmericaInfantryPilot",
-        "AmericaInfantryPilot",
-        "CINE_AmericaInfantryPilot",
-        "Lazr_AmericaInfantryPilot",
-        "SupW_AmericaInfantryPilot"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "VeterancyCrateCollideModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/VeterancyCrateCollide.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CollideModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/VeterancyCrateCollide.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CrateCollide/CrateCollide.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
       "testReferenceFiles": [],
@@ -11455,8 +11018,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P1"
     },
     {
@@ -13745,8 +13310,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P1"
     },
     {
@@ -13797,8 +13364,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P1"
     },
     {
@@ -19457,8 +19026,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P1"
     },
     {
@@ -20701,8 +20272,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -21383,8 +20956,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -26207,8 +25782,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -39667,8 +39244,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -49219,8 +48798,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
