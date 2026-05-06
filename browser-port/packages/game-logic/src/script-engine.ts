@@ -724,8 +724,19 @@ export function updatePendingScriptReinforcementTransportArrivals(self: GL): voi
       }
     }
 
-    const distanceToTarget = Math.hypot(transport.x - pending.targetX, transport.z - pending.targetZ);
-    const allowedTargetDistance = Math.max(reachDistance, pending.deliveryDistance);
+    const dxToTarget = transport.x - pending.targetX;
+    const dzToTarget = transport.z - pending.targetZ;
+    const distanceToTargetSqr = dxToTarget * dxToTarget + dzToTarget * dzToTarget;
+    const distanceToTarget = Math.sqrt(distanceToTargetSqr);
+    const inboundToTarget = pending.deliverPayloadPreviousDistanceSqr > distanceToTargetSqr;
+    pending.deliverPayloadPreviousDistanceSqr = distanceToTargetSqr;
+    const preOpenDistance = pending.deliverPayloadMode && inboundToTarget
+      ? Math.max(0, pending.deliverPayloadPreOpenDistance)
+      : 0;
+    const allowedTargetDistance = Math.max(
+      reachDistance,
+      pending.deliveryDistance + preOpenDistance,
+    );
     if (distanceToTarget > allowedTargetDistance) {
       if (!transport.moving) {
         self.issueMoveTo(transport.id, pending.targetX, pending.targetZ, NO_ATTACK_DISTANCE, true);

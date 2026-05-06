@@ -458,6 +458,8 @@ describe('GameLogic deterministic CRC ownership', () => {
           originX: number;
           originZ: number;
           deliveryDistance: number;
+          deliverPayloadPreOpenDistance: number;
+          deliverPayloadPreviousDistanceSqr: number;
           deliverPayloadMode: boolean;
           deliverPayloadDoorDelayFrames: number;
           deliverPayloadDropDelayFrames: number;
@@ -481,6 +483,8 @@ describe('GameLogic deterministic CRC ownership', () => {
         originX: 5,
         originZ: 6,
         deliveryDistance: 7,
+        deliverPayloadPreOpenDistance: 0,
+        deliverPayloadPreviousDistanceSqr: 0,
         deliverPayloadMode: true,
         deliverPayloadDoorDelayFrames: 8,
         deliverPayloadDropDelayFrames: 9,

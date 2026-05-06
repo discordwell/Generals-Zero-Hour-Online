@@ -70,6 +70,8 @@ interface PrivateLogic {
     targetX: number;
     targetZ: number;
     deliveryDistance: number;
+    deliverPayloadPreOpenDistance: number;
+    deliverPayloadPreviousDistanceSqr: number;
     deliverPayloadMode: boolean;
     deliverPayloadDoorDelayFrames: number;
     deliverPayloadDropDelayFrames: number;
@@ -140,6 +142,7 @@ describe('parity: DeliverPayload nugget', () => {
     delayDeliveryMax?: number;
     selfDestructObject?: string;
     deliveryDistance?: number;
+    preOpenDistance?: number;
     dropDelay?: number;
     dropOffset?: string;
     dropVariance?: string;
@@ -194,6 +197,7 @@ describe('parity: DeliverPayload nugget', () => {
     if (opts.delayDeliveryMax !== undefined) nuggetFields['DelayDeliveryMax'] = opts.delayDeliveryMax;
     if (opts.selfDestructObject !== undefined) nuggetFields['SelfDestructObject'] = opts.selfDestructObject;
     if (opts.deliveryDistance !== undefined) nuggetFields['DeliveryDistance'] = opts.deliveryDistance;
+    if (opts.preOpenDistance !== undefined) nuggetFields['PreOpenDistance'] = opts.preOpenDistance;
     if (opts.dropDelay !== undefined) nuggetFields['DropDelay'] = opts.dropDelay;
     if (opts.dropOffset !== undefined) nuggetFields['DropOffset'] = opts.dropOffset;
     if (opts.dropVariance !== undefined) nuggetFields['DropVariance'] = opts.dropVariance;
@@ -355,6 +359,7 @@ describe('parity: DeliverPayload nugget', () => {
     expect(pending).toBeDefined();
     expect(pending!.deliverPayloadMode).toBe(true);
     expect(pending!.deliveryDistance).toBe(0);
+    expect(pending!.deliverPayloadPreOpenDistance).toBe(0);
     expect(pending!.deliverPayloadDoorDelayFrames).toBe(15);
     expect(pending!.deliverPayloadDropDelayFrames).toBe(30);
     expect(pending!.deliverPayloadDropOffsetX).toBe(4);
@@ -385,6 +390,35 @@ describe('parity: DeliverPayload nugget', () => {
     const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
     expect(transport.x).toBeCloseTo(launcher.x - 30, 5);
     expect(transport.z).toBeCloseTo(launcher.z, 5);
+  });
+
+  it('uses PreOpenDistance only after an OCL delivery transport is inbound', () => {
+    // C++ parity: DeliverPayloadAIUpdate::isCloseEnoughToTarget adds
+    // PreOpenDistance to DeliveryDistance only when previous distance is
+    // greater than current distance.
+    const { logic } = makeDeliverPayloadSetup({
+      startAtPreferredHeight: 'No',
+      deliveryDistance: 10,
+      preOpenDistance: 500,
+      dropDelay: 0,
+    });
+
+    const launcher = getEntitiesByTemplate(logic, 'Launcher')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown, frames: undefined, tx: number, tz: number) => void })
+      .executeOCL('OCL_DeliverPayload', launcher, undefined, launcher.x + 200, launcher.z);
+
+    const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
+    const payload = getEntitiesByTemplate(logic, 'TestPayload')[0]!;
+    const pending = priv(logic).pendingScriptReinforcementTransportArrivalByEntityId.get(transport.id);
+    expect(pending?.deliverPayloadPreOpenDistance).toBe(500);
+    expect(payload.transportContainerId).toBe(transport.id);
+
+    logic.update(1 / 30);
+    expect(payload.transportContainerId).toBe(transport.id);
+
+    logic.update(1 / 30);
+    expect(payload.transportContainerId).toBeNull();
+    expect(Math.hypot(transport.x - (launcher.x + 200), transport.z - launcher.z)).toBeGreaterThan(100);
   });
 });
 

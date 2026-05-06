@@ -8186,6 +8186,8 @@ interface ScriptReinforcementTransportArrivalState {
   originX: number;
   originZ: number;
   deliveryDistance: number;
+  deliverPayloadPreOpenDistance: number;
+  deliverPayloadPreviousDistanceSqr: number;
   deliverPayloadMode: boolean;
   deliverPayloadDoorDelayFrames: number;
   deliverPayloadDropDelayFrames: number;
@@ -57143,6 +57145,8 @@ export class GameLogicSubsystem implements Subsystem {
           originX: startX,
           originZ: startZ,
           deliveryDistance: Math.max(0, deliveryDistance),
+          deliverPayloadPreOpenDistance: Math.max(0, preOpenDistance),
+          deliverPayloadPreviousDistanceSqr: 0,
           deliverPayloadMode: true,
           deliverPayloadDoorDelayFrames: deliverPayloadProfile.doorDelayFrames,
           deliverPayloadDropDelayFrames: Math.max(0, dropDelayFrames),
