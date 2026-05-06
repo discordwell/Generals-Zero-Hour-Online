@@ -25,6 +25,26 @@ type GL = any;
 
 // ---- Weapon profiles implementations ----
 
+const DEFAULT_COMMAND_SOURCE_MASK = 0xffffffff;
+
+function applyWeaponSetSlotMetadata(
+  profile: AttackWeaponProfile,
+  selectedSet: WeaponTemplateSetProfile,
+  slotIndex: number,
+): AttackWeaponProfile {
+  const autoChooseSourceMask =
+    selectedSet.autoChooseSourceMasks?.[slotIndex] ?? DEFAULT_COMMAND_SOURCE_MASK;
+  const preferredAgainstKindOfNames = selectedSet.preferredAgainstBySlot?.[slotIndex] ?? [];
+  const preferredAgainstKindOf = preferredAgainstKindOfNames.length > 0
+    ? new Set(preferredAgainstKindOfNames.map((name) => name.trim().toUpperCase()).filter(Boolean))
+    : EMPTY_KINDOF_SET;
+  return {
+    ...profile,
+    autoChooseSourceMask,
+    preferredAgainstKindOf,
+  };
+}
+
 export function resolveWeaponScatterTargets(self: GL, weaponDef: WeaponDef): Array<{ x: number; z: number }> {
   const scatterTargetValue = self.readIniFieldValue(weaponDef.fields, 'ScatterTarget');
   if (typeof scatterTargetValue === 'undefined') {
@@ -296,6 +316,8 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
     projectileArcSecondPercentIndent: bezierArc?.secondPercentIndent ?? 0,
     leechRangeWeapon,
     fireSoundEvent: readStringField(weaponDef.fields, ['FireSound'])?.trim() || null,
+    autoChooseSourceMask: DEFAULT_COMMAND_SOURCE_MASK,
+    preferredAgainstKindOf: EMPTY_KINDOF_SET,
     historicBonusCount: readNumericField(weaponDef.fields, ['HistoricBonusCount']) ?? 0,
     historicBonusRadius: readNumericField(weaponDef.fields, ['HistoricBonusRadius']) ?? 0,
     historicBonusTime: readNumericField(weaponDef.fields, ['HistoricBonusTime']) ?? 0,
@@ -351,13 +373,14 @@ export function resolveAttackWeaponProfileForSetSelection(self: GL,
       if (forcedWeapon) {
         const profile = resolveWeaponProfileFromDef(self, forcedWeapon);
         if (profile) {
-          return profile;
+          return applyWeaponSetSlotMetadata(profile, selectedSet, normalizedForcedWeaponSlot);
         }
       }
     }
   }
 
-  for (const weaponName of selectedSet.weaponNamesBySlot) {
+  for (let slotIndex = 0; slotIndex < selectedSet.weaponNamesBySlot.length; slotIndex += 1) {
+    const weaponName = selectedSet.weaponNamesBySlot[slotIndex];
     if (!weaponName) {
       continue;
     }
@@ -367,7 +390,7 @@ export function resolveAttackWeaponProfileForSetSelection(self: GL,
     }
     const profile = resolveWeaponProfileFromDef(self, weapon);
     if (profile) {
-      return profile;
+      return applyWeaponSetSlotMetadata(profile, selectedSet, slotIndex);
     }
   }
 

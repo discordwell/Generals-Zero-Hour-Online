@@ -2044,6 +2044,10 @@ interface AttackWeaponProfile {
   leechRangeWeapon: boolean;
   /** Source parity: WeaponTemplate::m_fireSound — AudioEvent name for weapon fire. */
   fireSoundEvent: string | null;
+  /** Source parity: WeaponTemplateSet::m_autoChooseMask for the selected weapon slot. */
+  autoChooseSourceMask: number;
+  /** Source parity: WeaponTemplateSet::m_preferredAgainst for the selected weapon slot. */
+  preferredAgainstKindOf: ReadonlySet<string>;
   /** Source parity: WeaponTemplate::m_historicBonusCount — hits needed to trigger bonus weapon. */
   historicBonusCount: number;
   /** Source parity: WeaponTemplate::m_historicBonusRadius — radius within which hits count. */
