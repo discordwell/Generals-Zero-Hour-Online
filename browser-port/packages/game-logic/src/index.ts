@@ -56840,6 +56840,10 @@ export class GameLogicSubsystem implements Subsystem {
     const dispositionTokens = readStringList(nugget.fields, ['Disposition'])
       .map((token) => token.toUpperCase());
     const inheritVelocity = dispositionTokens.includes('INHERIT_VELOCITY');
+    const sendItOut = dispositionTokens.includes('SEND_IT_OUT');
+    const orientInForceDirection = readBooleanField(nugget.fields, ['OrientInForceDirection']) ?? false;
+    const dispositionIntensity = readNumericField(nugget.fields, ['DispositionIntensity']) ?? 0;
+    const extraFriction = (readNumericField(nugget.fields, ['ExtraFriction']) ?? 0) / LOGIC_FRAME_RATE;
 
     let firstCreatedEntityId: number | null = null;
     let putInContainerEntity: MapEntity | null = null;
@@ -56946,6 +56950,26 @@ export class GameLogicSubsystem implements Subsystem {
               sourcePhysics.velY,
               sourcePhysics.velZ,
             );
+          }
+        }
+
+        if (sendItOut) {
+          // Source parity: GenericObjectCreationNugget::doStuffToObj
+          // SEND_IT_OUT branch grounds the object, gives it a random heading,
+          // then applies a horizontal force in [-4*intensity, +4*intensity].
+          spawned.y = this.resolveGroundHeight(spawned.x, spawned.z);
+          spawned.baseHeight = spawned.y;
+          spawned.rotationY = this.gameRandom.nextFloat() * Math.PI * 2;
+          const physicsState = this.ensurePhysicsBehaviorStateForEntity(spawned);
+          if (physicsState) {
+            physicsState.extraFriction = extraFriction;
+            const horizontalForce = 4.0 * dispositionIntensity;
+            const forceX = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
+            const forceZ = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
+            this.applyPhysicsForceToEntity(spawned, forceX, 0, forceZ);
+            if (orientInForceDirection && (forceX !== 0 || forceZ !== 0)) {
+              spawned.rotationY = Math.atan2(forceZ, forceX);
+            }
           }
         }
 

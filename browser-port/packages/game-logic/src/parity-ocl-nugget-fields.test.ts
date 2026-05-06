@@ -969,4 +969,38 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(spawned[0]!.physicsBehaviorState).not.toBeNull();
     expect(spawned[0]!.physicsBehaviorState!.ignoreCollisionsWith).toBe(source.id);
   });
+
+  it('applies SEND_IT_OUT horizontal force and friction to spawned physics', () => {
+    // C++ parity: ObjectCreationList.cpp SEND_IT_OUT branch sets
+    // extra friction and applies horizontal force in
+    // [-4*DispositionIntensity, +4*DispositionIntensity].
+    const { logic } = makeCreateObjectSetup(
+      {
+        Disposition: 'SEND_IT_OUT',
+        DispositionIntensity: 3,
+        ExtraFriction: 30,
+        OrientInForceDirection: 'Yes',
+      },
+      undefined,
+      { withPhysics: true },
+    );
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestCreate', source);
+
+    const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
+    expect(spawned.length).toBe(1);
+    const physics = spawned[0]!.physicsBehaviorState;
+    expect(physics).not.toBeNull();
+    // parseFrictionPerSec: INI seconds value is converted to per-frame.
+    expect(physics!.extraFriction).toBeCloseTo(1);
+    expect(physics!.accelY).toBeCloseTo(0);
+    // Force is divided by spawned mass 2, so each horizontal acceleration
+    // component is bounded by (4 * 3) / 2 = 6.
+    expect(Math.abs(physics!.accelX)).toBeLessThanOrEqual(6);
+    expect(Math.abs(physics!.accelZ)).toBeLessThanOrEqual(6);
+    expect(Math.hypot(physics!.accelX, physics!.accelZ)).toBeGreaterThan(0);
+    expect(spawned[0]!.rotationY).toBeCloseTo(Math.atan2(physics!.accelZ, physics!.accelX), 5);
+  });
 });
