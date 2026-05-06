@@ -3584,17 +3584,29 @@ async function startGame(
     const events = gameLogic.drainVisualEvents();
     for (const event of events) {
       const pos = new THREE.Vector3(event.x, event.y, event.z);
+      let orientation: THREE.Quaternion | undefined;
+      if (event.sourceEntityId !== null && event.sourceBoneName) {
+        const resolvedOrientation = new THREE.Quaternion();
+        if (objectVisualManager.resolveEntityBoneWorldTransform(
+          event.sourceEntityId,
+          event.sourceBoneName,
+          pos,
+          resolvedOrientation,
+        )) {
+          orientation = resolvedOrientation;
+        }
+      }
 
       if (event.type === 'NAMED_FX') {
         if (event.effectName && fxListManager.hasFXList(event.effectName)) {
-          fxListManager.triggerFXList(event.effectName, pos);
+          fxListManager.triggerFXList(event.effectName, pos, orientation);
         }
         continue;
       }
 
       if (event.type === 'NAMED_PARTICLE_SYSTEM') {
         if (event.effectName) {
-          particleSystemManager.createSystem(event.effectName, pos);
+          particleSystemManager.createSystem(event.effectName, pos, orientation);
         }
         continue;
       }
@@ -3612,12 +3624,12 @@ async function startGame(
       ) {
         if (event.projectileType === 'LASER') {
           laserBeamRenderer.addBeam(
-            event.x, event.y, event.z,
+            pos.x, pos.y, pos.z,
             event.targetX, event.targetY, event.targetZ,
           );
         } else if (event.projectileType === 'BULLET') {
           tracerRenderer.addTracer(
-            event.x, event.y, event.z,
+            pos.x, pos.y, pos.z,
             event.targetX, event.targetY, event.targetZ,
           );
         }
@@ -3628,20 +3640,20 @@ async function startGame(
       let fxHandled = false;
       for (const action of plannedActions) {
         if (action.type === 'playAudio') {
-          audioManager.addAudioEvent(action.eventName, [event.x, event.y, event.z]);
+          audioManager.addAudioEvent(action.eventName, [pos.x, pos.y, pos.z]);
           continue;
         }
 
         // Spawn dynamic lights for explosions and muzzle flashes.
         if (action.type === 'spawnExplosion') {
-          dynamicLightManager.addExplosionLight(event.x, event.y, event.z, event.radius || 5);
+          dynamicLightManager.addExplosionLight(pos.x, pos.y, pos.z, event.radius || 5);
         } else if (action.type === 'spawnMuzzleFlash') {
-          dynamicLightManager.addMuzzleFlashLight(event.x, event.y, event.z);
+          dynamicLightManager.addMuzzleFlashLight(pos.x, pos.y, pos.z);
         }
 
         // Spawn debris for destruction events.
         if (action.type === 'spawnDestruction') {
-          debrisRenderer.spawnDebris(event.x, event.y, event.z, {
+          debrisRenderer.spawnDebris(pos.x, pos.y, pos.z, {
             radius: event.radius || 3,
             count: Math.min(12, Math.max(4, Math.round(event.radius * 2))),
           });
@@ -3655,7 +3667,7 @@ async function startGame(
         if (!fxHandled) {
           const fxName = resolveFallbackFXListName(event.type, action.type);
           if (fxName && fxListManager.hasFXList(fxName)) {
-            fxListManager.triggerFXList(fxName, pos);
+            fxListManager.triggerFXList(fxName, pos, orientation);
             fxHandled = true;
           }
         }

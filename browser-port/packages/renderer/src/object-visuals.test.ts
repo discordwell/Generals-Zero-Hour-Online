@@ -144,6 +144,35 @@ describe('ObjectVisualManager', () => {
     expect(placeholder?.visible).toBe(false);
   });
 
+  it('resolves source bone world transforms case-insensitively for visual events', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async (): Promise<LoadedModelAsset> => {
+        const asset = modelWithAnimationClips(['Idle']);
+        const muzzle = new THREE.Group();
+        muzzle.name = 'MUZZLEFX01';
+        muzzle.position.set(1, 2, 3);
+        muzzle.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 4);
+        asset.scene.add(muzzle);
+        return asset;
+      },
+    });
+
+    manager.sync([makeMeshState({ id: 61, x: 10, y: 5, z: 20, rotationY: 0 })], 1 / 30);
+    await flushModelLoadQueue();
+
+    const position = new THREE.Vector3();
+    const orientation = new THREE.Quaternion();
+    expect(manager.resolveEntityBoneWorldTransform(61, 'muzzlefx01', position, orientation)).toBe(true);
+    expect(position.x).toBeCloseTo(11);
+    expect(position.y).toBeCloseTo(7);
+    expect(position.z).toBeCloseTo(23);
+    const expectedOrientation = new THREE.Quaternion()
+      .setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 4);
+    expect(Math.abs(orientation.dot(expectedOrientation))).toBeCloseTo(1);
+    expect(manager.resolveEntityBoneWorldTransform(61, 'missing_bone', position, orientation)).toBe(false);
+  });
+
   it('hides SHROUDED render states and restores visibility when revealed', async () => {
     const scene = new THREE.Scene();
     const manager = new ObjectVisualManager(scene, null, {

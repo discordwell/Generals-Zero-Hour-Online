@@ -496,6 +496,33 @@ export class ObjectVisualManager {
     return this.visuals.get(entityId)?.root ?? null;
   }
 
+  /**
+   * Resolve a source drawable bone to world-space for visual events.
+   * Returns false if the entity/model/bone is not currently available so the
+   * caller can fall back to the event's logic-space position.
+   */
+  resolveEntityBoneWorldTransform(
+    entityId: number,
+    boneName: string,
+    position: THREE.Vector3,
+    orientation?: THREE.Quaternion,
+  ): boolean {
+    const visual = this.visuals.get(entityId);
+    if (!visual?.currentModel || boneName.trim().length === 0) {
+      return false;
+    }
+    const target = this.findObjectByNameCaseInsensitive(visual.currentModel, boneName);
+    if (!target) {
+      return false;
+    }
+    target.updateWorldMatrix(true, false);
+    target.getWorldPosition(position);
+    if (orientation) {
+      target.getWorldQuaternion(orientation);
+    }
+    return true;
+  }
+
   getVisualState(entityId: number): {
     animationState: RenderableAnimationState | null;
     hasModel: boolean;
