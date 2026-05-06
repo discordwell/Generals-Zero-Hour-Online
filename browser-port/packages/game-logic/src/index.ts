@@ -6955,6 +6955,8 @@ interface EMPUpdateProfile {
   startColor: readonly [number, number, number];
   /** Source parity: EMPUpdateModuleData::m_endColor. RGB 0..255. */
   endColor: readonly [number, number, number];
+  /** Source parity: EMPUpdateModuleData::m_rejectMask parsed from DoesNotAffect. */
+  doesNotAffect: Set<string>;
   /** If true, the EMP does not affect the owner's own STRUCTURE entities. */
   doesNotAffectMyOwnBuildings: boolean;
   /** Required kindOf flags for targets (empty = all). */
@@ -54790,7 +54792,8 @@ export class GameLogicSubsystem implements Subsystem {
   /**
    * Source parity: EMPUpdate::doDisableAttack — scan nearby entities and apply DISABLED_EMP.
    * Filters: skip self, skip infantry (unless SPAWNS_ARE_THE_WEAPONS), skip EMP_HARDENED,
-   * skip own buildings if doesNotAffectMyOwnBuildings, kill airborne aircraft.
+   * skip own buildings if doesNotAffectMyOwnBuildings, skip allied non-structures when
+   * DoesNotAffect includes ALLIES, kill airborne aircraft.
    */
   private doEmpDisableAttack(empEntity: MapEntity, profile: EMPUpdateProfile): void {
     const radiusSq = profile.effectRadius * profile.effectRadius;
@@ -54839,6 +54842,15 @@ export class GameLogicSubsystem implements Subsystem {
       if (kindOf.has('AIRCRAFT') && victim.objectStatusFlags.has('AIRBORNE_TARGET')) {
         if (kindOf.has('EMP_HARDENED')) continue;
         this.applyWeaponDamageAmount(null, victim, victim.maxHealth, 'UNRESISTABLE');
+        continue;
+      }
+
+      // Source parity: EMPUpdate::doDisableAttack only consults m_rejectMask
+      // for the WEAPON_AFFECTS_ALLIES bit, after the structure and airborne
+      // branches in the source else-if chain.
+      if (profile.doesNotAffect.has('ALLIES')
+        && !kindOf.has('STRUCTURE')
+        && this.getTeamRelationship(victim, empEntity) === RELATIONSHIP_ALLIES) {
         continue;
       }
 

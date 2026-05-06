@@ -1203,6 +1203,56 @@ describe('EMPUpdate', () => {
     expect(priv.spawnedEntities.get(3)!.objectStatusFlags.has('DISABLED_EMP')).toBe(true);
   });
 
+  it('DoesNotAffect ALLIES skips allied non-structures in source order', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('EMPPulse', 'America', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+          makeBlock('Behavior', 'EMPUpdate ModuleTag_EMP', {
+            Lifetime: 300,
+            StartFadeTime: 0,
+            DisabledDuration: 3000,
+            EffectRadius: 200,
+            DoesNotAffect: ['ALLIES'],
+          }),
+        ]),
+        makeObjectDef('FriendlyTank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+        makeObjectDef('EnemyTank', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+        makeObjectDef('FriendlyPower', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+        ]),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('EMPPulse', 50, 50),
+        makeMapObject('FriendlyTank', 55, 50),
+        makeMapObject('EnemyTank', 60, 50),
+        makeMapObject('FriendlyPower', 65, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    for (let i = 0; i < 3; i++) logic.update(1 / 30);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { objectStatusFlags: Set<string> }>;
+    };
+    // Source EMPUpdate.cpp checks m_rejectMask after the structure/airborne else-if branches.
+    expect(priv.spawnedEntities.get(2)!.objectStatusFlags.has('DISABLED_EMP')).toBe(false);
+    expect(priv.spawnedEntities.get(3)!.objectStatusFlags.has('DISABLED_EMP')).toBe(true);
+    expect(priv.spawnedEntities.get(4)!.objectStatusFlags.has('DISABLED_EMP')).toBe(true);
+  });
+
   it('DISABLED_EMP expires after configured duration', () => {
     const bundle = makeBundle({
       objects: [
