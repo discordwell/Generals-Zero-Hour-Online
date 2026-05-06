@@ -56723,7 +56723,13 @@ export class GameLogicSubsystem implements Subsystem {
       // If type is empty, fall back to the first token of name.
       const nuggetType = (nugget.type || nugget.name.split(/\s+/)[0] || '').toUpperCase();
       if (nuggetType === 'CREATEOBJECT' || nuggetType === 'CREATEDEBRIS') {
-        const createdId = this.executeCreateObjectNugget(nugget, sourceEntity, lifetimeOverrideFrames, angle);
+        const createdId = this.executeCreateObjectNugget(
+          nugget,
+          sourceEntity,
+          lifetimeOverrideFrames,
+          angle,
+          nuggetType === 'CREATEDEBRIS',
+        );
         if (firstCreatedEntityId === null && createdId !== null) {
           firstCreatedEntityId = createdId;
         }
@@ -56762,29 +56768,38 @@ export class GameLogicSubsystem implements Subsystem {
    * CreateObject-specific (parseObject):
    *   ContainInsideSourceObject, ObjectNames, ObjectCount, InheritsVeterancy,
    *   SkipIfSignificantlyAirborne, InvulnerableTime, MinHealth, MaxHealth, RequiresLivePlayer
+   *
+   * CreateDebris-specific (parseDebris):
+   *   ModelNames, Mass, AnimationSet, FXFinal, OkToChangeModelColor, MinLODRequired,
+   *   Shadow, BounceSound.
    */
-  private executeCreateObjectNugget(nugget: IniBlock, sourceEntity: MapEntity, lifetimeOverrideFrames?: number, angleOverride?: number): number | null {
+  private executeCreateObjectNugget(
+    nugget: IniBlock,
+    sourceEntity: MapEntity,
+    lifetimeOverrideFrames?: number,
+    angleOverride?: number,
+    createDebris = false,
+  ): number | null {
     const registry = this.iniDataRegistry;
     if (!registry) return null;
 
-    // Parse ObjectNames field (space-separated list of template names).
-    const objectNamesRaw = readStringField(nugget.fields, ['ObjectNames']);
-    if (!objectNamesRaw) return null;
-    const objectNames = objectNamesRaw.trim().split(/\s+/).filter(Boolean);
-    if (objectNames.length === 0) return null;
+    // Source parity: CreateObject picks ThingTemplate names from ObjectNames;
+    // CreateDebris picks drawable model names from ModelNames but always spawns
+    // the GenericDebris ThingTemplate (ObjectCreationList.cpp:1354-1363).
+    const selectedNamesRaw = readStringField(nugget.fields, createDebris ? ['ModelNames'] : ['ObjectNames']);
+    if (!selectedNamesRaw) return null;
+    const selectedNames = selectedNamesRaw.trim().split(/\s+/).filter(Boolean);
+    if (selectedNames.length === 0) return null;
 
     // Parse Count (default 1).
     const count = Math.max(1, Math.trunc(readNumericField(nugget.fields, ['Count', 'ObjectCount']) ?? 1));
 
-    // Parse Offset as Coord3D (X Y Z in source).
-    const offsetRaw = readStringField(nugget.fields, ['Offset']);
-    let offsetX = 0;
-    let offsetZ = 0;
-    if (offsetRaw) {
-      const parts = offsetRaw.trim().split(/\s+/);
-      if (parts.length >= 1) offsetX = parseFloat(parts[0]!) || 0;
-      if (parts.length >= 3) offsetZ = parseFloat(parts[2]!) || 0;
-    }
+    // Parse Offset as source Coord3D. Original C&C coordinates map x->TS x,
+    // y->TS z, z->TS y.
+    const offset = readCoord3DField(nugget.fields, ['Offset']);
+    const offsetX = offset?.x ?? 0;
+    const offsetZ = offset?.y ?? 0;
+    const offsetY = offset?.z ?? 0;
 
     // Parse InheritsVeterancy.
     const inheritsVet = readStringField(nugget.fields, ['InheritsVeterancy'])?.toUpperCase() === 'YES';
@@ -56839,6 +56854,7 @@ export class GameLogicSubsystem implements Subsystem {
     const diesOnBadLand = readBooleanField(nugget.fields, ['DiesOnBadLand']) ?? false;
     const dispositionTokens = readStringList(nugget.fields, ['Disposition'])
       .map((token) => token.toUpperCase());
+    const likeExisting = dispositionTokens.includes('LIKE_EXISTING');
     const inheritVelocity = dispositionTokens.includes('INHERIT_VELOCITY');
     const sendItOut = dispositionTokens.includes('SEND_IT_OUT');
     const sendItFlying = dispositionTokens.includes('SEND_IT_FLYING');
@@ -56863,6 +56879,7 @@ export class GameLogicSubsystem implements Subsystem {
     const maxForceMagnitude = readNumericField(nugget.fields, ['MaxForceMagnitude']) ?? minForceMagnitude;
     const minForcePitch = (readNumericField(nugget.fields, ['MinForcePitch']) ?? 0) * Math.PI / 180;
     const maxForcePitch = (readNumericField(nugget.fields, ['MaxForcePitch']) ?? 0) * Math.PI / 180;
+    const debrisMass = createDebris ? (readNumericField(nugget.fields, ['Mass']) ?? 1) : 0;
 
     let firstCreatedEntityId: number | null = null;
     let putInContainerEntity: MapEntity | null = null;
@@ -56882,8 +56899,10 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     for (let i = 0; i < count; i++) {
-      // Pick a random object from the list (deterministic via gameRandom).
-      const templateName = objectNames[this.gameRandom.nextRange(0, objectNames.length - 1)]!;
+      // Pick a random object/model from the list (deterministic via gameRandom).
+      const selectedName = selectedNames[this.gameRandom.nextRange(0, selectedNames.length - 1)]!;
+      const templateName = createDebris ? 'GenericDebris' : selectedName;
+      const debrisModelName = createDebris ? selectedName : null;
 
       // Source parity: SpreadFormation — calculate position spread.
       let formationOffsetX = 0;
@@ -56918,6 +56937,19 @@ export class GameLogicSubsystem implements Subsystem {
       );
 
       if (spawned) {
+        if (debrisModelName) {
+          // Source parity: DebrisDrawInterface::setModelName(modelName).
+          spawned.renderAssetCandidates = [debrisModelName];
+          spawned.renderAssetPath = debrisModelName;
+          spawned.renderAssetResolved = true;
+        }
+
+        if (createDebris && spawned.physicsBehaviorProfile) {
+          // Source parity: debris Mass overrides GenericDebris PhysicsBehavior
+          // before applyForce in SEND_IT_* / RANDOM_FORCE branches.
+          spawned.physicsBehaviorProfile.mass = Math.max(1e-9, debrisMass);
+        }
+
         // Source parity (ZH): track first created entity for return value.
         if (firstCreatedEntityId === null) {
           firstCreatedEntityId = spawned.id;
@@ -56970,6 +57002,12 @@ export class GameLogicSubsystem implements Subsystem {
               sourcePhysics.velZ,
             );
           }
+        }
+
+        if ((likeExisting || sendItFlying || sendItUp || randomForceDisposition) && offsetY !== 0) {
+          // Source parity: airborne/LIKE_EXISTING dispositions use chunkPos
+          // including the source Z offset before physics is applied.
+          spawned.y = sourceEntity.y + offsetY;
         }
 
         if (sendItOut) {

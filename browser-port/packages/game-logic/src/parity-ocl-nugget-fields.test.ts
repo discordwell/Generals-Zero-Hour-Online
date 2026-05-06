@@ -110,6 +110,9 @@ interface PrivateEntity {
   moving: boolean;
   moveTarget: { x: number; z: number } | null;
   attackTargetPosition: { x: number; z: number } | null;
+  renderAssetCandidates: string[];
+  renderAssetPath: string | null;
+  renderAssetResolved: boolean;
   physicsBehaviorProfile: { mass: number; allowBouncing?: boolean } | null;
   physicsBehaviorState: {
     velX: number;
@@ -693,6 +696,38 @@ describe('parity: CreateObject nugget missing fields', () => {
     return { logic, bundle };
   }
 
+  function makeCreateDebrisSetup(nuggetFields: Record<string, unknown>) {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Source', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+        ]),
+        makeObjectDef('GenericDebris', 'Neutral', ['UNATTACKABLE'], [
+          makeBlock('Draw', 'W3DDebrisDraw ModuleTag_Draw', {}),
+          makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', {
+            Mass: 1,
+            AllowBouncing: 'Yes',
+            KillWhenRestingOnGround: 'Yes',
+          }),
+        ]),
+      ],
+    });
+
+    addOCL(bundle, 'OCL_TestDebris', [{
+      type: 'CreateDebris',
+      fields: { ModelNames: 'Debris_Model_A', Mass: 4, ...nuggetFields },
+    }]);
+
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Source', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+    return { logic, bundle };
+  }
+
   it('applies InvulnerableTime to spawned objects', () => {
     // C++ parity: ObjectCreationList.cpp:873 — InvulnerableTime parsed as duration.
     // C++ GenericObjectCreationNugget applies INVULNERABLE status for the specified duration.
@@ -1074,5 +1109,48 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(Math.abs(physics!.accelZ)).toBeLessThan(1e-9);
     // Force 60 divided by spawned mass 2.
     expect(physics!.accelY).toBeCloseTo(30);
+  });
+
+  it('spawns GenericDebris with selected ModelNames and nugget Mass', () => {
+    // C++ parity: ObjectCreationList.cpp parseDebris stores ModelNames, then
+    // reallyCreate spawns the GenericDebris ThingTemplate and passes the picked
+    // model name to DebrisDrawInterface::setModelName.
+    const { logic } = makeCreateDebrisSetup({});
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    const createdId = (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestDebris', source);
+
+    const debris = getEntitiesByTemplate(logic, 'GenericDebris');
+    expect(debris.length).toBe(1);
+    expect(createdId).toBe(debris[0]!.id);
+    expect(debris[0]!.renderAssetCandidates).toEqual(['Debris_Model_A']);
+    expect(debris[0]!.renderAssetPath).toBe('Debris_Model_A');
+    expect(debris[0]!.renderAssetResolved).toBe(true);
+    expect(debris[0]!.physicsBehaviorProfile?.mass).toBe(4);
+  });
+
+  it('parses OCL Offset as source Coord3D for horizontal and vertical debris placement', () => {
+    // Source Coord3D maps x->world x, y->world z, z->world y. CreateDebris
+    // airborne dispositions use chunkPos including the vertical offset.
+    const { logic } = makeCreateDebrisSetup({
+      Disposition: 'RANDOM_FORCE',
+      Offset: ['X:10', 'Y:20', 'Z:30'],
+      MinForceMagnitude: 60,
+      MaxForceMagnitude: 60,
+      MinForcePitch: 90,
+      MaxForcePitch: 90,
+    });
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestDebris', source);
+
+    const debris = getEntitiesByTemplate(logic, 'GenericDebris');
+    expect(debris.length).toBe(1);
+    expect(debris[0]!.x).toBeCloseTo(source.x + 10, 5);
+    expect(debris[0]!.z).toBeCloseTo(source.z + 20, 5);
+    expect(debris[0]!.y).toBeCloseTo(source.y + 30, 5);
+    expect(debris[0]!.physicsBehaviorState?.accelY).toBeCloseTo(15);
   });
 });
