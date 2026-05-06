@@ -382,7 +382,7 @@ export function updateStealth(self: GL): void {
       entity.stealthPulsePhase = 0;
     }
     if (entity.stealthDisguiseTransitionFrames > 0) {
-      advanceDisguiseTransition(entity);
+      advanceDisguiseTransition(self, entity);
     } else if (entity.stealthEnabled
         || entity.temporaryStealthGrant
         || entity.objectStatusFlags.has('STEALTHED')
@@ -646,7 +646,22 @@ function beginDisguiseReveal(entity: MapEntity, profile: StealthProfile | null):
   entity.stealthTransitioningToDisguise = false;
 }
 
-function advanceDisguiseTransition(entity: MapEntity): void {
+function emitDisguiseFX(self: GL, entity: MapEntity, effectName: string | null | undefined): void {
+  const trimmedName = effectName?.trim() ?? '';
+  if (!trimmedName) return;
+  self.visualEventBuffer.push({
+    type: 'NAMED_FX',
+    x: entity.x,
+    y: entity.y,
+    z: entity.z,
+    radius: 0,
+    sourceEntityId: entity.id,
+    projectileType: 'BULLET',
+    effectName: trimmedName,
+  });
+}
+
+function advanceDisguiseTransition(self: GL, entity: MapEntity): void {
   const profile = entity.stealthProfile;
   if (!profile || entity.stealthDisguiseTransitionFrames <= 0) return;
   entity.stealthDisguiseTransitionFrames--;
@@ -661,7 +676,13 @@ function advanceDisguiseTransition(entity: MapEntity): void {
     entity.stealthDisguiseHalfpointReached = true;
     if (entity.stealthTransitioningToDisguise) {
       entity.objectStatusFlags.add('DISGUISED');
+      // Source parity: StealthUpdate::changeVisualDisguise fires m_disguiseFX
+      // when the drawable swaps to the disguise at the transition halfpoint.
+      emitDisguiseFX(self, entity, profile.disguiseFX);
     } else {
+      // Source parity: reveal halfpoint restores the original drawable and
+      // fires m_disguiseRevealFX at the entity position.
+      emitDisguiseFX(self, entity, profile.disguiseRevealFX);
       entity.objectStatusFlags.delete('DISGUISED');
       entity.stealthDisguisePlayerIndex = -1;
       entity.disguiseTemplateName = null;

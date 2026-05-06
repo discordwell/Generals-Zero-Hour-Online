@@ -4,10 +4,9 @@
  * Test 1: Stealth Disguise Mechanics
  *   C++ StealthUpdate.cpp:97-150 — disguise state machine with DisguisesAsTeam,
  *   disguiseAsObject(), transition animations, and OrderIdleEnemiesToAttackMeUponReveal.
- *   TS: stealth-detection.ts has stealth logic but no disguise system. DisguisesAsTeam,
- *   DisguiseAsTemplate, and disguise transition animations are not implemented.
+ *   TS: stealth-detection.ts has stealth/disguise logic, including DisguisesAsTeam,
+ *   transition halfpoint status swaps, and DisguiseFX / DisguiseRevealFX visual events.
  *   OrderIdleEnemiesToAttackMeUponReveal IS implemented — parsed and triggered on detection.
- *   The DISGUISED status flag is referenced in visibility checks but never set by any code path.
  *
  * Test 2: DynamicShroudClearingRangeUpdate — Vision Range Grows/Sustains/Shrinks
  *   C++ DynamicShroudClearingRangeUpdate.cpp:89-150 — 6-state machine:
@@ -234,6 +233,103 @@ describe('Parity: stealth disguise state machine (StealthUpdate.cpp:97-150)', ()
     const disguiser = privateApi.spawnedEntities.get(1);
     expect(disguiser).not.toBeUndefined();
     expect(disguiser!.disguiseTemplateName).toBe('EnemyTank');
+  });
+
+  it('emits DisguiseFX when the disguise visual swaps at transition halfpoint', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Disguiser', 'GLA', ['VEHICLE', 'DISGUISER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+          makeBlock('Behavior', 'StealthUpdate ModuleTag_Stealth', {
+            StealthDelay: 100,
+            InnateStealth: 'Yes',
+            DisguisesAsTeam: 'Yes',
+            DisguiseFX: 'FX_BombTruckDisguise',
+            DisguiseTransitionTime: 300,
+          }),
+        ]),
+        makeObjectDef('EnemyTank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+      ],
+    });
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Disguiser', 50, 50),
+        makeMapObject('EnemyTank', 60, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    setupEnemyRelationships(logic, 'GLA', 'America');
+
+    for (let i = 0; i < 20; i++) logic.update(1 / 30);
+
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_BombTruckDisguise',
+      sourceEntityId: 1,
+      x: 50,
+      z: 50,
+    }));
+  });
+
+  it('emits DisguiseRevealFX when the original visual is restored at reveal halfpoint', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Disguiser', 'GLA', ['VEHICLE', 'DISGUISER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+          makeBlock('Behavior', 'StealthUpdate ModuleTag_Stealth', {
+            StealthDelay: 100,
+            InnateStealth: 'Yes',
+            DisguisesAsTeam: 'Yes',
+            DisguiseFX: 'FX_BombTruckDisguise',
+            DisguiseRevealFX: 'FX_BombTruckReveal',
+            DisguiseTransitionTime: 300,
+            DisguiseRevealTransitionTime: 300,
+          }),
+        ]),
+        makeObjectDef('EnemyTank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+        makeObjectDef('DetectorUnit', 'America', ['INFANTRY', 'DETECTOR'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('Behavior', 'StealthDetectorUpdate ModuleTag_Detector', {
+            DetectionRange: 200,
+            DetectionRate: 1000,
+          }),
+        ], { VisionRange: 200 }),
+      ],
+    });
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Disguiser', 50, 50),
+        makeMapObject('EnemyTank', 60, 50),
+        makeMapObject('DetectorUnit', 55, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    setupEnemyRelationships(logic, 'GLA', 'America');
+
+    for (let i = 0; i < 20; i++) logic.update(1 / 30);
+    logic.drainVisualEvents();
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, { detectorNextScanFrame: number }>;
+    };
+    privateApi.spawnedEntities.get(3)!.detectorNextScanFrame = 0;
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_BombTruckReveal',
+      sourceEntityId: 1,
+      x: 50,
+      z: 50,
+    }));
   });
 
   it('detector within range breaks stealth and sets DETECTED on stealthed unit', () => {
