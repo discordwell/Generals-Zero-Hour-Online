@@ -113,6 +113,7 @@ interface PrivateEntity {
   renderAssetCandidates: string[];
   renderAssetPath: string | null;
   renderAssetResolved: boolean;
+  shadowType: string | null;
   debrisAnimationState: {
     initialClipName: string;
     flyingClipName: string;
@@ -1138,6 +1139,7 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(debris[0]!.renderAssetResolved).toBe(true);
     expect(debris[0]!.physicsBehaviorProfile?.mass).toBe(4);
     expect(debris[0]!.debrisAllowsModelColorChange).toBe(false);
+    expect(debris[0]!.shadowType).toBe('SHADOW_NONE');
   });
 
   it('passes CreateDebris OkToChangeModelColor to debris render state', () => {
@@ -1155,6 +1157,23 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(debris.debrisAllowsModelColorChange).toBe(true);
     const renderState = logic.getRenderableEntityStates().find((state) => state.id === debris.id);
     expect(renderState?.debrisAllowsModelColorChange).toBe(true);
+  });
+
+  it('passes CreateDebris Shadow to debris render state', () => {
+    // C++ parity: ObjectCreationList.cpp passes m_shadowType as the third
+    // W3DDebrisDraw::setModelName argument.
+    const { logic } = makeCreateDebrisSetup({
+      Shadow: 'SHADOW_DECAL',
+    });
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestDebris', source);
+
+    const debris = getEntitiesByTemplate(logic, 'GenericDebris')[0]!;
+    expect(debris.shadowType).toBe('SHADOW_DECAL');
+    const renderState = logic.getRenderableEntityStates().find((state) => state.id === debris.id);
+    expect(renderState?.shadowType).toBe('SHADOW_DECAL');
   });
 
   it('passes CreateDebris AnimationSet and FXFinal to debris render state', () => {

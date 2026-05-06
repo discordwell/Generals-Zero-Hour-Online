@@ -56925,6 +56925,11 @@ export class GameLogicSubsystem implements Subsystem {
       ? (this.extractDynamicAudioEventName(nugget.fields, 'BounceSound')?.trim() ?? '')
       : '';
     const debrisAnimationSets = createDebris ? this.extractOCLDebrisAnimationSets(nugget) : [];
+    // Source parity: GenericObjectCreationNugget ctor defaults m_shadowType
+    // to SHADOW_NONE; parseDebris passes that value to W3DDebrisDraw.
+    const debrisShadowType = createDebris
+      ? (readStringField(nugget.fields, ['Shadow'])?.trim() || 'SHADOW_NONE')
+      : null;
     // Source parity: ObjectCreationList.cpp::doStuffToObj passes either
     // obj->getIndicatorColor() or 0 into W3DDebrisDraw::setModelName.
     const debrisAllowsModelColorChange = createDebris
@@ -56993,6 +56998,7 @@ export class GameLogicSubsystem implements Subsystem {
           spawned.renderAssetPath = debrisModelName;
           spawned.renderAssetResolved = true;
           spawned.debrisAllowsModelColorChange = debrisAllowsModelColorChange;
+          spawned.shadowType = debrisShadowType;
           if (debrisAnimationSets.length > 0) {
             // Source parity: GenericObjectCreationNugget::doStuffToObj picks
             // one AnimationSet with GameLogicRandomValue and passes it to
