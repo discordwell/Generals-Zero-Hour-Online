@@ -384,6 +384,16 @@ export class ParticleSystemManager implements Subsystem {
     }
   }
 
+  setSystemTransform(id: number, position: THREE.Vector3, orientation?: THREE.Quaternion): boolean {
+    const system = this.systems.get(id);
+    if (!system) return false;
+    system.position.copy(position);
+    if (orientation) {
+      system.orientation.copy(orientation);
+    }
+    return true;
+  }
+
   getActiveSystemCount(): number {
     return this.systems.size;
   }

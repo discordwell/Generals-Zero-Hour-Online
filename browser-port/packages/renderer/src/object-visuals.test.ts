@@ -59,6 +59,19 @@ function modelWithAnimationClips(clips: readonly string[] = []): LoadedModelAsse
   };
 }
 
+function modelWithConditionParticleBones(): LoadedModelAsset {
+  const asset = modelWithAnimationClips(['Idle', 'DamagedIdle']);
+  const fx1 = new THREE.Group();
+  fx1.name = 'FX1';
+  fx1.position.set(1, 2, 3);
+  asset.scene.add(fx1);
+  const fx2 = new THREE.Group();
+  fx2.name = 'FX2';
+  fx2.position.set(-2, 1, 4);
+  asset.scene.add(fx2);
+  return asset;
+}
+
 function getPlaceholderMesh(manager: ObjectVisualManager, entityId: number): THREE.Mesh | null {
   const root = manager.getVisualRoot(entityId);
   if (!root) {
@@ -1816,6 +1829,127 @@ describe('ObjectVisualManager', () => {
 
     // No additional loads should happen because the alternate model is cached.
     expect(loadCount).toBe(loadCountAfterFirst);
+  });
+
+  it('spawns and replaces ParticleSysBone systems on condition changes', async () => {
+    const scene = new THREE.Scene();
+    const created: Array<{ id: number; templateName: string; position: THREE.Vector3; orientation: THREE.Quaternion }> = [];
+    const updated: Array<{ id: number; position: THREE.Vector3; orientation: THREE.Quaternion }> = [];
+    const destroyed: number[] = [];
+    let nextParticleId = 1;
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithConditionParticleBones(),
+      particleSystemSpawner: {
+        createSystem: (templateName, position, orientation) => {
+          const id = nextParticleId++;
+          created.push({
+            id,
+            templateName,
+            position: position.clone(),
+            orientation: orientation?.clone() ?? new THREE.Quaternion(),
+          });
+          return id;
+        },
+        destroySystem: (id) => {
+          destroyed.push(id);
+        },
+        setSystemTransform: (id, position, orientation) => {
+          updated.push({
+            id,
+            position: position.clone(),
+            orientation: orientation?.clone() ?? new THREE.Quaternion(),
+          });
+          return true;
+        },
+      },
+    });
+
+    const conditionInfos: NonNullable<RenderableEntityState['modelConditionInfos']> = [
+      {
+        conditionFlags: [],
+        conditionKey: '',
+        modelName: null,
+        animationName: 'Idle',
+        idleAnimationName: null,
+        hideSubObjects: [],
+        showSubObjects: [],
+        animationMode: 'LOOP',
+        transitionKey: null,
+        animSpeedFactorMin: 1,
+        animSpeedFactorMax: 1,
+        idleAnimations: [],
+        particleSysBones: [{ boneName: 'fx1', particleSystemName: 'glitter2' }],
+      },
+      {
+        conditionFlags: ['DAMAGED'],
+        conditionKey: 'DAMAGED',
+        modelName: null,
+        animationName: 'DamagedIdle',
+        idleAnimationName: null,
+        hideSubObjects: [],
+        showSubObjects: [],
+        animationMode: 'LOOP',
+        transitionKey: null,
+        animSpeedFactorMin: 1,
+        animSpeedFactorMax: 1,
+        idleAnimations: [],
+        particleSysBones: [{ boneName: 'fx2', particleSystemName: 'spark1' }],
+      },
+    ];
+
+    manager.sync([makeMeshState({
+      id: 240,
+      x: 10,
+      y: 5,
+      z: 20,
+      rotationY: 0,
+      modelConditionInfos: conditionInfos,
+      modelConditionFlags: [],
+    })], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([makeMeshState({
+      id: 240,
+      x: 10,
+      y: 5,
+      z: 20,
+      rotationY: 0,
+      modelConditionInfos: conditionInfos,
+      modelConditionFlags: [],
+    })], 1 / 30);
+
+    expect(created).toHaveLength(1);
+    expect(created[0]!.templateName).toBe('glitter2');
+    expect(created[0]!.position.toArray()).toEqual([11, 7, 23]);
+
+    manager.sync([makeMeshState({
+      id: 240,
+      x: 30,
+      y: 6,
+      z: 40,
+      rotationY: 0,
+      modelConditionInfos: conditionInfos,
+      modelConditionFlags: [],
+    })], 1 / 30);
+    const lastUpdate = updated[updated.length - 1]!;
+    expect(lastUpdate.id).toBe(created[0]!.id);
+    expect(lastUpdate.position.toArray()).toEqual([31, 8, 43]);
+
+    manager.sync([makeMeshState({
+      id: 240,
+      x: 30,
+      y: 6,
+      z: 40,
+      rotationY: 0,
+      modelConditionInfos: conditionInfos,
+      modelConditionFlags: ['DAMAGED'],
+    })], 1 / 30);
+    expect(destroyed).toContain(created[0]!.id);
+    expect(created).toHaveLength(2);
+    expect(created[1]!.templateName).toBe('spark1');
+    expect(created[1]!.position.toArray()).toEqual([28, 7, 44]);
+
+    manager.sync([], 1 / 30);
+    expect(destroyed).toContain(created[1]!.id);
   });
 
   it('cloneModelForGhost leverages model cache from prior entity loads', async () => {

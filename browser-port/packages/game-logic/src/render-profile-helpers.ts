@@ -15,6 +15,11 @@ export interface IdleAnimationVariant {
   randomWeight: number;
 }
 
+export interface ParticleSysBoneInfo {
+  boneName: string;
+  particleSystemName: string;
+}
+
 export interface ModelConditionInfo {
   conditionFlags: string[];
   /** Pre-computed sorted key for O(1) comparison in hot paths. */
@@ -49,6 +54,8 @@ export interface ModelConditionInfo {
    * randomly when the previous one completes (ONCE mode).
    */
   idleAnimations: IdleAnimationVariant[];
+  /** Source parity: ModelConditionInfo::m_particleSysBones. */
+  particleSysBones?: ParticleSysBoneInfo[];
 }
 
 interface SubObjectVisibilityInfo {
@@ -75,6 +82,8 @@ export interface TransitionInfo {
   animationMode: 'ONCE';
   hideSubObjects: string[];
   showSubObjects: string[];
+  /** Source parity: TransitionState copies default ModelConditionInfo particle bones. */
+  particleSysBones?: ParticleSysBoneInfo[];
 }
 
 export interface ResolvedRenderAssetProfile {
@@ -269,6 +278,7 @@ function buildVisualKey(info: ModelConditionInfo): string {
     String(info.animSpeedFactorMin),
     String(info.animSpeedFactorMax),
     info.idleAnimations.map(v => `${v.animationName}:${v.randomWeight}`).join(','),
+    (info.particleSysBones ?? []).map(v => `${v.boneName}:${v.particleSystemName}`).join(','),
   ].join('\0');
 }
 
@@ -354,6 +364,7 @@ function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
   // INI format: IdleAnimation = AnimName [DistanceCovered] [TimesToRepeat]
   // We collect all IdleAnimation values as idle animation variants.
   const idleAnimations = collectIdleAnimationVariants(block.fields);
+  const particleSysBones = collectParticleSysBones(block.fields);
 
   return {
     conditionFlags,
@@ -368,6 +379,7 @@ function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
     animSpeedFactorMin,
     animSpeedFactorMax,
     idleAnimations,
+    particleSysBones,
   };
 }
 
@@ -451,6 +463,31 @@ function collectSubObjectVisibility(
     }
   }
   return { hideSubObjects, showSubObjects };
+}
+
+function collectParticleSysBones(
+  fields: Record<string, IniValue>,
+  base?: readonly ParticleSysBoneInfo[] | null,
+): ParticleSysBoneInfo[] {
+  const result = base ? [...base] : [];
+  const value = readIniFieldValue(fields, 'ParticleSysBone');
+  if (value === undefined || value === null) {
+    return result;
+  }
+
+  for (const group of extractIniValueTokens(value)) {
+    const boneName = group[0]?.trim();
+    const particleSystemName = group[1]?.trim();
+    if (!boneName || !particleSystemName || particleSystemName.toUpperCase() === 'NONE') {
+      continue;
+    }
+    result.push({
+      // Source lowercases bone names before render-object lookup.
+      boneName: boneName.toLowerCase(),
+      particleSystemName,
+    });
+  }
+  return result;
 }
 
 /**
@@ -575,6 +612,7 @@ function parseTransitionStateBlock(block: IniBlock, defaultInfo: ModelConditionI
     ?? readFirstStringToken(block.fields, 'ModelName');
   const animationName = readFirstStringToken(block.fields, 'Animation');
   const subObjectVisibility = collectSubObjectVisibility(block.fields, defaultInfo);
+  const particleSysBones = collectParticleSysBones(block.fields, defaultInfo?.particleSysBones ?? null);
 
   return {
     fromKey,
@@ -584,6 +622,7 @@ function parseTransitionStateBlock(block: IniBlock, defaultInfo: ModelConditionI
     animationMode: 'ONCE',
     hideSubObjects: subObjectVisibility.hideSubObjects,
     showSubObjects: subObjectVisibility.showSubObjects,
+    particleSysBones,
   };
 }
 

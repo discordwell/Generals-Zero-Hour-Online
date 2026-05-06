@@ -15,6 +15,7 @@ import {
 import type {
   IdleAnimationVariant,
   ModelConditionInfo,
+  ParticleSysBoneInfo,
   TransitionInfo,
 } from '@generals/game-logic';
 import {
@@ -27,7 +28,7 @@ import {
 // Re-export types and computeConditionKey so existing consumers of
 // @generals/renderer that import these from object-visuals keep working.
 export { computeConditionKey };
-export type { IdleAnimationVariant, ModelConditionInfo, TransitionInfo };
+export type { IdleAnimationVariant, ModelConditionInfo, ParticleSysBoneInfo, TransitionInfo };
 
 export type RenderableAnimationState = 'IDLE' | 'MOVE' | 'ATTACK' | 'DIE' | 'PRONE';
 
@@ -99,6 +100,18 @@ export interface RenderableEntityState {
 export interface LoadedModelAsset {
   readonly scene: THREE.Object3D;
   readonly animations: readonly THREE.AnimationClip[];
+}
+
+export interface ConditionParticleSystemSpawner {
+  createSystem(templateName: string, position: THREE.Vector3, orientation?: THREE.Quaternion): number | null;
+  destroySystem(id: number): void;
+  setSystemTransform?(id: number, position: THREE.Vector3, orientation?: THREE.Quaternion): boolean | void;
+}
+
+interface ActiveConditionParticleSystem {
+  id: number;
+  boneName: string;
+  particleSystemName: string;
 }
 
 interface VisualAssetState {
@@ -177,6 +190,9 @@ interface VisualAssetState {
   transitionFromKey: string | null;
   /** Matched ModelConditionInfo pending application after transition finishes. */
   transitionTargetMatch: ModelConditionInfo | null;
+  /** Source parity: state particle systems spawned from ModelConditionInfo::m_particleSysBones. */
+  conditionParticleSystems: ActiveConditionParticleSystem[];
+  conditionParticleSystemSignature: string | null;
   // --- Idle animation randomization ---
   /** Index of the currently playing idle variant (-1 = none). */
   idleVariantIndex: number;
@@ -225,6 +241,8 @@ export interface ObjectVisualManagerConfig {
   modelExtensions?: readonly string[];
   /** Optional custom model loader (for tests or alternate formats). */
   modelLoader?: (assetPath: string) => Promise<LoadedModelAsset>;
+  /** Optional particle-system bridge used for ParticleSysBone state effects. */
+  particleSystemSpawner?: ConditionParticleSystemSpawner | null;
 }
 
 export interface ObjectVisualDebugSnapshot {
@@ -331,6 +349,8 @@ export class ObjectVisualManager {
   private readonly tempToppleQuaternion = new THREE.Quaternion();
   private readonly tempToppleDirection = new THREE.Vector3();
   private readonly tempToppleAxis = new THREE.Vector3();
+  private readonly tempParticlePosition = new THREE.Vector3();
+  private readonly tempParticleOrientation = new THREE.Quaternion();
   private viewGuardBandBiasX = 0;
   private viewGuardBandBiasY = 0;
   /** Accumulated game time in seconds — advances by dt each sync(), freezes when paused (dt=0). */
@@ -350,6 +370,7 @@ export class ObjectVisualManager {
     this.config = {
       modelExtensions: [...DEFAULT_MODEL_EXTENSIONS],
       modelLoader: config.modelLoader ?? this.createDefaultModelLoader.bind(this),
+      particleSystemSpawner: config.particleSystemSpawner ?? null,
     };
     this.modelLoader = config.modelLoader ?? this.config.modelLoader;
   }
@@ -404,6 +425,7 @@ export class ObjectVisualManager {
       // Skip expensive visual updates for hidden (shrouded) entities.
       // This saves ~10 sync operations per hidden entity per frame.
       if (!visual.root.visible) {
+        this.stopConditionParticleSystems(visual);
         continue;
       }
 
@@ -629,6 +651,8 @@ export class ObjectVisualManager {
       transitionTargetConditionKey: null,
       transitionFromKey: null,
       transitionTargetMatch: null,
+      conditionParticleSystems: [],
+      conditionParticleSystemSignature: null,
       idleVariantIndex: -1,
       idleVariantElapsed: 0,
       alternateModelCache: new Map(),
@@ -1176,6 +1200,7 @@ export class ObjectVisualManager {
   }
 
   private removeModel(visual: VisualAssetState): void {
+    this.stopConditionParticleSystems(visual);
     if (visual.mixer) {
       visual.mixer.stopAllAction();
       if (visual.currentModel) {
@@ -2412,6 +2437,7 @@ export class ObjectVisualManager {
     const infos = state.modelConditionInfos;
     const flags = state.modelConditionFlags;
     if (!infos || infos.length === 0 || !flags) {
+      this.stopConditionParticleSystems(visual);
       return;
     }
 
@@ -2465,6 +2491,8 @@ export class ObjectVisualManager {
         if (targetMatch) {
           this.applyConditionState(visual, state, targetMatch, targetMatch.conditionKey ?? computeConditionKey(targetMatch.conditionFlags));
         }
+      } else {
+        this.updateConditionParticleSystemTransforms(visual);
       }
       // While in transition, don't process further condition changes
       return;
@@ -2487,6 +2515,7 @@ export class ObjectVisualManager {
     }
 
     if (conditionKey === visual.activeConditionKey) {
+      this.syncConditionParticleSystems(visual, match, conditionKey);
       return;
     }
 
@@ -2513,6 +2542,7 @@ export class ObjectVisualManager {
 
           // Apply transition sub-object visibility if specified
           this.applySubObjectVisibility(visual, transInfo);
+          this.syncConditionParticleSystems(visual, transInfo, visual.activeConditionKey);
 
           this.playConditionClip(visual, transInfo.animationName, 'ONCE');
           return;
@@ -2540,6 +2570,7 @@ export class ObjectVisualManager {
 
     // --- Sub-object visibility ---
     this.applySubObjectVisibility(visual, match);
+    this.syncConditionParticleSystems(visual, match, conditionKey);
 
     // --- Per-condition model swapping ---
     if (match.modelName) {
@@ -2569,6 +2600,109 @@ export class ObjectVisualManager {
     if (!clipName) return;
 
     this.playConditionClip(visual, clipName, match.animationMode);
+  }
+
+  private syncConditionParticleSystems(
+    visual: VisualAssetState,
+    info: { particleSysBones?: readonly ParticleSysBoneInfo[] },
+    stateKey: string,
+  ): void {
+    const particleSysBones = info.particleSysBones ?? [];
+    if (particleSysBones.length === 0) {
+      this.stopConditionParticleSystems(visual);
+      return;
+    }
+
+    const spawner = this.config.particleSystemSpawner;
+    if (!spawner || !visual.currentModel) {
+      this.stopConditionParticleSystems(visual);
+      return;
+    }
+
+    const signature = [
+      stateKey,
+      ...particleSysBones.map((entry) => `${entry.boneName}:${entry.particleSystemName}`),
+    ].join('\0');
+    if (visual.conditionParticleSystemSignature === signature) {
+      this.updateConditionParticleSystemTransforms(visual);
+      return;
+    }
+
+    this.stopConditionParticleSystems(visual);
+    visual.conditionParticleSystemSignature = signature;
+    for (const entry of particleSysBones) {
+      this.resolveConditionParticleTransform(
+        visual,
+        entry.boneName,
+        this.tempParticlePosition,
+        this.tempParticleOrientation,
+      );
+      const id = spawner.createSystem(
+        entry.particleSystemName,
+        this.tempParticlePosition,
+        this.tempParticleOrientation,
+      );
+      if (id !== null) {
+        visual.conditionParticleSystems.push({
+          id,
+          boneName: entry.boneName,
+          particleSystemName: entry.particleSystemName,
+        });
+      }
+    }
+  }
+
+  private stopConditionParticleSystems(visual: VisualAssetState): void {
+    const spawner = this.config.particleSystemSpawner;
+    if (spawner) {
+      for (const tracked of visual.conditionParticleSystems) {
+        spawner.destroySystem(tracked.id);
+      }
+    }
+    visual.conditionParticleSystems = [];
+    visual.conditionParticleSystemSignature = null;
+  }
+
+  private updateConditionParticleSystemTransforms(visual: VisualAssetState): void {
+    const setSystemTransform = this.config.particleSystemSpawner?.setSystemTransform;
+    if (!setSystemTransform || !visual.currentModel) {
+      return;
+    }
+    for (const tracked of visual.conditionParticleSystems) {
+      this.resolveConditionParticleTransform(
+        visual,
+        tracked.boneName,
+        this.tempParticlePosition,
+        this.tempParticleOrientation,
+      );
+      setSystemTransform(tracked.id, this.tempParticlePosition, this.tempParticleOrientation);
+    }
+  }
+
+  private resolveConditionParticleTransform(
+    visual: VisualAssetState,
+    boneName: string,
+    position: THREE.Vector3,
+    orientation: THREE.Quaternion,
+  ): void {
+    const target = visual.currentModel
+      ? this.findObjectByNameCaseInsensitive(visual.currentModel, boneName) ?? visual.root
+      : visual.root;
+    target.updateWorldMatrix(true, false);
+    target.getWorldPosition(position);
+    target.getWorldQuaternion(orientation);
+  }
+
+  private findObjectByNameCaseInsensitive(root: THREE.Object3D, name: string): THREE.Object3D | null {
+    const normalized = name.toLowerCase();
+    let found: THREE.Object3D | null = null;
+    root.traverse((child) => {
+      if (found) return;
+      if (child.name.toLowerCase() === normalized) {
+        found = child;
+      }
+    });
+    return found;
   }
 
   private syncManualAnimationFrame(visual: VisualAssetState, state: RenderableEntityState): void {
@@ -2823,6 +2957,7 @@ export class ObjectVisualManager {
     sourceScene: THREE.Object3D,
     sourceAnimations: readonly THREE.AnimationClip[],
   ): void {
+    this.stopConditionParticleSystems(visual);
     // Remove old model.
     if (visual.currentModel) {
       if (visual.mixer) {

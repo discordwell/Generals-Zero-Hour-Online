@@ -202,6 +202,68 @@ describe('collectModelConditionInfos', () => {
     expect(infos[0].showSubObjects).toEqual([]);
   });
 
+  it('parses ParticleSysBone flat-token arrays as condition particle systems', () => {
+    const block = makeModelConditionStateBlock('DAMAGED', {
+      ParticleSysBone: ['FX1', 'glitter2'],
+    });
+    const infos = collectModelConditionInfos(makeObjectDef([block]));
+    expect(infos[0].particleSysBones).toEqual([{
+      boneName: 'fx1',
+      particleSystemName: 'glitter2',
+    }]);
+  });
+
+  it('keeps particle-system bones in the visual merge key', () => {
+    const infos = collectModelConditionInfos(makeObjectDef([
+      makeModelConditionStateBlock('DAMAGED', {
+        Model: 'SharedModel',
+        ParticleSysBone: ['FX1', 'glitter2'],
+      }),
+      makeModelConditionStateBlock('REALLYDAMAGED', {
+        Model: 'SharedModel',
+        ParticleSysBone: ['FX1', 'fire1'],
+      }),
+    ]));
+    expect(infos).toHaveLength(2);
+    expect(infos[0].particleSysBones[0]?.particleSystemName).toBe('glitter2');
+    expect(infos[1].particleSysBones[0]?.particleSystemName).toBe('fire1');
+  });
+
+  it('lets TransitionState inherit default ParticleSysBone entries', () => {
+    const drawModule: IniBlock = {
+      type: 'Draw',
+      name: 'W3DModelDraw',
+      fields: {},
+      blocks: [
+        {
+          ...makeModelConditionStateBlock('', {
+            ParticleSysBone: ['FX1', 'glitter2'],
+            TransitionKey: 'TRANS_A',
+          }),
+          type: 'DefaultConditionState',
+        },
+        makeModelConditionStateBlock('DAMAGED', {
+          TransitionKey: 'TRANS_B',
+        }),
+        {
+          type: 'TransitionState',
+          name: 'TRANS_A TRANS_B',
+          fields: {
+            ParticleSysBone: ['FX2', 'spark1'],
+            Animation: 'TransAB',
+          },
+          blocks: [],
+        },
+      ],
+    };
+    const infos = collectTransitionInfos(makeObjectDef([drawModule]));
+    expect(infos).toHaveLength(1);
+    expect(infos[0].particleSysBones).toEqual([
+      { boneName: 'fx1', particleSystemName: 'glitter2' },
+      { boneName: 'fx2', particleSystemName: 'spark1' },
+    ]);
+  });
+
   it('parses AnimationMode = LOOP (default)', () => {
     const block = makeModelConditionStateBlock('', {});
     const infos = collectModelConditionInfos(makeObjectDef([block]));
@@ -282,6 +344,7 @@ describe('collectModelConditionInfos', () => {
       animSpeedFactorMin: 1.0,
       animSpeedFactorMax: 1.0,
       idleAnimations: [{ animationName: 'IdleDamagedAnim', randomWeight: 1 }],
+      particleSysBones: [],
     });
   });
 });
@@ -397,6 +460,7 @@ describe('resolveRenderAssetProfile backward compatibility', () => {
       animationMode: 'ONCE',
       hideSubObjects: [],
       showSubObjects: [],
+      particleSysBones: [],
     });
     expect(profile.transitionInfos[1]).toEqual({
       fromKey: 'trans_open',
@@ -406,6 +470,7 @@ describe('resolveRenderAssetProfile backward compatibility', () => {
       animationMode: 'ONCE',
       hideSubObjects: [],
       showSubObjects: [],
+      particleSysBones: [],
     });
   });
 });

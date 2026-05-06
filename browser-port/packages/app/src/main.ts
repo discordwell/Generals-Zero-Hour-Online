@@ -1517,7 +1517,18 @@ async function startGame(
 
   // Game logic + object visuals
   const attackUsesLineOfSight = iniDataRegistry.getAiConfig()?.attackUsesLineOfSight ?? true;
-  const objectVisualManager = new ObjectVisualManager(scene, assets);
+  let particleSystemManager: ParticleSystemManager | null = null;
+  const objectVisualManager = new ObjectVisualManager(scene, assets, {
+    particleSystemSpawner: {
+      createSystem: (templateName, position, orientation) =>
+        particleSystemManager?.createSystem(templateName, position, orientation) ?? null,
+      destroySystem: (id) => {
+        particleSystemManager?.destroySystem(id);
+      },
+      setSystemTransform: (id, position, orientation) =>
+        particleSystemManager?.setSystemTransform(id, position, orientation) ?? false,
+    },
+  });
   const scriptSkyboxController = new ScriptSkyboxController(scene, assets);
   const scriptSkyboxPreloadPromise = scriptSkyboxController.preload();
   let scriptCameraMovementFinished = true;
@@ -3538,7 +3549,7 @@ async function startGame(
 
   const gameLODManager = new GameLODManager(iniDataRegistry);
   gameLODManager.init();
-  const particleSystemManager = new ParticleSystemManager(scene, gameLODManager);
+  particleSystemManager = new ParticleSystemManager(scene, gameLODManager);
   particleSystemManager.loadFromRegistry(iniDataRegistry);
   particleSystemManager.init();
   if (runtimeSaveLoadContext?.runtimeSave.particleSystemState) {

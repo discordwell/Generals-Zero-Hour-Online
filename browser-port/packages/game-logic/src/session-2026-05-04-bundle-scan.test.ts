@@ -1336,6 +1336,72 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     expect(checked, 'expected retail ConditionState.Animation entries with numeric metadata').toBeGreaterThan(100);
   });
 
+  it('ParticleSysBone entries flow into model and transition condition profiles for every retail user', () => {
+    const particlePairs = (value: unknown): Array<{ boneName: string; particleSystemName: string }> => {
+      const tokens = splitTokens(value);
+      if (tokens.length < 2) return [];
+      return [{
+        boneName: tokens[0]!.toLowerCase(),
+        particleSystemName: tokens[1]!,
+      }];
+    };
+    const hasPair = (
+      entries: readonly Array<{ boneName: string; particleSystemName: string }>,
+      pair: { boneName: string; particleSystemName: string },
+    ): boolean => entries.some(
+      (entry) => entry.boneName.toLowerCase() === pair.boneName
+        && entry.particleSystemName === pair.particleSystemName,
+    );
+
+    let conditionUsers = 0;
+    let transitionUsers = 0;
+    for (const obj of bundle.objects ?? []) {
+      const expectedConditions: Array<{ boneName: string; particleSystemName: string }> = [];
+      const expectedTransitions: Array<{ boneName: string; particleSystemName: string }> = [];
+      const visit = (block: BundleBlock): void => {
+        const fieldValue = block.fields?.['ParticleSysBone'];
+        if (fieldValue !== undefined) {
+          const pairs = particlePairs(fieldValue);
+          const blockType = (block.type ?? '').toUpperCase();
+          if (blockType === 'TRANSITIONSTATE') {
+            expectedTransitions.push(...pairs);
+          } else if (
+            blockType === 'CONDITIONSTATE'
+            || blockType === 'MODELCONDITIONSTATE'
+            || blockType === 'DEFAULTCONDITIONSTATE'
+          ) {
+            expectedConditions.push(...pairs);
+          }
+        }
+        for (const child of block.blocks ?? []) visit(child);
+      };
+      for (const block of obj.blocks ?? []) visit(block);
+
+      if (expectedConditions.length > 0) {
+        conditionUsers += expectedConditions.length;
+        const parsed = collectModelConditionInfos(obj as never).flatMap((info) => info.particleSysBones);
+        for (const pair of expectedConditions) {
+          expect(
+            hasPair(parsed, pair),
+            `ParticleSysBone condition pair missing on ${obj.name}: ${pair.boneName}/${pair.particleSystemName}`,
+          ).toBe(true);
+        }
+      }
+      if (expectedTransitions.length > 0) {
+        transitionUsers += expectedTransitions.length;
+        const parsed = collectTransitionInfos(obj as never).flatMap((info) => info.particleSysBones);
+        for (const pair of expectedTransitions) {
+          expect(
+            hasPair(parsed, pair),
+            `ParticleSysBone transition pair missing on ${obj.name}: ${pair.boneName}/${pair.particleSystemName}`,
+          ).toBe(true);
+        }
+      }
+    }
+    expect(conditionUsers, 'expected retail condition ParticleSysBone users').toBeGreaterThan(1000);
+    expect(transitionUsers, 'expected retail transition ParticleSysBone users').toBeGreaterThan(100);
+  });
+
   it('ShowSubObject/HideSubObject conflicts resolve to one source visibility action', () => {
     let sourceConflictCount = 0;
     const splitNames = (value: unknown): string[] =>

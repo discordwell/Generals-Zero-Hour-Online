@@ -13,7 +13,7 @@ export interface MapObjectPlacementSummary {
 export type RenderAnimationState = 'IDLE' | 'MOVE' | 'ATTACK' | 'DIE' | 'PRONE';
 export type RenderAnimationStateClipCandidates = Partial<Record<RenderAnimationState, string[]>>;
 
-export type { ModelConditionInfo, TransitionInfo, IdleAnimationVariant } from './render-profile-helpers.js';
+export type { ModelConditionInfo, TransitionInfo, IdleAnimationVariant, ParticleSysBoneInfo } from './render-profile-helpers.js';
 
 export type RenderableObjectCategory = 'air' | 'building' | 'ground' | 'infantry' | 'vehicle' | 'unknown';
 
