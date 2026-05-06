@@ -54797,6 +54797,14 @@ export class GameLogicSubsystem implements Subsystem {
    */
   private doEmpDisableAttack(empEntity: MapEntity, profile: EMPUpdateProfile): void {
     const radiusSq = profile.effectRadius * profile.effectRadius;
+    const producer = empEntity.producerEntityId > 0
+      ? this.spawnedEntities.get(empEntity.producerEntityId) ?? null
+      : null;
+    const intendedVictim = producer && producer.attackTargetEntityId !== null
+      ? this.spawnedEntities.get(producer.attackTargetEntityId) ?? null
+      : null;
+    const onlyAffectAirborne = intendedVictim?.objectStatusFlags.has('AIRBORNE_TARGET') === true;
+    let intendedVictimProcessed = false;
 
     for (const victim of this.spawnedEntities.values()) {
       if (victim.id === empEntity.id) continue;
@@ -54809,6 +54817,10 @@ export class GameLogicSubsystem implements Subsystem {
       if (dx * dx + dz * dz > radiusSq) continue;
 
       const kindOf = victim.kindOf;
+
+      // Source parity: EMPUpdate.cpp patch 1.01. If the producer's current
+      // victim is airborne, the pulse only affects airborne targets.
+      if (onlyAffectAirborne && !victim.objectStatusFlags.has('AIRBORNE_TARGET')) continue;
 
       // Source parity: skip infantry (unless SPAWNS_ARE_THE_WEAPONS like Overlord).
       if (kindOf.has('INFANTRY') && !kindOf.has('SPAWNS_ARE_THE_WEAPONS')) continue;
@@ -54857,6 +54869,26 @@ export class GameLogicSubsystem implements Subsystem {
       // Apply DISABLED_EMP for the configured duration.
       if (profile.disabledDurationFrames > 0) {
         this.applyEmpDisable(victim, profile.disabledDurationFrames);
+      }
+      if (intendedVictim && victim.id === intendedVictim.id) {
+        intendedVictimProcessed = true;
+      }
+    }
+
+    // Source parity: EMPUpdate.cpp patch 1.01 catches near-miss detonations
+    // against the producer's intended aircraft victim. The source compares
+    // squared 3D distance to radius * 2.0f or 40^2, so preserve that shape.
+    if (intendedVictim
+      && !intendedVictimProcessed
+      && !intendedVictim.destroyed
+      && intendedVictim.kindOf.has('AIRCRAFT')
+      && !intendedVictim.kindOf.has('EMP_HARDENED')) {
+      const dx = intendedVictim.x - empEntity.x;
+      const dy = intendedVictim.y - empEntity.y;
+      const dz = intendedVictim.z - empEntity.z;
+      const distanceSq = dx * dx + dy * dy + dz * dz;
+      if (distanceSq <= profile.effectRadius * 2.0 || distanceSq <= 40 * 40) {
+        this.applyEmpDisable(intendedVictim, profile.disabledDurationFrames);
       }
     }
   }
