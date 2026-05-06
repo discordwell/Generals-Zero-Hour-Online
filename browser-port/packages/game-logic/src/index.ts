@@ -8191,6 +8191,7 @@ interface ScriptReinforcementTransportArrivalState {
   deliverPayloadPreOpenDistance: number;
   deliverPayloadPreviousDistanceSqr: number;
   deliverPayloadFireWeapon: boolean;
+  deliverPayloadInheritTransportVelocity: boolean;
   deliverPayloadSelfDestructObject: boolean;
   deliverPayloadMode: boolean;
   deliverPayloadDoorDelayFrames: number;
@@ -34199,6 +34200,18 @@ export class GameLogicSubsystem implements Subsystem {
     passenger.y = this.resolveGroundHeight(dropX, dropZ) + passenger.baseHeight;
     this.updatePathfindPosCell(passenger);
 
+    if (pending.deliverPayloadInheritTransportVelocity) {
+      const transportPhysics = transport.physicsBehaviorState;
+      if (transportPhysics) {
+        this.applyPhysicsForceToEntity(
+          passenger,
+          transportPhysics.velX,
+          transportPhysics.velY,
+          transportPhysics.velZ,
+        );
+      }
+    }
+
     if (passenger.canMove) {
       // Source parity: DeliveringState::update orders non-FireWeapon payloads
       // toward m_moveToPos, while FireWeapon uses m_targetPos.
@@ -34210,6 +34223,64 @@ export class GameLogicSubsystem implements Subsystem {
         true,
       );
     }
+  }
+
+  private ensurePhysicsBehaviorStateForEntity(entity: MapEntity): PhysicsBehaviorState | null {
+    if (!entity.physicsBehaviorProfile) {
+      return null;
+    }
+    if (!entity.physicsBehaviorState) {
+      const activeLocoProfile = entity.locomotorSets?.get(entity.activeLocomotorSet);
+      entity.physicsBehaviorState = {
+        velX: 0, velY: 0, velZ: 0,
+        accelX: 0, accelY: 0, accelZ: 0,
+        yawRate: 0, pitchRate: 0, rollRate: 0,
+        wasAirborneLastFrame: false,
+        stickToGround: activeLocoProfile?.stickToGround ?? false,
+        allowToFall: false,
+        isInFreeFall: false,
+        extraBounciness: 0, extraFriction: 0,
+        isStunned: false,
+      };
+    }
+    if (!Number.isFinite(entity.physicsBehaviorState.turning)) {
+      entity.physicsBehaviorState.turning = 0;
+    }
+    return entity.physicsBehaviorState;
+  }
+
+  private applyPhysicsForceToEntity(
+    entity: MapEntity,
+    forceX: number,
+    forceY: number,
+    forceZ: number,
+  ): void {
+    if (!Number.isFinite(forceX) || !Number.isFinite(forceY) || !Number.isFinite(forceZ)) {
+      return;
+    }
+    const profile = entity.physicsBehaviorProfile;
+    const state = this.ensurePhysicsBehaviorStateForEntity(entity);
+    if (!profile || !state) {
+      return;
+    }
+    let modForceX = forceX;
+    let modForceZ = forceZ;
+    // Source parity: PhysicsBehavior::applyForce only accepts lateral
+    // acceleration while the object is motive-driven; vertical force remains.
+    if ((state.motiveForceExpires ?? 0) > this.frameCounter) {
+      const dirXRaw = Math.cos(entity.rotationY);
+      const dirZRaw = Math.sin(entity.rotationY);
+      const dirLength = Math.hypot(dirXRaw, dirZRaw) || 1;
+      const dirX = dirXRaw / dirLength;
+      const dirZ = dirZRaw / dirLength;
+      const lateralDot = forceX * (-dirZ) + forceZ * dirX;
+      modForceX = lateralDot * -dirZ;
+      modForceZ = lateralDot * dirX;
+    }
+    const mass = Number.isFinite(profile.mass) && Math.abs(profile.mass) > 1e-9 ? profile.mass : 1;
+    state.accelX += modForceX / mass;
+    state.accelY += forceY / mass;
+    state.accelZ += modForceZ / mass;
   }
 
   /* @internal */ beginScriptReinforcementTransportExit(
@@ -57184,6 +57255,7 @@ export class GameLogicSubsystem implements Subsystem {
           deliverPayloadPreOpenDistance: Math.max(0, preOpenDistance),
           deliverPayloadPreviousDistanceSqr: 0,
           deliverPayloadFireWeapon: fireWeapon,
+          deliverPayloadInheritTransportVelocity: inheritTransportVelocity,
           deliverPayloadSelfDestructObject: selfDestructObject,
           deliverPayloadMode: true,
           deliverPayloadDoorDelayFrames: deliverPayloadProfile.doorDelayFrames,
@@ -57240,7 +57312,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     // Preserve references to parsed data for not-yet-implemented DeliverPayloadData branches.
-    void inheritTransportVelocity;
     void parachuteDirectly;
     return firstTransport?.id ?? null;
   }

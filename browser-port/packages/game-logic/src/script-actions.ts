@@ -9997,6 +9997,7 @@ export function materializeScriptReinforcementMembers(self: GL,
           deliverPayloadPreOpenDistance: 0,
           deliverPayloadPreviousDistanceSqr: 0,
           deliverPayloadFireWeapon: false,
+          deliverPayloadInheritTransportVelocity: transportDeliverPayloadProfile?.inheritTransportVelocity ?? false,
           deliverPayloadSelfDestructObject: false,
           deliverPayloadMode: transportUsesDeliverPayload,
           deliverPayloadDoorDelayFrames: transportDeliverPayloadProfile?.doorDelayFrames ?? 0,
@@ -10089,6 +10090,8 @@ export function resolveScriptReinforcementDeliverPayloadProfile(self: GL, object
   exitPitchRate: number;
   /** Source parity: DeliverPayloadData::m_isParachuteDirectly — parachute without transport landing (C++ parseBool). */
   parachuteDirectly: boolean;
+  /** Source parity: DeliverPayloadData::m_inheritTransportVelocity — apply transport velocity to dropped payload physics. */
+  inheritTransportVelocity: boolean;
   /** Source parity: DeliverPayloadData::m_maxAttempts — max delivery attempts (C++ parseInt, default 1). */
   maxAttempts: number;
   /** Source parity: DeliverPayloadData::m_diveStartDistance — distance to begin dive approach (C++ parseReal). */
@@ -10116,6 +10119,7 @@ export function resolveScriptReinforcementDeliverPayloadProfile(self: GL, object
     const exitPitchRateDegPerSec = readNumericField(block.fields, ['ExitPitchRate']) ?? 0;
     const exitPitchRate = exitPitchRateDegPerSec * Math.PI / 5400;
     const parachuteDirectly = readBooleanField(block.fields, ['ParachuteDirectly']) ?? false;
+    const inheritTransportVelocity = readBooleanField(block.fields, ['InheritTransportVelocity']) ?? false;
     const maxAttempts = readNumericField(block.fields, ['MaxAttempts']) ?? 1;
     const diveStartDistance = readNumericField(block.fields, ['DiveStartDistance']) ?? 0;
     return {
@@ -10129,6 +10133,7 @@ export function resolveScriptReinforcementDeliverPayloadProfile(self: GL, object
       dropVarianceZ: Math.max(0, dropVariance.y),
       exitPitchRate,
       parachuteDirectly,
+      inheritTransportVelocity,
       maxAttempts,
       diveStartDistance,
     };

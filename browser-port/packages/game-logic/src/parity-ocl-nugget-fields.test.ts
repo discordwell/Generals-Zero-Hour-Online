@@ -77,6 +77,7 @@ interface PrivateLogic {
     deliverPayloadPreOpenDistance: number;
     deliverPayloadPreviousDistanceSqr: number;
     deliverPayloadFireWeapon: boolean;
+    deliverPayloadInheritTransportVelocity: boolean;
     deliverPayloadSelfDestructObject: boolean;
     deliverPayloadMode: boolean;
     deliverPayloadDoorDelayFrames: number;
@@ -109,6 +110,26 @@ interface PrivateEntity {
   moving: boolean;
   moveTarget: { x: number; z: number } | null;
   attackTargetPosition: { x: number; z: number } | null;
+  physicsBehaviorProfile: { mass: number } | null;
+  physicsBehaviorState: {
+    velX: number;
+    velY: number;
+    velZ: number;
+    accelX: number;
+    accelY: number;
+    accelZ: number;
+    yawRate: number;
+    pitchRate: number;
+    rollRate: number;
+    wasAirborneLastFrame: boolean;
+    stickToGround: boolean;
+    allowToFall: boolean;
+    isInFreeFall: boolean;
+    extraBounciness: number;
+    extraFriction: number;
+    isStunned: boolean;
+    motiveForceExpires?: number;
+  } | null;
 }
 
 function priv(logic: GameLogicSubsystem): PrivateLogic {
@@ -156,12 +177,17 @@ describe('parity: DeliverPayload nugget', () => {
     dropVariance?: string;
     doorDelay?: number;
     fireWeapon?: string;
+    inheritTransportVelocity?: string;
+    withPhysics?: boolean;
   } = {}) {
     const extraObjects = [
       makeObjectDef('TestTransport', 'America', ['VEHICLE', 'AIRCRAFT'], [
         makeBlock('LocomotorSet', 'SET_NORMAL TestTransportLoco', {}),
         ...(opts.fireWeapon
           ? [makeWeaponBlock('TestDeliveryWeapon', 'PRIMARY')]
+          : []),
+        ...(opts.withPhysics
+          ? [makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', { Mass: 5 })]
           : []),
         makeBlock('Behavior', 'DeliverPayloadAIUpdate ModuleTag_DeliverPayload', {
           DoorDelay: opts.doorDelay ?? 0,
@@ -170,6 +196,9 @@ describe('parity: DeliverPayload nugget', () => {
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
       ]),
       makeObjectDef('TestPayload', 'America', ['INFANTRY'], [
+        ...(opts.withPhysics
+          ? [makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', { Mass: 2 })]
+          : []),
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
       ]),
     ];
@@ -226,6 +255,9 @@ describe('parity: DeliverPayload nugget', () => {
     if (opts.dropOffset !== undefined) nuggetFields['DropOffset'] = opts.dropOffset;
     if (opts.dropVariance !== undefined) nuggetFields['DropVariance'] = opts.dropVariance;
     if (opts.fireWeapon !== undefined) nuggetFields['FireWeapon'] = opts.fireWeapon;
+    if (opts.inheritTransportVelocity !== undefined) {
+      nuggetFields['InheritTransportVelocity'] = opts.inheritTransportVelocity;
+    }
 
     addOCL(bundle, 'OCL_DeliverPayload', [{ type: 'DeliverPayload', fields: nuggetFields }]);
 
@@ -495,6 +527,62 @@ describe('parity: DeliverPayload nugget', () => {
       secondPayload.moveTarget!.x - targetX,
       secondPayload.moveTarget!.z - targetZ,
     )).toBeGreaterThan(1);
+  });
+
+  it('applies transport velocity as a physics force when InheritTransportVelocity is set', () => {
+    // C++ parity: DeliveringState::update copies owner->getPhysics()->getVelocity()
+    // and calls item->getPhysics()->applyForce(&velocity). PhysicsBehavior::applyForce
+    // divides the force by payload mass and accumulates acceleration.
+    const { logic } = makeDeliverPayloadSetup({
+      deliveryDistance: 0,
+      dropDelay: 0,
+      doorDelay: 0,
+      inheritTransportVelocity: 'Yes',
+      withPhysics: true,
+    });
+
+    const launcher = getEntitiesByTemplate(logic, 'Launcher')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown, frames: undefined, tx: number, tz: number) => void })
+      .executeOCL('OCL_DeliverPayload', launcher, undefined, launcher.x, launcher.z);
+
+    const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
+    const payload = getEntitiesByTemplate(logic, 'TestPayload')[0]!;
+    const pending = priv(logic).pendingScriptReinforcementTransportArrivalByEntityId.get(transport.id);
+    expect(pending).toBeDefined();
+    expect(pending!.deliverPayloadInheritTransportVelocity).toBe(true);
+    expect(payload.physicsBehaviorProfile?.mass).toBe(2);
+
+    transport.physicsBehaviorState = {
+      velX: 6,
+      velY: 4,
+      velZ: 8,
+      accelX: 0,
+      accelY: 0,
+      accelZ: 0,
+      yawRate: 0,
+      pitchRate: 0,
+      rollRate: 0,
+      wasAirborneLastFrame: false,
+      stickToGround: false,
+      allowToFall: false,
+      isInFreeFall: false,
+      extraBounciness: 0,
+      extraFriction: 0,
+      isStunned: false,
+    };
+
+    (logic as unknown as {
+      dropScriptReinforcementDeliverPayloadPassenger: (
+        passengerId: number,
+        transport: PrivateEntity,
+        pending: NonNullable<ReturnType<PrivateLogic['pendingScriptReinforcementTransportArrivalByEntityId']['get']>>,
+      ) => void;
+    }).dropScriptReinforcementDeliverPayloadPassenger(payload.id, transport, pending!);
+
+    expect(payload.physicsBehaviorState).not.toBeNull();
+    expect(payload.physicsBehaviorState!.accelX).toBeCloseTo(3);
+    expect(payload.physicsBehaviorState!.accelY).toBeCloseTo(2);
+    expect(payload.physicsBehaviorState!.accelZ).toBeCloseTo(4);
   });
 
   it('backs OCL delivery transports away by DeliveryDistance slop before approach', () => {
