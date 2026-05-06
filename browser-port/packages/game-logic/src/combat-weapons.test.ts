@@ -24,6 +24,7 @@ import {
   createWeaponSlotState,
   estimateWeaponDamage,
   fireWeaponSlot,
+  getWeaponRecoilAmount,
   getReadyToFireSlots,
   getVictimAntiMask,
   getWeaponSlotStatus,
@@ -73,6 +74,7 @@ function makeWeaponProfile(overrides: Partial<WeaponSlotProfile> = {}): WeaponSl
     radiusDamageAffectsMask: 0x04,
     projectileCollideMask: 0,
     weaponSpeed: 999999,
+    weaponRecoil: 0,
     minWeaponSpeed: 999999,
     scaleWeaponSpeed: false,
     capableOfFollowingWaypoints: false,
@@ -107,6 +109,21 @@ function makeWeaponProfile(overrides: Partial<WeaponSlotProfile> = {}): WeaponSl
     ...overrides,
   };
 }
+
+describe('Weapon recoil', () => {
+  it('returns the parsed recoil angle from the weapon profile', () => {
+    const recoil = 5 * Math.PI / 180;
+    const profile = makeWeaponProfile({ weaponRecoil: recoil });
+
+    expect(getWeaponRecoilAmount(profile)).toBe(recoil);
+  });
+
+  it('falls back to no recoil for malformed profile data', () => {
+    const profile = makeWeaponProfile({ weaponRecoil: Number.NaN });
+
+    expect(getWeaponRecoilAmount(profile)).toBe(0);
+  });
+});
 
 function makeChooseContext(overrides: Partial<ChooseBestWeaponContext> = {}): ChooseBestWeaponContext {
   return {

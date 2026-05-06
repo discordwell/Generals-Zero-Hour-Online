@@ -94,6 +94,8 @@ export interface WeaponSlotProfile {
   radiusDamageAffectsMask: number;
   projectileCollideMask: number;
   weaponSpeed: number;
+  /** Source parity: WeaponTemplate::m_weaponRecoil — recoil angle in radians (default 0). */
+  weaponRecoil: number;
   minWeaponSpeed: number;
   scaleWeaponSpeed: boolean;
   capableOfFollowingWaypoints: boolean;
@@ -891,11 +893,9 @@ export function transferNextShotStatsFrom(
  * For browser port, this is informational (visual only).
  */
 export function getWeaponRecoilAmount(
-  _weaponProfile: Pick<WeaponSlotProfile, 'weaponSpeed'>,
+  weaponProfile: Pick<WeaponSlotProfile, 'weaponRecoil'>,
 ): number {
-  // Source parity: m_weaponRecoil is a separate field on the weapon template.
-  // We don't have it in our profile yet, so return 0 for now.
-  return 0;
+  return Number.isFinite(weaponProfile.weaponRecoil) ? weaponProfile.weaponRecoil : 0;
 }
 
 // ---------------------------------------------------------------------------
