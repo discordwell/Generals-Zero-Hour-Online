@@ -15426,6 +15426,7 @@ describe('skirmish starting entities', () => {
       makeMapObject('Scorch', 35, 35),            // terrain decal → should be skipped
       makeMapObject('*Waypoints/Waypoint', 40, 40), // waypoint → should be skipped
       makeMapObject('GravelRoad', 50, 50),        // road → should be skipped
+      makeMapObject('', 60, 60),                  // empty Roads-layer artifact → should be skipped
     ]);
     logic.loadMapObjects(mapData, makeRegistry(bundle), makeHeightmap(64, 64));
 

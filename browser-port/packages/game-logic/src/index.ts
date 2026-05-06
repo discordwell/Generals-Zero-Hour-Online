@@ -11988,6 +11988,12 @@ export class GameLogicSubsystem implements Subsystem {
     this.loadMapScripts(mapData);
 
     for (const mapObject of mapData.objects) {
+      const normalizedTemplateName = normalizeMapTemplateName(mapObject.templateName);
+      if (normalizedTemplateName.length === 0) {
+        this.placementSummary.skippedObjects++;
+        continue;
+      }
+
       if ((mapObject.flags & OBJECT_DONT_RENDER_FLAG) !== 0) {
         this.placementSummary.skippedObjects++;
         continue;

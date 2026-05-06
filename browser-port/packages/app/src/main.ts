@@ -5880,7 +5880,7 @@ async function startGameFromRuntimeSave(
 
     const currentCampaign = campaignManager.getCurrentCampaign();
     const currentMission = campaignManager.getCurrentMission();
-    resolvedMapPath = campaignManager.resolveMapAssetPath(currentMission) ?? resolvedMapPath;
+    resolvedMapPath = resolvedMapPath ?? campaignManager.resolveMapAssetPath(currentMission);
     if (!currentCampaign || !currentMission || !resolvedMapPath) {
       throw new Error(
         'Campaign save restore did not resolve a valid campaign, mission, and runtime map path.',

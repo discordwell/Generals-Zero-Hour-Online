@@ -71,10 +71,10 @@ function loadAutoRoundtripFixtures(): RoundtripFixture[] {
   const seen = new Set<string>();
 
   for (const map of report.requiredMaps ?? []) {
-    if (!map.availableOutputPath || !map.availableOutputPath.includes('MapsZH')) {
+    if (!map.availableOutputPath) {
       continue;
     }
-    for (const fileName of [...(map.saveFiles ?? [])].filter((entry) => entry.startsWith('zipeater_ZH_')).sort()) {
+    for (const fileName of [...(map.saveFiles ?? [])].sort()) {
       if (seen.has(fileName)) {
         continue;
       }
@@ -137,7 +137,7 @@ const roundtripFixtures: RoundtripFixture[] = (() => {
 })();
 
 for (const fixture of roundtripFixtures) {
-  test(`roundtrips imported ZH source save through TS save/load: ${fixture.fileName}`, async ({ page }) => {
+  test(`roundtrips imported source save through TS save/load: ${fixture.fileName}`, async ({ page }) => {
     test.setTimeout(180_000);
     const errors: string[] = [];
     const diagnostics: string[] = [];
