@@ -29,6 +29,8 @@ import {
   makeHeightmap,
   makeMap,
   makeMapObject,
+  makeWeaponBlock,
+  makeWeaponDef,
 } from './test-helpers.js';
 
 function createLogic(): GameLogicSubsystem {
@@ -72,6 +74,7 @@ interface PrivateLogic {
     deliveryDistance: number;
     deliverPayloadPreOpenDistance: number;
     deliverPayloadPreviousDistanceSqr: number;
+    deliverPayloadFireWeapon: boolean;
     deliverPayloadSelfDestructObject: boolean;
     deliverPayloadMode: boolean;
     deliverPayloadDoorDelayFrames: number;
@@ -102,6 +105,7 @@ interface PrivateEntity {
   parkingSpaceProducerId: number | null;
   baseHeight: number;
   moving: boolean;
+  attackTargetPosition: { x: number; z: number } | null;
 }
 
 function priv(logic: GameLogicSubsystem): PrivateLogic {
@@ -148,10 +152,14 @@ describe('parity: DeliverPayload nugget', () => {
     dropOffset?: string;
     dropVariance?: string;
     doorDelay?: number;
+    fireWeapon?: string;
   } = {}) {
     const extraObjects = [
       makeObjectDef('TestTransport', 'America', ['VEHICLE', 'AIRCRAFT'], [
         makeBlock('LocomotorSet', 'SET_NORMAL TestTransportLoco', {}),
+        ...(opts.fireWeapon
+          ? [makeWeaponBlock('TestDeliveryWeapon', 'PRIMARY')]
+          : []),
         makeBlock('Behavior', 'DeliverPayloadAIUpdate ModuleTag_DeliverPayload', {
           DoorDelay: opts.doorDelay ?? 0,
         }),
@@ -180,6 +188,18 @@ describe('parity: DeliverPayload nugget', () => {
       locomotors: [
         makeLocomotorDef('TestTransportLoco', 80, { PreferredHeight: 275 }),
       ],
+      weapons: opts.fireWeapon
+        ? [makeWeaponDef('TestDeliveryWeapon', {
+          PrimaryDamage: 100,
+          PrimaryDamageRadius: 15,
+          AttackRange: 9999,
+          ClipSize: 1,
+          DelayBetweenShots: 1,
+          WeaponSpeed: 9999,
+          DamageType: 'EXPLOSION',
+          DeathType: 'NORMAL',
+        })]
+        : [],
     });
 
     const nuggetFields: Record<string, unknown> = {
@@ -202,6 +222,7 @@ describe('parity: DeliverPayload nugget', () => {
     if (opts.dropDelay !== undefined) nuggetFields['DropDelay'] = opts.dropDelay;
     if (opts.dropOffset !== undefined) nuggetFields['DropOffset'] = opts.dropOffset;
     if (opts.dropVariance !== undefined) nuggetFields['DropVariance'] = opts.dropVariance;
+    if (opts.fireWeapon !== undefined) nuggetFields['FireWeapon'] = opts.fireWeapon;
 
     addOCL(bundle, 'OCL_DeliverPayload', [{ type: 'DeliverPayload', fields: nuggetFields }]);
 
@@ -383,6 +404,36 @@ describe('parity: DeliverPayload nugget', () => {
     expect(payload.transportContainerId).toBeNull();
     expect(payload.x).toBeCloseTo(transport.x + 4, 5);
     expect(payload.z).toBeCloseTo(transport.z + 6, 5);
+  });
+
+  it('fires weapon payloads at target plus DropOffset and destroys the contained payload', () => {
+    // C++ parity: DeliverPayloadAIUpdate.cpp:727-734 FireWeapon branch
+    // owner->fireCurrentWeapon(targetPos + dropOffset), then destroyObject(item).
+    const { logic } = makeDeliverPayloadSetup({
+      deliveryDistance: 0,
+      dropDelay: 0,
+      dropOffset: '7 9 0',
+      doorDelay: 0,
+      fireWeapon: 'Yes',
+    });
+
+    const launcher = getEntitiesByTemplate(logic, 'Launcher')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown, frames: undefined, tx: number, tz: number) => void })
+      .executeOCL('OCL_DeliverPayload', launcher, undefined, launcher.x, launcher.z);
+
+    const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
+    const payload = getEntitiesByTemplate(logic, 'TestPayload')[0]!;
+    const pending = priv(logic).pendingScriptReinforcementTransportArrivalByEntityId.get(transport.id);
+    expect(pending?.deliverPayloadFireWeapon).toBe(true);
+    expect(payload.transportContainerId).toBe(transport.id);
+
+    logic.update(1 / 30);
+
+    expect(getEntitiesByTemplate(logic, 'TestPayload')).toHaveLength(0);
+    expect(transport.attackTargetPosition).toEqual({
+      x: launcher.x + 7,
+      z: launcher.z + 9,
+    });
   });
 
   it('backs OCL delivery transports away by DeliveryDistance slop before approach', () => {

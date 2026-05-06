@@ -8188,6 +8188,7 @@ interface ScriptReinforcementTransportArrivalState {
   deliveryDistance: number;
   deliverPayloadPreOpenDistance: number;
   deliverPayloadPreviousDistanceSqr: number;
+  deliverPayloadFireWeapon: boolean;
   deliverPayloadSelfDestructObject: boolean;
   deliverPayloadMode: boolean;
   deliverPayloadDoorDelayFrames: number;
@@ -34166,6 +34167,20 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
 
+    if (pending.deliverPayloadFireWeapon) {
+      // Source parity: DeliveringState::update FireWeapon branch fires the
+      // transport's current weapon at targetPos + dropOffset, then destroys the
+      // contained payload object instead of releasing it.
+      this.issueFireWeaponAtPosition(
+        transport.id,
+        pending.targetX + pending.deliverPayloadDropOffsetX,
+        pending.targetZ + pending.deliverPayloadDropOffsetZ,
+        1,
+      );
+      this.markEntityDestroyed(passenger.id, transport.id);
+      return;
+    }
+
     this.cancelEntityCommandPathActions(passenger.id);
     this.releaseEntityFromContainer(passenger);
 
@@ -57144,9 +57159,9 @@ export class GameLogicSubsystem implements Subsystem {
       // transports actually approach, stage door/drop delays, unload, and exit.
       const transportObjectDef = this.resolveObjectDefByTemplateName(transport.templateName);
       const deliverPayloadProfile = this.resolveScriptReinforcementDeliverPayloadProfile(transportObjectDef);
-      // FireWeapon delivery destroys payload and fires the transport weapon in
-      // DeliveringState; the passenger-drop helper below is only the non-weapon path.
-      if (deliverPayloadProfile && !fireWeapon) {
+      // FireWeapon delivery still uses DeliverPayloadAIUpdate timing; the
+      // passenger-drop helper switches to the weapon-fire/destroy branch.
+      if (deliverPayloadProfile) {
         this.issueMoveTo(transport.id, moveToX, moveToZ, NO_ATTACK_DISTANCE, true);
         this.pendingScriptReinforcementTransportArrivalByEntityId.set(transport.id, {
           targetX: finalTargetX,
@@ -57156,6 +57171,7 @@ export class GameLogicSubsystem implements Subsystem {
           deliveryDistance: Math.max(0, deliveryDistance),
           deliverPayloadPreOpenDistance: Math.max(0, preOpenDistance),
           deliverPayloadPreviousDistanceSqr: 0,
+          deliverPayloadFireWeapon: fireWeapon,
           deliverPayloadSelfDestructObject: selfDestructObject,
           deliverPayloadMode: true,
           deliverPayloadDoorDelayFrames: deliverPayloadProfile.doorDelayFrames,
@@ -57213,7 +57229,6 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Preserve references to parsed data for not-yet-implemented DeliverPayloadData branches.
     void preOpenDistance;
-    void fireWeapon;
     void inheritTransportVelocity;
     void parachuteDirectly;
     return firstTransport?.id ?? null;
