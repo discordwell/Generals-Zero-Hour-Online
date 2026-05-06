@@ -1069,6 +1069,48 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     expect(preferredUsers, 'expected retail WeaponSet.PreferredAgainst users').toBeGreaterThan(80);
   });
 
+  it('OCLSpecialPower/CashHack upgrade pair arrays decode for every retail user', () => {
+    let upgradeOCLCount = 0;
+    let upgradeMoneyCount = 0;
+    for (const obj of bundle.objects ?? []) {
+      const specialPowerModules = extractSpecialPowerModules(makeSelfStub(), obj as never);
+      for (const block of obj.blocks ?? []) {
+        const visit = (nextBlock: BundleBlock): void => {
+          const moduleType = (nextBlock.name ?? '').split(/\s+/)[0];
+          const fields = nextBlock.fields ?? {};
+          const templateName = splitTokens(fields['SpecialPowerTemplate'])[0]?.toUpperCase() ?? '';
+          const module = specialPowerModules.get(templateName);
+          if (moduleType === 'OCLSpecialPower' && Array.isArray(fields['UpgradeOCL'])) {
+            upgradeOCLCount++;
+            const tokens = splitTokens(fields['UpgradeOCL']);
+            expect(tokens.length, `UpgradeOCL pair shape mismatch on ${obj.name}`).toBeGreaterThanOrEqual(2);
+            expect(
+              module?.upgradeOCLs.some((entry) =>
+                entry.scienceName === tokens[0]!.toUpperCase() && entry.oclName === tokens[1]),
+              `UpgradeOCL dropped on ${obj.name}/${templateName}`,
+            ).toBe(true);
+          }
+          if (moduleType === 'CashHackSpecialPower' && Array.isArray(fields['UpgradeMoneyAmount'])) {
+            upgradeMoneyCount++;
+            const tokens = splitTokens(fields['UpgradeMoneyAmount']);
+            expect(tokens.length, `UpgradeMoneyAmount pair shape mismatch on ${obj.name}`).toBeGreaterThanOrEqual(2);
+            expect(
+              module?.cashHackUpgradeMoneyAmounts.some((entry) =>
+                entry.scienceName === tokens[0]!.toUpperCase() && entry.amountToSteal === Number(tokens[1])),
+              `UpgradeMoneyAmount dropped on ${obj.name}/${templateName}`,
+            ).toBe(true);
+          }
+          for (const child of nextBlock.blocks ?? []) {
+            visit(child);
+          }
+        };
+        visit(block);
+      }
+    }
+    expect(upgradeOCLCount, 'expected retail OCLSpecialPower.UpgradeOCL users').toBe(63);
+    expect(upgradeMoneyCount, 'expected retail CashHackSpecialPower.UpgradeMoneyAmount users').toBe(5);
+  });
+
   it('IdleAnimation flat-token arrays decode as one weighted retail animation', () => {
     let userCount = 0;
     for (const obj of bundle.objects ?? []) {
