@@ -44,6 +44,7 @@ import { extractFlightDeckProfile } from './flight-deck.js';
 import { collectModelConditionInfos, collectTransitionInfos } from './render-profile-helpers.js';
 import { extractSlavedUpdateProfile } from './spawner-behavior.js';
 import { extractFireWhenDamagedProfiles } from './status-effects.js';
+import { readCoord3DField } from './ini-readers.js';
 import { LOGIC_FRAME_RATE } from './index.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -604,6 +605,46 @@ describe('session 2026-05-04 — bundle-wide scanner over touched fields', () =>
         expect(doesNotAffect, `DoesNotAffect missing ${token} on ${obj.name}`).toContain(token);
       }
     }
+  });
+
+  it('source Coord3D fields decode retail key/value token arrays', () => {
+    const commandCenter = bundle.objects?.find((obj) => obj.name === 'AirF_AmericaCommandCenter');
+    expect(commandCenter, 'expected AirF_AmericaCommandCenter in retail bundle').toBeDefined();
+    const commandCenterExit = commandCenter!.blocks?.find((block) =>
+      (block.name ?? '').startsWith('DefaultProductionExitUpdate '));
+    expect(commandCenterExit, 'expected command center production exit block').toBeDefined();
+    expect(readCoord3DField(commandCenterExit!.fields ?? {}, ['UnitCreatePoint'])).toEqual({
+      x: -18,
+      y: 35,
+      z: 0,
+    });
+    expect(readCoord3DField(commandCenterExit!.fields ?? {}, ['NaturalRallyPoint'])).toEqual({
+      x: 60,
+      y: 35,
+      z: 0,
+    });
+
+    const warFactory = bundle.objects?.find((obj) => obj.name === 'AmericaWarFactory');
+    expect(warFactory, 'expected AmericaWarFactory in retail bundle').toBeDefined();
+    const warFactoryExit = warFactory!.blocks?.find((block) =>
+      (block.name ?? '').startsWith('DefaultProductionExitUpdate '));
+    expect(warFactoryExit, 'expected war factory production exit block').toBeDefined();
+    expect(readCoord3DField(warFactoryExit!.fields ?? {}, ['UnitCreatePoint'])).toEqual({
+      x: -10,
+      y: -30,
+      z: 0,
+    });
+
+    const bomber = bundle.objects?.find((obj) => obj.name === 'AirF_AmericaJetB3');
+    expect(bomber, 'expected AirF_AmericaJetB3 in retail bundle').toBeDefined();
+    const deliverPayload = bomber!.blocks?.find((block) =>
+      (block.name ?? '').startsWith('DeliverPayloadAIUpdate '));
+    expect(deliverPayload, 'expected DeliverPayloadAIUpdate on AirF_AmericaJetB3').toBeDefined();
+    expect(readCoord3DField(deliverPayload!.fields ?? {}, ['DropOffset'])).toEqual({
+      x: 0,
+      y: 0,
+      z: -10,
+    });
   });
 
   it('EjectPilotDie Air/GroundCreationList flow through every retail user', () => {

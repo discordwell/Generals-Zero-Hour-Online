@@ -114,7 +114,20 @@ export function readNumericList(values: IniValue | undefined): number[] {
       .split(/[\s,;]+/)
       .map((part) => part.trim())
       .filter(Boolean)
-      .map((part) => Number(part));
+      .map((part) => {
+        const directValue = Number(part);
+        if (Number.isFinite(directValue)) {
+          return directValue;
+        }
+        const colonIndex = part.indexOf(':');
+        if (colonIndex >= 0) {
+          const afterColon = part.slice(colonIndex + 1).trim();
+          if (afterColon.length > 0) {
+            return Number(afterColon);
+          }
+        }
+        return Number.NaN;
+      });
     return parts.filter((value) => Number.isFinite(value));
   }
   if (Array.isArray(values)) {
