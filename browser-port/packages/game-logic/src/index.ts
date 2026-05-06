@@ -40494,6 +40494,45 @@ export class GameLogicSubsystem implements Subsystem {
     return this.getSideUpgradeSet(this.sideCompletedUpgrades, side).has(normalizedUpgrade);
   }
 
+  /* @internal */ isPropagandaTowerPulseUpgraded(entity: MapEntity, profile: PropagandaTowerProfile): boolean {
+    const upgradeName = profile.upgradeRequired?.trim() ?? '';
+    if (!upgradeName || upgradeName.toUpperCase() === 'NONE') {
+      return false;
+    }
+    const registry = this.iniDataRegistry;
+    const upgradeDef = registry ? findUpgradeDefByName(registry, upgradeName) : undefined;
+    if (!upgradeDef) {
+      return false;
+    }
+    const upgradeType = readStringField(upgradeDef.fields, ['Type'])?.trim().toUpperCase() ?? 'PLAYER';
+    if (upgradeType === 'OBJECT') {
+      return entity.completedUpgrades.has(upgradeName.toUpperCase());
+    }
+    if (upgradeType === 'PLAYER') {
+      const side = this.normalizeSide(entity.side);
+      return !!side && this.getSideUpgradeSet(this.sideCompletedUpgrades, side).has(upgradeName.toUpperCase());
+    }
+    return false;
+  }
+
+  /* @internal */ isPropagandaTowerHealUpgraded(entity: MapEntity, profile: PropagandaTowerProfile): boolean {
+    const upgradeName = profile.upgradeRequired?.trim() ?? '';
+    if (!upgradeName || upgradeName.toUpperCase() === 'NONE') {
+      return false;
+    }
+    const registry = this.iniDataRegistry;
+    const upgradeDef = registry ? findUpgradeDefByName(registry, upgradeName) : undefined;
+    if (!upgradeDef) {
+      return false;
+    }
+    const upgradeType = readStringField(upgradeDef.fields, ['Type'])?.trim().toUpperCase() ?? 'PLAYER';
+    if (upgradeType !== 'PLAYER') {
+      return false;
+    }
+    const side = this.normalizeSide(entity.side);
+    return !!side && this.getSideUpgradeSet(this.sideCompletedUpgrades, side).has(upgradeName.toUpperCase());
+  }
+
   private buildEntityUpgradeMask(entity: MapEntity, additionalUpgradeName?: string): Set<string> {
     const upgradeMask = new Set<string>();
     for (const upgradeName of entity.completedUpgrades) {

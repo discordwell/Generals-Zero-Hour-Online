@@ -902,13 +902,13 @@ export function updateHealing(self: GL): void {
         && !entity.objectStatusFlags.has('UNDER_CONSTRUCTION')
         && !entity.objectStatusFlags.has('SOLD')) {
       const prof = entity.propagandaTowerProfile;
-      const isUpgraded = prof.upgradeRequired !== null
-        && self.entityHasUpgrade(entity, prof.upgradeRequired);
-      const healPct = isUpgraded ? prof.upgradedHealPercentPerSecond : prof.healPercentPerSecond;
+      const healUpgraded = self.isPropagandaTowerHealUpgraded(entity, prof);
+      const healPct = healUpgraded ? prof.upgradedHealPercentPerSecond : prof.healPercentPerSecond;
 
       // Rescan for units in range periodically.
       if (self.frameCounter >= entity.propagandaTowerNextScanFrame) {
-        const pulseFXName = (isUpgraded ? prof.upgradedPulseFXName : prof.pulseFXName).trim();
+        const pulseUpgraded = self.isPropagandaTowerPulseUpgraded(entity, prof);
+        const pulseFXName = (pulseUpgraded ? prof.upgradedPulseFXName : prof.pulseFXName).trim();
         if (pulseFXName) {
           self.visualEventBuffer.push({
             type: 'NAMED_FX',

@@ -258,6 +258,57 @@ describe('PropagandaTowerBehavior ZH fields', () => {
       sourceEntityId: 1,
     }));
   });
+
+  it('uses object UpgradeRequired for pulse FX but not upgraded heal percent', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TestPropTower', 'China', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('Behavior', 'PropagandaTowerBehavior ModuleTag_PT', {
+            Radius: 200,
+            DelayBetweenUpdates: 1,
+            HealPercentEachSecond: 0.30,
+            UpgradedHealPercentEachSecond: 0.90,
+            UpgradeRequired: 'Upgrade_ObjectPropaganda',
+            PulseFX: 'FX_PropagandaPulse',
+            UpgradedPulseFX: 'FX_PropagandaPulseUpgraded',
+          }),
+        ]),
+        makeObjectDef('DamagedTrooper', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 90 }),
+        ]),
+      ],
+      upgrades: [
+        makeUpgradeDef('Upgrade_ObjectPropaganda', { Type: 'OBJECT' }),
+      ],
+    });
+    const logic = new GameLogicSubsystem();
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('TestPropTower', 10, 10),
+        makeMapObject('DamagedTrooper', 15, 10),
+      ], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+
+    logic.submitCommand({ type: 'applyUpgrade', entityId: 1, upgradeName: 'Upgrade_ObjectPropaganda' });
+    logic.update(1 / 30);
+
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'FX_PropagandaPulseUpgraded',
+      sourceEntityId: 1,
+    }));
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { health: number }>;
+    };
+    const damagedTrooper = priv.spawnedEntities.get(2)!;
+    // Source parity: effectLogic checks controlling-player upgrades for heal
+    // percent, so an OBJECT upgrade still heals at the base 30%/sec rate.
+    expect(damagedTrooper.health).toBeCloseTo(93, 5);
+  });
 });
 
 // ---------------------------------------------------------------------------
