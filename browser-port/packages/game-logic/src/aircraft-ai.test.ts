@@ -618,7 +618,10 @@ describe('HeightDieUpdate OnlyWhenMovingDown', () => {
 });
 
 describe('JetAIUpdate flight state machine', () => {
-  function makeJetBundle(jetAIFields: Record<string, unknown> = {}) {
+  function makeJetBundle(
+    jetAIFields: Record<string, unknown> = {},
+    locomotorFields: Record<string, unknown> = { PreferredHeight: 80 },
+  ) {
     return makeBundle({
       objects: [
         makeObjectDef('TestJet', 'America', ['AIRCRAFT', 'VEHICLE'], [
@@ -660,7 +663,7 @@ describe('JetAIUpdate flight state machine', () => {
         }),
       ],
       locomotors: [
-        makeLocomotorDef('JetLoco', 300),
+        makeLocomotorDef('JetLoco', 300, locomotorFields),
       ],
     });
   }
@@ -699,7 +702,26 @@ describe('JetAIUpdate flight state machine', () => {
     expect(jet.jetAIProfile.attackLocomotorSet).toBe('SET_NORMAL');
     expect(jet.jetAIProfile.returnLocomotorSet).toBe('SET_NORMAL');
     expect(jet.jetAIState).not.toBeNull();
-    expect(jet.jetAIState.cruiseHeight).toBe(120);
+    expect(jet.jetAIState.cruiseHeight).toBe(80);
+  });
+
+  it('uses normal locomotor PreferredHeight for JetAI cruise altitude instead of MinHeight', () => {
+    const bundle = makeJetBundle({ MinHeight: 5 }, { PreferredHeight: 140 });
+
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as any;
+    const jet = priv.spawnedEntities.get(1)!;
+    // Source parity: JetAIUpdate::m_minHeight only lifts the drawable while
+    // taxiing; Locomotor::PreferredHeight controls the airborne object height.
+    expect(jet.jetAIProfile.minHeight).toBe(5);
+    expect(jet.jetAIState.cruiseHeight).toBe(140);
   });
 
   it('map-placed aircraft start AIRBORNE with AIRBORNE_TARGET status', () => {
@@ -1618,7 +1640,7 @@ describe('FlightDeckBehavior', () => {
         }),
       ],
       locomotors: [
-        makeLocomotorDef('JetLoco', 300),
+        makeLocomotorDef('JetLoco', 300, { PreferredHeight: 80 }),
       ],
     });
   }
@@ -1891,7 +1913,7 @@ describe('FlightDeckBehavior', () => {
         }),
       ],
       locomotors: [
-        makeLocomotorDef('JetLoco', 300),
+        makeLocomotorDef('JetLoco', 300, { PreferredHeight: 80 }),
       ],
     });
     const scene = new THREE.Scene();
@@ -2729,7 +2751,7 @@ describe('JetAIUpdate lockon fields', () => {
         }),
       ],
       locomotors: [
-        makeLocomotorDef('JetLoco', 300),
+        makeLocomotorDef('JetLoco', 300, { PreferredHeight: 80 }),
       ],
     });
   }

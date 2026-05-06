@@ -78,6 +78,18 @@ function hasAIUpdateInterfaceModule(objectDef: ObjectDef | undefined): boolean {
   return visit(objectDef.blocks);
 }
 
+function resolveJetCruiseHeight(locomotorSetProfiles: Map<string, any>, jetAIProfile: any): number {
+  const normalLocomotor = locomotorSetProfiles.get(LOCOMOTORSET_NORMAL);
+  const preferredHeight = normalLocomotor?.preferredHeight;
+  if (Number.isFinite(preferredHeight) && preferredHeight > 0) {
+    return preferredHeight;
+  }
+  // Source note: JetAIUpdate::m_minHeight is drawable taxi clearance, not the
+  // flight locomotor height. Keep the historical fallback for incomplete test
+  // fixtures / stale bundles that do not yet carry SET_NORMAL PreferredHeight.
+  return jetAIProfile.minHeight > 0 ? jetAIProfile.minHeight : 100;
+}
+
 export function createMapEntity(self: GL, 
   mapObject: MapObjectJSON,
   objectDef: ObjectDef | undefined,
@@ -1240,9 +1252,7 @@ export function createMapEntity(self: GL,
   // Map-placed aircraft start AIRBORNE (already flying). Produced aircraft are set
   // to PARKED by applyQueueProductionExitPath.
   if (jetAIProfile) {
-    // Source parity: cruise height from MinHeight INI field, fallback to 100.
-    // C++ uses locomotor preferredHeight as middle fallback but we don't parse that yet.
-    const cruiseHeight = jetAIProfile.minHeight > 0 ? jetAIProfile.minHeight : 100;
+    const cruiseHeight = resolveJetCruiseHeight(locomotorSetProfiles, jetAIProfile);
     entity.jetAIState = {
       state: 'AIRBORNE',
       stateEnteredFrame: self.frameCounter,
