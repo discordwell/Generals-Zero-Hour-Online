@@ -1329,11 +1329,10 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   }
   self.dyingEntityIds.add(entityId);
 
-  // Source parity: TechBuildingBehavior::onDie — revert to neutral team instead of destroying.
+  // Source parity: TechBuildingBehavior::onDie — revert to neutral team before dying.
   // C++ sets team to ThePlayerList->getNeutralPlayer()->getDefaultTeam() and clears MODELCONDITION_CAPTURED.
-  // C++ does NOT restore health, but our engine would re-trigger death at 0 HP, so we restore to maxHealth.
+  // The die module does not cancel Object::onDie; the object continues through the normal death pipeline.
   if (entity.techBuildingProfile) {
-    self.dyingEntityIds.delete(entityId);
     // Unregister energy from current side.
     self.unregisterEntityEnergy(entity);
     // Revert to civilian/neutral side.
@@ -1341,9 +1340,6 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
     entity.controllingPlayerToken = self.normalizeControllingPlayerToken('civilian');
     // ZH addition: TechBuildingBehavior.cpp:129 — clear CAPTURED model condition on revert.
     entity.modelConditionFlags.delete('CAPTURED');
-    // Restore full health to prevent re-death loop (pragmatic deviation from C++).
-    entity.health = entity.maxHealth;
-    return;
   }
 
   // Source parity: Object::onDie calls checkAndDetonateBoobyTrap before die modules.

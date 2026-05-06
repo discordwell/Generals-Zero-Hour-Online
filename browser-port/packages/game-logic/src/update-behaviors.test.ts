@@ -10604,7 +10604,7 @@ describe('BunkerBusterBehavior', () => {
 });
 
 describe('TechBuildingBehavior', () => {
-  it('reverts to civilian side on death instead of being destroyed', () => {
+  it('reverts to civilian side during death and then follows the normal death pipeline', () => {
     const bundle = makeBundle({
       objects: [
         makeObjectDef('OilDerrick', 'civilian', ['STRUCTURE', 'TECH_BUILDING'], [
@@ -10659,13 +10659,13 @@ describe('TechBuildingBehavior', () => {
     logic.submitCommand({ type: 'attackEntity', entityId: 2, targetEntityId: 1 });
     for (let i = 0; i < 30; i++) logic.update(1 / 30);
 
-    // Derrick should NOT be destroyed — it should have reverted to civilian.
-    expect(derrick.destroyed).toBe(false);
+    // C++ TechBuildingBehavior::onDie clears ownership, but Object::onDie still finishes.
+    expect(derrick.destroyed).toBe(true);
     expect(derrick.side).toBe('civilian');
-    expect(derrick.health).toBe(derrick.maxHealth);
+    expect(derrick.health).toBeLessThanOrEqual(0);
   });
 
-  it('can be recaptured after death revert', () => {
+  it('cannot be recaptured after death revert because Object::onDie still destroys it', () => {
     const bundle = makeBundle({
       objects: [
         makeObjectDef('Hospital', 'civilian', ['STRUCTURE', 'TECH_BUILDING'], [
@@ -10710,20 +10710,23 @@ describe('TechBuildingBehavior', () => {
     // Capture for China.
     logic.submitCommand({ type: 'captureEntity', entityId: 1, newSide: 'China' });
     logic.update(1 / 30);
-    expect(priv.spawnedEntities.get(1)!.side).toBe('china');
+    const hospital = priv.spawnedEntities.get(1)!;
+    expect(hospital.side).toBe('china');
 
     // Kill it with GLA attacker.
     logic.submitCommand({ type: 'attackEntity', entityId: 2, targetEntityId: 1 });
     for (let i = 0; i < 30; i++) logic.update(1 / 30);
-    expect(priv.spawnedEntities.get(1)!.side).toBe('civilian');
-    expect(priv.spawnedEntities.get(1)!.destroyed).toBe(false);
+    expect(hospital.side).toBe('civilian');
+    expect(hospital.destroyed).toBe(true);
+    expect(priv.spawnedEntities.has(1)).toBe(false);
 
-    // Recapture for China again.
+    // Recapture command is ignored for destroyed entities.
     logic.submitCommand({ type: 'captureEntity', entityId: 1, newSide: 'China' });
     logic.update(1 / 30);
-    expect(priv.spawnedEntities.get(1)!.side).toBe('china');
-    expect(priv.spawnedEntities.get(1)!.destroyed).toBe(false);
-    expect(priv.spawnedEntities.get(1)!.health).toBe(priv.spawnedEntities.get(1)!.maxHealth);
+    expect(hospital.side).toBe('civilian');
+    expect(hospital.destroyed).toBe(true);
+    expect(hospital.health).toBeLessThanOrEqual(0);
+    expect(priv.spawnedEntities.has(1)).toBe(false);
   });
 
   it('starts as civilian and is capturable from initial state', () => {

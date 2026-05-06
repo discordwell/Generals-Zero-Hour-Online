@@ -446,7 +446,7 @@ describe('RebuildHoleBehavior setProducer on reconstruction', () => {
 // ── Fix 6: TechBuildingBehavior clear CAPTURED model condition ──────────────
 
 describe('TechBuildingBehavior clears CAPTURED on revert', () => {
-  it('clears CAPTURED model condition when tech building reverts to neutral', () => {
+  it('clears CAPTURED model condition when tech building reverts to neutral during death', () => {
     const techDef = makeObjectDef('OilDerrick', 'civilian', ['STRUCTURE', 'TECH_BUILDING'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 300,
@@ -469,6 +469,7 @@ describe('TechBuildingBehavior clears CAPTURED on revert', () => {
       spawnedEntities: Map<number, {
         health: number;
         maxHealth: number;
+        destroyed: boolean;
         side: string;
         modelConditionFlags: Set<string>;
         techBuildingProfile: unknown;
@@ -489,7 +490,9 @@ describe('TechBuildingBehavior clears CAPTURED on revert', () => {
 
     // C++ ZH parity: CAPTURED should be cleared on revert to neutral.
     expect(derrick.modelConditionFlags.has('CAPTURED')).toBe(false);
-    // And side should revert to civilian.
+    // The die module reverts ownership, then Object::onDie continues normally.
     expect(derrick.side).toBe('civilian');
+    expect(derrick.destroyed).toBe(true);
+    expect(derrick.health).toBeLessThanOrEqual(0);
   });
 });
