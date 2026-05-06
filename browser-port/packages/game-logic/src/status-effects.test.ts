@@ -1698,6 +1698,70 @@ describe('NeutronBlastBehavior', () => {
     expect(enemy.destroyed).toBe(true);
   });
 
+  it('respects AffectAirborne=No by skipping aircraft and airborne targets', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('NeutronShell', 'America', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1, InitialHealth: 1 }),
+          makeBlock('Behavior', 'NeutronBlastBehavior ModuleTag_NB', {
+            BlastRadius: 200,
+            AffectAirborne: 'No',
+          }),
+        ]),
+        makeObjectDef('EnemyJet', 'China', ['VEHICLE', 'AIRCRAFT'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+        makeObjectDef('AirborneTargetVehicle', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+        makeObjectDef('GroundVehicle', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('NeutronShell', 50, 50),
+        makeMapObject('EnemyJet', 51, 50),
+        makeMapObject('AirborneTargetVehicle', 52, 50),
+        makeMapObject('GroundVehicle', 53, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    logic.update(1 / 30);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        destroyed: boolean;
+        objectStatusFlags: Set<string>;
+      }>;
+    };
+
+    const jet = priv.spawnedEntities.get(2)!;
+    const airborneVehicle = priv.spawnedEntities.get(3)!;
+    const groundVehicle = priv.spawnedEntities.get(4)!;
+    airborneVehicle.objectStatusFlags.add('AIRBORNE_TARGET');
+
+    const shellEntity = priv.spawnedEntities.get(1) as { id: number; maxHealth: number };
+    (logic as unknown as { applyWeaponDamageAmount(a: null, t: unknown, amount: number, dt: string): void })
+      .applyWeaponDamageAmount(null, shellEntity, 1000, 'UNRESISTABLE');
+
+    logic.update(1 / 30);
+
+    expect(jet.destroyed).toBe(false);
+    expect(jet.objectStatusFlags.has('DISABLED_UNMANNED')).toBe(false);
+    expect(airborneVehicle.destroyed).toBe(false);
+    expect(airborneVehicle.objectStatusFlags.has('DISABLED_UNMANNED')).toBe(false);
+    expect(groundVehicle.destroyed).toBe(false);
+    expect(groundVehicle.objectStatusFlags.has('DISABLED_UNMANNED')).toBe(true);
+  });
+
   it('kills CLIFF_JUMPER vehicles outright instead of making them unmanned', () => {
     const bundle = makeBundle({
       objects: [
