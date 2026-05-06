@@ -56773,8 +56773,7 @@ export class GameLogicSubsystem implements Subsystem {
     if (objectNames.length === 0) return null;
 
     // Parse Count (default 1).
-    const countRaw = readStringField(nugget.fields, ['Count', 'ObjectCount']);
-    const count = Math.max(1, countRaw ? (parseInt(countRaw, 10) || 1) : 1);
+    const count = Math.max(1, Math.trunc(readNumericField(nugget.fields, ['Count', 'ObjectCount']) ?? 1));
 
     // Parse Offset as Coord3D (X Y Z in source).
     const offsetRaw = readStringField(nugget.fields, ['Offset']);
@@ -56838,6 +56837,22 @@ export class GameLogicSubsystem implements Subsystem {
     const diesOnBadLand = readBooleanField(nugget.fields, ['DiesOnBadLand']) ?? false;
 
     let firstCreatedEntityId: number | null = null;
+    let putInContainerEntity: MapEntity | null = null;
+    if (putInContainer && !containInsideSource) {
+      // Source parity: GenericObjectCreationNugget::reallyCreate creates one
+      // PutInContainer object before the generated-object loop and returns it
+      // as firstObject; generated objects are added to that shared wrapper.
+      putInContainerEntity = this.spawnEntityFromTemplate(
+        putInContainer,
+        sourceEntity.x + offsetX,
+        sourceEntity.z + offsetZ,
+        angleOverride !== undefined ? angleOverride : sourceEntity.rotationY,
+        sourceEntity.side,
+      );
+      if (putInContainerEntity) {
+        firstCreatedEntityId = putInContainerEntity.id;
+      }
+    }
     for (let i = 0; i < count; i++) {
       // Pick a random object from the list (deterministic via gameRandom).
       const templateName = objectNames[this.gameRandom.nextRange(0, objectNames.length - 1)]!;
@@ -56925,17 +56940,9 @@ export class GameLogicSubsystem implements Subsystem {
         }
 
         // Source parity: PutInContainer — wrap in an intermediate container.
-        if (putInContainer && !containInsideSource) {
-          const container = this.spawnEntityFromTemplate(
-            putInContainer,
-            spawnX,
-            spawnZ,
-            spawned.rotationY,
-            sourceEntity.side,
-          );
-          if (container) {
-            spawned.transportContainerId = container.id;
-          }
+        if (putInContainerEntity?.containProfile
+          && this.canScriptContainerFitEntity(putInContainerEntity, spawned)) {
+          this.enterTransport(spawned, putInContainerEntity);
         }
 
         // Source parity: ObjectCreationList.cpp:1065-1074 — OCL-created structures flatten

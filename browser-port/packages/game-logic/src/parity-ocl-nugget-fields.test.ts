@@ -663,7 +663,7 @@ describe('parity: CreateObject nugget missing fields', () => {
         ]),
         makeObjectDef('SpawnedUnit', 'America', ['INFANTRY'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
-        ]),
+        ], { TransportSlotCount: 1 }),
         ...(extraObjects ?? []),
       ],
     });
@@ -854,20 +854,48 @@ describe('parity: CreateObject nugget missing fields', () => {
       { PutInContainer: 'Wrapper' },
       [
         makeObjectDef('Wrapper', 'America', ['VEHICLE'], [
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', { ContainMax: 4 }),
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
         ]),
       ],
     );
 
     const source = getEntitiesByTemplate(logic, 'Source')[0]!;
-    (logic as unknown as { executeOCL: (name: string, entity: unknown) => void })
+    const createdId = (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
       .executeOCL('OCL_TestCreate', source);
 
     const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
     const wrappers = getEntitiesByTemplate(logic, 'Wrapper');
     expect(spawned.length).toBe(1);
     expect(wrappers.length).toBe(1);
+    expect(createdId).toBe(wrappers[0]!.id);
     // Spawned unit should be inside the wrapper.
     expect(spawned[0]!.transportContainerId).toBe(wrappers[0]!.id);
+  });
+
+  it('uses one shared PutInContainer for multiple CreateObject spawns', () => {
+    // C++ parity: GenericObjectCreationNugget::reallyCreate creates the
+    // wrapper once before the debris/object loop, then adds every generated
+    // object to that same container.
+    const { logic } = makeCreateObjectSetup(
+      { PutInContainer: 'Wrapper', Count: 2 },
+      [
+        makeObjectDef('Wrapper', 'America', ['VEHICLE'], [
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', { ContainMax: 4 }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+        ]),
+      ],
+    );
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    const createdId = (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestCreate', source);
+
+    const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
+    const wrappers = getEntitiesByTemplate(logic, 'Wrapper');
+    expect(spawned.length).toBe(2);
+    expect(wrappers.length).toBe(1);
+    expect(createdId).toBe(wrappers[0]!.id);
+    expect(spawned.every((entity) => entity.transportContainerId === wrappers[0]!.id)).toBe(true);
   });
 });
