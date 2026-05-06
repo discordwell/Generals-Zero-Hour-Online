@@ -5896,6 +5896,8 @@ interface AutoDepositProfile {
   depositFrames: number;
   /** Cash amount per deposit. Source parity: DepositAmount. */
   depositAmount: number;
+  /** Source parity (ZH): AutoDepositUpdateModuleData::m_upgradeBoost parsed from UpgradedBoost. */
+  upgradedBoosts: ReadonlyArray<{ upgradeName: string; amount: number }>;
   /** One-time bonus deposited when a neutral building is captured. Source parity: InitialCaptureBonus. */
   initialCaptureBonus: number;
   /** Whether the periodic amount is deposited into player credits. Source parity: ActualMoney. */
@@ -52613,10 +52615,28 @@ export class GameLogicSubsystem implements Subsystem {
       // Source parity: C++ line 134 — skip if under construction.
       if (entity.constructionPercent !== CONSTRUCTION_COMPLETE) continue;
 
+      // Source parity (ZH): AutoDepositUpdate.cpp — moneyAmount is
+      // m_depositAmount + getUpgradedSupplyBoost().
+      const moneyAmount = profile.depositAmount + this.getAutoDepositUpgradedSupplyBoost(entity, profile);
+
       if (profile.actualMoney) {
-        this.depositSideCredits(entity.side, profile.depositAmount);
+        this.depositSideCredits(entity.side, moneyAmount);
       }
     }
+  }
+
+  /** Source parity (ZH): AutoDepositUpdate::getUpgradedSupplyBoost(). */
+  private getAutoDepositUpgradedSupplyBoost(entity: MapEntity, profile: AutoDepositProfile): number {
+    const side = this.resolveEntityOwnerSide(entity);
+    if (!side) {
+      return 0;
+    }
+    for (const boost of profile.upgradedBoosts) {
+      if (this.hasSideUpgradeCompleted(side, boost.upgradeName)) {
+        return boost.amount;
+      }
+    }
+    return 0;
   }
 
   /**

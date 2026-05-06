@@ -4843,6 +4843,7 @@ describe('AutoDepositUpdate', () => {
   function makeAutoDepositSetup(opts?: {
     depositTimingMs?: number;
     depositAmount?: number;
+    upgradedBoost?: unknown;
     initialCaptureBonus?: number;
     actualMoney?: boolean;
     startCredits?: number;
@@ -4859,6 +4860,7 @@ describe('AutoDepositUpdate', () => {
         makeBlock('Behavior', 'AutoDepositUpdate ModuleTag_AutoDeposit', {
           DepositTiming: timingMs,
           DepositAmount: amount,
+          ...(opts?.upgradedBoost === undefined ? {} : { UpgradedBoost: opts.upgradedBoost }),
           InitialCaptureBonus: captureBonus,
           ...(opts?.actualMoney === undefined ? {} : { ActualMoney: opts.actualMoney }),
         }),
@@ -4897,6 +4899,25 @@ describe('AutoDepositUpdate', () => {
     // Frame 30 triggers the first deposit.
     logic.update(1 / 30);
     expect(logic.getSideCredits('gla')).toBe(startCredits + 50);
+  });
+
+  it('adds first completed UpgradedBoost to periodic deposits', () => {
+    const { logic, startCredits } = makeAutoDepositSetup({
+      depositTimingMs: 1000,
+      depositAmount: 50,
+      upgradedBoost: ['UpgradeType:Upgrade_AmericaSupplyLines', 'Boost:20'],
+    });
+    const privateApi = logic as unknown as {
+      setSideUpgradeCompleted: (side: string, upgradeName: string, enabled: boolean) => void;
+    };
+
+    privateApi.setSideUpgradeCompleted('GLA', 'Upgrade_AmericaSupplyLines', true);
+
+    for (let i = 0; i < 30; i++) {
+      logic.update(1 / 30);
+    }
+
+    expect(logic.getSideCredits('gla')).toBe(startCredits + 70);
   });
 
   it('honors ActualMoney=false by withholding periodic credit deposits', () => {

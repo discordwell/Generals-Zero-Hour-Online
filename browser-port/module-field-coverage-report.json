@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-06T11:18:30.343Z",
+  "generatedAt": "2026-05-06T12:00:15.256Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -58155,6 +58155,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-create-upgrade-collide-runtime.test.ts"
       ],
       "priority": "P2"
@@ -61027,6 +61028,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-create-upgrade-collide-runtime.test.ts"
       ],
       "priority": "P2"

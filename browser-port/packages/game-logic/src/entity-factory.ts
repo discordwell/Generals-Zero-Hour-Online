@@ -4439,6 +4439,7 @@ export function extractAutoDepositProfile(self: GL, objectDef: ObjectDef | undef
         profile = {
           depositFrames: Math.max(1, self.msToLogicFrames(depositTimingMs)),
           depositAmount,
+          upgradedBoosts: extractUpgradedBoosts(block.fields['UpgradedBoost']),
           initialCaptureBonus,
           actualMoney: readBooleanField(block.fields, ['ActualMoney']) ?? true,
         };

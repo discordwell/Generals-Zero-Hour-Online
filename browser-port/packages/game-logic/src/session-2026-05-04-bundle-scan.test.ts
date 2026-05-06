@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import {
+  extractAutoDepositProfile,
   extractBoneFXProfile,
   extractContainProfile,
   extractCrateCollideProfile,
@@ -882,6 +883,29 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       }
     }
     expect(userCount, 'expected MoneyCrateCollide UpgradedBoost users (SupplyDropZoneCrate, TechOilDerrick)').toBeGreaterThan(0);
+  });
+
+  it('AutoDepositUpdate UpgradedBoost decodes for every retail user', () => {
+    let userCount = 0;
+    for (const obj of bundle.objects ?? []) {
+      for (const block of obj.blocks ?? []) {
+        const moduleType = (block.name ?? '').split(/\s+/)[0];
+        if (moduleType !== 'AutoDepositUpdate') continue;
+        const fields = block.fields ?? {};
+        if (!('UpgradedBoost' in fields)) continue;
+        userCount++;
+        const profile = extractAutoDepositProfile(makeSelfStub(), obj as never);
+        expect(profile, `AutoDepositProfile null on ${obj.name}`).not.toBeNull();
+        expect(
+          profile!.upgradedBoosts.length,
+          `UpgradedBoost dropped on ${obj.name} bundle=${JSON.stringify(fields['UpgradedBoost'])}`,
+        ).toBeGreaterThan(0);
+        const boost = profile!.upgradedBoosts[0]!;
+        expect(boost.upgradeName.length).toBeGreaterThan(0);
+        expect(boost.amount).toBeGreaterThan(0);
+      }
+    }
+    expect(userCount, 'expected AutoDepositUpdate UpgradedBoost users (TechOilDerrick)').toBeGreaterThan(0);
   });
 
   it('OCLUpdate.FactionOCL decodes for retail TechReinforcementPad (was silently dropped)', () => {

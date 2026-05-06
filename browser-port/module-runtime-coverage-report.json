@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-04T01:05:47.472Z",
+  "generatedAt": "2026-05-06T12:00:15.501Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -63,9 +63,11 @@
         "packages/game-logic/src/child-object-runtime.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/parity-dozer-fireevent.test.ts",
         "packages/game-logic/src/parity-worker-powtruck-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/render-state.test.ts",
         "tools/module-field-coverage-report.test.ts",
         "tools/module-runtime-coverage-report.test.ts",
         "tools/parity-source-truth.test.ts",
@@ -564,9 +566,11 @@
         "packages/game-logic/src/child-object-runtime.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/parity-dozer-fireevent.test.ts",
         "packages/game-logic/src/parity-worker-powtruck-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/render-state.test.ts",
         "tools/module-field-coverage-report.test.ts",
         "tools/module-runtime-coverage-report.test.ts",
         "tools/parity-source-truth.test.ts",
@@ -617,6 +621,8 @@
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-behavior-runtime-fixes.test.ts",
         "tools/parity-source-truth.test.ts"
@@ -759,6 +765,7 @@
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/repair-dock-save-state.test.ts",
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/spawn-health-box-offset.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
@@ -840,6 +847,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
         "packages/game-logic/src/entity-xfer.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -877,6 +885,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-heightdie-firespread.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/status-effects.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -1006,6 +1015,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/transition-damage-fx.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -1338,12 +1349,14 @@
         "packages/game-logic/src/parity-stealth-opacity-garrison.test.ts",
         "packages/game-logic/src/parity-stealth-topple.test.ts",
         "packages/game-logic/src/parity-supply-garrison.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-ai-state-machine-fixes.test.ts",
         "packages/game-logic/src/zh-body-die-contain-runtime.test.ts",
         "packages/game-logic/src/zh-combat-runtime-fixes.test.ts",
         "packages/game-logic/src/zh-container-transport-fixes.test.ts",
+        "tools/module-field-coverage-report.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -1383,6 +1396,8 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
@@ -1852,6 +1867,7 @@
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/parity-capture-mine-detect.test.ts",
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -2011,6 +2027,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-capture-mine-detect.test.ts",
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -2152,6 +2169,7 @@
         "packages/game-logic/src/parity-repair-transport.test.ts",
         "packages/game-logic/src/parity-rider-change-contain.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-ai-state-machine-fixes.test.ts",
         "packages/game-logic/src/zh-combat-edge-cases.test.ts",
@@ -2303,6 +2321,8 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
         "tools/parity-source-truth.test.ts"
@@ -2466,6 +2486,8 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/zh-behavior-runtime-fixes.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -2663,6 +2685,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
+        "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -2743,6 +2767,7 @@
         "packages/game-logic/src/parity-missile-fields.test.ts",
         "packages/game-logic/src/parity-missilelock-shroud.test.ts",
         "packages/game-logic/src/parity-tunnel-missile.test.ts",
+        "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/weapon-runtime-save-state.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -2828,6 +2853,8 @@
         "packages/game-logic/src/parity-production.test.ts",
         "packages/game-logic/src/parity-rally-terrain.test.ts",
         "packages/game-logic/src/parity-score-kindof.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts",
         "tools/parity-source-truth.test.ts"
@@ -2903,6 +2930,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-profile-fields.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
+        "tools/convert-all/src/convert-all.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -3073,6 +3101,7 @@
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/zh-ai-guard-damage-fixes.test.ts",
         "packages/game-logic/src/zh-ai-niche-fixes.test.ts",
+        "tools/convert-all/src/convert-all.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -3194,6 +3223,8 @@
         "packages/game-logic/src/aircraft-ai.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -3606,6 +3637,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -3720,6 +3752,7 @@
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/parity-conflict-respawn.test.ts",
         "packages/game-logic/src/parity-veterancy.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-combat-runtime-fixes.test.ts",
         "packages/game-logic/src/zh-dock-ai-runtime.test.ts",
@@ -3989,6 +4022,8 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/render-state.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/upgrade-modules.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -4467,6 +4502,8 @@
       "testReferenceFiles": [
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/parity-contain-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -4507,6 +4544,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/spy-vision-update.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -4564,6 +4602,7 @@
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-contain-fields.test.ts",
         "packages/game-logic/src/parity-tunnel-missile.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/wet-test-retail-multimap.test.ts",
         "packages/game-logic/src/zh-ai-niche-fixes.test.ts",
@@ -4641,6 +4680,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -4679,11 +4719,13 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
+        "packages/game-logic/src/aircraft-ai.test.ts",
         "packages/game-logic/src/chinook-combat-drop-save-state.test.ts",
         "packages/game-logic/src/chinook-pending-command-save-state.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/module-profile-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/zh-dock-ai-runtime.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
         "tools/parity-source-truth.test.ts"
@@ -4844,6 +4886,8 @@
       "testReferenceFiles": [
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/parity-rider-change-contain.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -4944,6 +4988,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/render-state.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -5065,6 +5110,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-heightdie-firespread.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/status-effects.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -5146,6 +5192,7 @@
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/parity-contain-fields.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
         "tools/parity-source-truth.test.ts"
@@ -5186,6 +5233,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -5548,6 +5596,7 @@
         "packages/game-logic/src/bridge-mechanics.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-bridge-loco-prereq.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -5657,6 +5706,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/parity-overcharge-crate-reload.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-create-upgrade-collide-runtime.test.ts",
         "tools/parity-source-truth.test.ts"
@@ -5698,6 +5748,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-contain-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -5924,6 +5975,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -6053,6 +6105,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -6163,6 +6216,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -6240,6 +6294,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -6544,6 +6599,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -6583,6 +6640,8 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-xfer.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/zh-combat-runtime-fixes.test.ts",
         "tools/parity-source-truth.test.ts"
@@ -6711,6 +6770,7 @@
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-eva-specialpower-fixes.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
@@ -7137,6 +7197,7 @@
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
         "packages/game-logic/src/parity-slowdeath-inithealth.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -7292,6 +7353,8 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/zh-create-upgrade-collide-runtime.test.ts",
         "tools/parity-source-truth.test.ts"
@@ -7365,6 +7428,8 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-factory-defaults.test.ts",
         "packages/game-logic/src/parity-minefield-demotrap-ocl-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-ai-niche-fixes.test.ts",
         "packages/game-logic/src/zh-behavior-runtime-fixes.test.ts",
@@ -7471,6 +7536,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -7698,6 +7764,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -7803,6 +7870,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-waveguide-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -7833,6 +7901,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -7900,6 +7969,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -8006,6 +8076,8 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/aircraft-ai.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -8071,6 +8143,9 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
+        "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -8139,6 +8214,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -8232,6 +8308,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/sabotage-building-profile.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -8262,6 +8339,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-create-upgrade-collide-runtime.test.ts",
         "tools/parity-source-truth.test.ts"
@@ -8666,6 +8745,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -8752,8 +8832,10 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-contain-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
         "packages/game-logic/src/zh-turret-weapon-bonus.test.ts",
+        "tools/module-field-coverage-report.test.ts",
         "tools/parity-source-truth.test.ts",
         "tools/save-generated-module-coverage-report.test.ts"
       ],
