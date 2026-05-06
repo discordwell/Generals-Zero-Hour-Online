@@ -1372,6 +1372,12 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   // Source parity: FireWeaponWhenDeadBehavior::onDie — fire weapon on death with upgrade control.
   self.executeFireWeaponWhenDeadModules(entity);
 
+  // Source parity: LeafletDropBehavior::onDie — death immediately fires the
+  // same radius disable attack as the delayed update path.
+  if (entity.leafletDropProfile) {
+    self.doLeafletDisableAttack(entity, entity.leafletDropProfile);
+  }
+
   // Source parity: NeutronBlastBehavior::onDie — radius neutron blast on death.
   self.executeNeutronBlast(entity);
 

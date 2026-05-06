@@ -1519,6 +1519,48 @@ describe('LeafletDropBehavior', () => {
     for (let i = 0; i < 80; i++) logic.update(1 / 30);
     expect(priv.spawnedEntities.get(2)!.objectStatusFlags.has('DISABLED_EMP')).toBe(true);
   });
+
+  it('fires the disable attack from onDie even before the delay expires', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('LeafletContainer', 'America', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+          makeBlock('Behavior', 'LeafletDropBehavior ModuleTag_Leaflet', {
+            Delay: 10000,
+            DisabledDuration: 20000,
+            AffectRadius: 110,
+            LeafletFXParticleSystem: 'LeafletParticles1',
+          }),
+        ]),
+        makeObjectDef('EnemyInfantry', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('LeafletContainer', 50, 50),
+        makeMapObject('EnemyInfantry', 55, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { objectStatusFlags: Set<string>; health: number }>;
+      markEntityDestroyed(entityId: number, attackerId: number): void;
+    };
+    expect(priv.spawnedEntities.get(2)!.objectStatusFlags.has('DISABLED_EMP')).toBe(false);
+
+    priv.spawnedEntities.get(1)!.health = 0;
+    priv.markEntityDestroyed(1, -1);
+
+    expect(priv.spawnedEntities.get(2)!.objectStatusFlags.has('DISABLED_EMP')).toBe(true);
+  });
 });
 
 describe('NeutronBlastBehavior', () => {
