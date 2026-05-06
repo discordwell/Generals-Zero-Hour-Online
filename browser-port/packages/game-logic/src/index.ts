@@ -6687,6 +6687,8 @@ interface HelicopterSlowDeathState {
   orbitDirection: number;
   /** Frame when the helicopter hit the ground (0 = still airborne). */
   hitGroundFrame: number;
+  /** Source parity: m_bladeFlyOffFrame countdown until blade FX/OCL is fired (0 = no pending blade fly-off). */
+  bladeFlyOffFrame: number;
   /** Index into helicopterSlowDeathProfiles for the applicable profile. */
   profileIndex: number;
 }
@@ -23255,6 +23257,7 @@ export class GameLogicSubsystem implements Subsystem {
             lastSelfSpinUpdateFrame: Math.max(0, Math.trunc(helicopterState.lastSelfSpinUpdateFrame)),
             orbitDirection: Math.trunc(helicopterState.orbitDirection) || 1,
             hitGroundFrame: Math.max(0, Math.trunc(helicopterState.hitGroundFrame)),
+            bladeFlyOffFrame: Math.max(0, Math.trunc(helicopterState.bladeFlyOffFrame)),
             profileIndex: helicopterProfileIndex,
           };
         }

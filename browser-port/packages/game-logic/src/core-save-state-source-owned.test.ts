@@ -10260,6 +10260,7 @@ describe('source-owned game-logic core save-state', () => {
       lastSelfSpinUpdateFrame: 260,
       orbitDirection: -1,
       hitGroundFrame: 280,
+      bladeFlyOffFrame: 270,
       profileIndex: 0,
     });
 

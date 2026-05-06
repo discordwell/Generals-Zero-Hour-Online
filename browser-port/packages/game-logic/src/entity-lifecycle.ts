@@ -37,6 +37,27 @@ function emitNamedFX(self: GL, entity: MapEntity, effectName: string | null | un
   });
 }
 
+function emitNamedParticleSystem(
+  self: GL,
+  entity: MapEntity,
+  effectName: string | null | undefined,
+  sourceBoneName?: string | null,
+): void {
+  const trimmedName = (effectName ?? '').trim();
+  if (!trimmedName) return;
+  self.visualEventBuffer.push({
+    type: 'NAMED_PARTICLE_SYSTEM',
+    x: entity.x,
+    y: entity.y,
+    z: entity.z,
+    radius: 0,
+    sourceEntityId: entity.id,
+    projectileType: 'BULLET',
+    effectName: trimmedName,
+    sourceBoneName: sourceBoneName?.trim() || undefined,
+  });
+}
+
 function playEntitySound(self: GL, entity: MapEntity, audioName: string | null | undefined): void {
   const trimmedName = (audioName ?? '').trim();
   if (!trimmedName) return;
@@ -625,8 +646,16 @@ export function tryBeginSlowDeath(self: GL, entity: MapEntity, _attackerId: numb
         lastSelfSpinUpdateFrame: self.frameCounter,
         orbitDirection: 1, // Always left (C++ line 213).
         hitGroundFrame: 0,
+        bladeFlyOffFrame: heliProfile.maxBladeFlyOffDelay > heliProfile.minBladeFlyOffDelay
+          ? self.gameRandom.nextRange(
+              Math.max(0, Math.trunc(heliProfile.minBladeFlyOffDelay)),
+              Math.max(0, Math.trunc(heliProfile.maxBladeFlyOffDelay)),
+            )
+          : Math.max(0, Math.trunc(heliProfile.minBladeFlyOffDelay)),
         profileIndex: hpi,
       };
+      emitNamedParticleSystem(self, entity, heliProfile.attachParticle, heliProfile.attachParticleBone);
+      playEntitySound(self, entity, heliProfile.soundDeathLoop);
       break;
     }
   }
@@ -1146,17 +1175,34 @@ export function updateHelicopterSlowDeath(self: GL): void {
       // Damp forward speed.
       hs.forwardSpeed *= profile.spiralOrbitForwardSpeedDamping;
 
-      // Gravity-based descent.
-      // C++: locomotor maxLift = -gravity * (1 - fallHowFast).
-      // Simplified: apply downward velocity proportional to fallHowFast.
+      // Source parity: beginSlowDeath sets locomotor maxLift to
+      // -gravity * (1 - FallHowFast). With source gravity=-1, max gross lift is
+      // clipped to (1 - FallHowFast), yielding net vertical acceleration
+      // -FallHowFast per frame.
       hs.verticalVelocity += HELICOPTER_GRAVITY * profile.fallHowFast;
       entity.y += hs.verticalVelocity;
+
+      // Source parity: m_bladeFlyOffFrame countdown emits blade FX/OCL once while airborne.
+      if (hs.bladeFlyOffFrame > 0) {
+        hs.bladeFlyOffFrame -= 1;
+        if (hs.bladeFlyOffFrame <= 0) {
+          emitNamedFX(self, entity, profile.fxBlade);
+          if (profile.oclBlade) {
+            self.executeOCL(profile.oclBlade, entity, undefined, entity.x, entity.z);
+          }
+          if (profile.oclEjectPilot && entity.experienceState.currentLevel > 0) {
+            self.executeOCL(profile.oclEjectPilot, entity, undefined, entity.x, entity.z);
+          }
+        }
+      }
 
       // Ground hit detection.
       const terrainY = self.resolveGroundHeight(entity.x, entity.z) + entity.baseHeight;
       if (entity.y <= terrainY + 1.0) {
         entity.y = terrainY;
         hs.hitGroundFrame = self.frameCounter;
+
+        emitNamedFX(self, entity, profile.fxHitGround);
 
         // Execute ground hit OCLs.
         for (const oclName of profile.oclHitGround) {
@@ -1174,6 +1220,8 @@ export function updateHelicopterSlowDeath(self: GL): void {
     // ── On the ground: wait for final explosion ──
     if (hs.hitGroundFrame > 0
       && self.frameCounter - hs.hitGroundFrame > profile.delayFromGroundToFinalDeath) {
+      emitNamedFX(self, entity, profile.fxFinalBlowUp);
+
       // Execute final explosion OCLs.
       for (const oclName of profile.oclFinalBlowUp) {
         self.executeOCL(oclName, entity, undefined, entity.x, entity.z);

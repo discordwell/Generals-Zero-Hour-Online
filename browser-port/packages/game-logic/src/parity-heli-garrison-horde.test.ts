@@ -18,6 +18,7 @@ import { GameLogicSubsystem } from './index.js';
 import {
   makeBlock,
   makeObjectDef,
+  makeObjectCreationListDef,
   makeWeaponDef,
   makeWeaponBlock,
   makeBundle,
@@ -86,12 +87,31 @@ describe('Parity: helicopter slow death spiral orbit', () => {
             SelfSpinUpdateDelay: 200,            // 200ms -> 6 frames
             SelfSpinUpdateAmount: 30,            // 30 deg
             FallHowFast: 50,                     // 50% gravity
+            MinBladeFlyOffDelay: 100,
+            MaxBladeFlyOffDelay: 100,
+            AttachParticle: 'P_HeliSmoke',
+            AttachParticleBone: 'Smoke01',
+            FXBlade: 'FX_HeliBladeFlyOff',
+            OCLBlade: 'OCL_HeliBladeDebris',
+            FXHitGround: 'FX_HeliGroundImpact',
+            OCLHitGround: 'OCL_HeliGroundDebris',
+            FXFinalBlowUp: 'FX_HeliFinalExplosion',
+            OCLFinalBlowUp: 'OCL_HeliFinalDebris',
             DelayFromGroundToFinalDeath: 500,    // 500ms -> 15 frames
           }),
         ]),
         makeObjectDef('Killer', 'GLA', ['VEHICLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
           makeWeaponBlock('BigGun'),
+        ]),
+        makeObjectDef('HeliBladeDebris', 'America', ['MINE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1, InitialHealth: 1 }),
+        ]),
+        makeObjectDef('HeliGroundDebris', 'America', ['MINE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1, InitialHealth: 1 }),
+        ]),
+        makeObjectDef('HeliFinalDebris', 'America', ['MINE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1, InitialHealth: 1 }),
         ]),
       ],
       weapons: [
@@ -103,6 +123,17 @@ describe('Parity: helicopter slow death spiral orbit', () => {
           DelayBetweenShots: 5000,
           AntiAirborneVehicle: true,
         }),
+      ],
+      objectCreationLists: [
+        makeObjectCreationListDef('OCL_HeliBladeDebris', [
+          makeBlock('CreateObject', 'CreateObject', { ObjectNames: 'HeliBladeDebris' }),
+        ]),
+        makeObjectCreationListDef('OCL_HeliGroundDebris', [
+          makeBlock('CreateObject', 'CreateObject', { ObjectNames: 'HeliGroundDebris' }),
+        ]),
+        makeObjectCreationListDef('OCL_HeliFinalDebris', [
+          makeBlock('CreateObject', 'CreateObject', { ObjectNames: 'HeliFinalDebris' }),
+        ]),
       ],
     });
   }
@@ -313,6 +344,84 @@ describe('Parity: helicopter slow death spiral orbit', () => {
     const initAngle = hs.forwardAngle;
     logic.update(1 / 30);
     expect(hs.forwardAngle).not.toBe(initAngle);
+  });
+
+  it('emits source blade, ground, final FX/OCL, and attach particle during helicopter slow death', () => {
+    // C++ HelicopterSlowDeathUpdate.cpp:231-267 attaches particle on beginSlowDeath.
+    // Lines 382-421 fire blade FX/OCL, 450-454 fire ground FX/OCL, 467-469 fire final FX/OCL.
+    const bundle = makeHeliBundle();
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('TestHeli', 128, 128),
+        makeMapObject('Killer', 140, 128),
+      ], 256, 256),
+      makeRegistry(bundle),
+      makeHeightmap(256, 256),
+    );
+    setupEnemyRelationships(logic, 'America', 'GLA');
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        id: number; destroyed: boolean; health: number; y: number;
+        templateName: string;
+        helicopterSlowDeathState: { hitGroundFrame: number } | null;
+        helicopterSlowDeathProfiles: unknown[];
+      }>;
+    };
+
+    const heli = [...priv.spawnedEntities.values()].find(
+      e => e.helicopterSlowDeathProfiles.length > 0,
+    )!;
+    heli.y = 20;
+
+    logic.drainVisualEvents();
+    logic.submitCommand({ type: 'attackEntity', entityId: 2, targetEntityId: 1 });
+    for (let i = 0; i < 10; i++) {
+      logic.update(1 / 30);
+      if (heli.health <= 0) break;
+    }
+
+    let events = logic.drainVisualEvents();
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'NAMED_PARTICLE_SYSTEM',
+      effectName: 'P_HeliSmoke',
+      sourceBoneName: 'Smoke01',
+      sourceEntityId: heli.id,
+    }));
+
+    let sawBladeFx = false;
+    for (let i = 0; i < 20; i++) {
+      logic.update(1 / 30);
+      events = logic.drainVisualEvents();
+      sawBladeFx = sawBladeFx || events.some((event) =>
+        event.type === 'NAMED_FX' && event.effectName === 'FX_HeliBladeFlyOff');
+      if (sawBladeFx) break;
+    }
+    expect(sawBladeFx).toBe(true);
+    expect([...priv.spawnedEntities.values()].some(e => e.templateName === 'HeliBladeDebris')).toBe(true);
+
+    let sawGroundFx = false;
+    for (let i = 0; i < 120; i++) {
+      logic.update(1 / 30);
+      events = logic.drainVisualEvents();
+      sawGroundFx = sawGroundFx || events.some((event) =>
+        event.type === 'NAMED_FX' && event.effectName === 'FX_HeliGroundImpact');
+      if (sawGroundFx) break;
+    }
+    expect(sawGroundFx).toBe(true);
+    expect([...priv.spawnedEntities.values()].some(e => e.templateName === 'HeliGroundDebris')).toBe(true);
+
+    let sawFinalFx = false;
+    for (let i = 0; i < 60; i++) {
+      logic.update(1 / 30);
+      events = logic.drainVisualEvents();
+      sawFinalFx = sawFinalFx || events.some((event) =>
+        event.type === 'NAMED_FX' && event.effectName === 'FX_HeliFinalExplosion');
+      if (sawFinalFx) break;
+    }
+    expect(sawFinalFx).toBe(true);
+    expect([...priv.spawnedEntities.values()].some(e => e.templateName === 'HeliFinalDebris')).toBe(true);
   });
 });
 
