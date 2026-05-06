@@ -1615,27 +1615,11 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   entity.objectStatusFlags.delete('CONTINUOUS_FIRE_SLOW');
   entity.objectStatusFlags.delete('CONTINUOUS_FIRE_MEAN');
   entity.objectStatusFlags.delete('CONTINUOUS_FIRE_FAST');
-  // Source parity: buildings with topple/collapse profiles leave rubble remnants longer.
-  // C++ keeps the object with POST_COLLAPSE/RUBBLE model condition; we approximate by
-  // extending corpse persistence to 10 seconds and adding RUBBLE flag + reduced opacity.
-  const isRubbleBuilding = !!(entity.structureToppleProfile || entity.structureCollapseProfile);
-  const rubbleDuration = isRubbleBuilding
-    ? LOGIC_FRAME_RATE * 10 // ~10 seconds rubble persistence
-    : LOGIC_FRAME_RATE * 3; // ~3 seconds corpse persistence
-
-  if (isRubbleBuilding) {
-    entity.modelConditionFlags.add('RUBBLE');
-  }
-
   const dyingRenderState = self.makeRenderableEntityState(entity);
-
-  if (isRubbleBuilding) {
-    dyingRenderState.health = 0;
-  }
 
   self.pendingDyingRenderableStates.set(entityId, {
     state: dyingRenderState,
-    expireFrame: self.frameCounter + rubbleDuration,
+    expireFrame: self.frameCounter + LOGIC_FRAME_RATE * 3,
   });
   onObjectDestroyed(self, entityId);
 }

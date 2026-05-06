@@ -36,7 +36,7 @@ export function deriveRenderAnimationState(self: GL, entity: MapEntity): RenderA
     // Source parity note:
     // Generals/Code/GameEngine/Source/GameLogic/Thing/Drawable.cpp
     // drives render-state from object locomotor/combat lifecycle transitions.
-    if (entity.slowDeathState || entity.structureCollapseState) {
+    if (entity.slowDeathState || entity.structureCollapseState || entity.structureToppleState) {
       return 'DIE';
     }
     if (entity.destroyed) {
@@ -81,7 +81,10 @@ export function syncModelConditionFlags(
     const bodyState = calcBodyDamageState(entity.health, entity.maxHealth);
     if (bodyState >= 1) { flags.add('DAMAGED'); } else { flags.delete('DAMAGED'); }
     if (bodyState >= 2) { flags.add('REALLYDAMAGED'); } else { flags.delete('REALLYDAMAGED'); }
-    if (bodyState >= 3) { flags.add('RUBBLE'); } else { flags.delete('RUBBLE'); }
+    // Source parity: StructureCollapseUpdate/StructureToppleUpdate final state
+    // clears MODELCONDITION_RUBBLE and sets MODELCONDITION_POST_COLLAPSE even
+    // though ActiveBody health remains in BODY_RUBBLE.
+    if (bodyState >= 3 && !flags.has('POST_COLLAPSE')) { flags.add('RUBBLE'); } else { flags.delete('RUBBLE'); }
 
     // ── SPECIAL_DAMAGED — severe damage visual variant ──
     // Source parity: set when health drops below REALLY_DAMAGED threshold and
@@ -343,7 +346,7 @@ export function syncModelConditionFlags(
     }
 
     // ── DYING — during slow death / structure collapse / imported AI_DEAD state ──
-    if (entity.sourceAIUpdateIsDead || entity.slowDeathState || entity.structureCollapseState) {
+    if (entity.sourceAIUpdateIsDead || entity.slowDeathState || entity.structureCollapseState || entity.structureToppleState) {
       flags.add('DYING');
     } else {
       flags.delete('DYING');

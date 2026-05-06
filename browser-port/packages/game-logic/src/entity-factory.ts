@@ -4705,6 +4705,34 @@ export function extractStructureToppleProfile(self: GL, objectDef: ObjectDef | u
     if (block.type.toUpperCase() === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'STRUCTURETOPPLEUPDATE') {
+        const deathTypes = new Set<string>();
+        const deathTypesStr = readStringField(block.fields, ['DeathTypes']);
+        if (deathTypesStr) {
+          for (const token of deathTypesStr.toUpperCase().split(/\s+/)) {
+            if (token) deathTypes.add(token);
+          }
+        }
+        const veterancyLevels = new Set<string>();
+        const vetStr = readStringField(block.fields, ['VeterancyLevels']);
+        if (vetStr) {
+          for (const token of vetStr.toUpperCase().split(/\s+/)) {
+            if (token) veterancyLevels.add(token);
+          }
+        }
+        const exemptStatus = new Set<string>();
+        const exemptStr = readStringField(block.fields, ['ExemptStatus']);
+        if (exemptStr) {
+          for (const token of exemptStr.toUpperCase().split(/\s+/)) {
+            if (token) exemptStatus.add(token);
+          }
+        }
+        const requiredStatus = new Set<string>();
+        const reqStr = readStringField(block.fields, ['RequiredStatus']);
+        if (reqStr) {
+          for (const token of reqStr.toUpperCase().split(/\s+/)) {
+            if (token) requiredStatus.add(token);
+          }
+        }
         const angleFXTokens = readStringList(block.fields, ['AngleFX']);
         const angleFX: Array<{ angleRadians: number; effectName: string }> = [];
         for (let i = 0; i + 1 < angleFXTokens.length; i += 2) {
@@ -4718,6 +4746,10 @@ export function extractStructureToppleProfile(self: GL, objectDef: ObjectDef | u
           }
         }
         profile = {
+          deathTypes,
+          veterancyLevels,
+          exemptStatus,
+          requiredStatus,
           minToppleDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['MinToppleDelay']) ?? 500),
           maxToppleDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['MaxToppleDelay']) ?? 1000),
           minToppleBurstDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['MinToppleBurstDelay']) ?? 100),

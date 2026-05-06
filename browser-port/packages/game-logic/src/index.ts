@@ -7361,6 +7361,14 @@ function sourcePhysicsFlag(flags: number, bit: number): boolean {
  * C++ file: StructureToppleUpdate.h/cpp.
  */
 interface StructureToppleProfile {
+  /** DieMuxData: which death types trigger this (empty = ALL). */
+  deathTypes: Set<string>;
+  /** DieMuxData: which veterancy levels allow this (empty = ALL). */
+  veterancyLevels: Set<string>;
+  /** DieMuxData: status flags that exempt this behavior. */
+  exemptStatus: Set<string>;
+  /** DieMuxData: status flags required for this behavior. */
+  requiredStatus: Set<string>;
   minToppleDelayFrames: number;
   maxToppleDelayFrames: number;
   minToppleBurstDelayFrames: number;
@@ -51278,8 +51286,9 @@ export class GameLogicSubsystem implements Subsystem {
         target.pendingDeathSourceTemplateName = sourceTemplateName;
         target.pendingDeathActualDamageDealt = 0;
         target.pendingDeathActualDamageClipped = 0;
-        if (!target.slowDeathState && !target.structureCollapseState) {
+        if (!target.slowDeathState && !target.structureCollapseState && !target.structureToppleState) {
           if (!this.tryBeginStructureCollapse(target)
+            && !this.tryBeginStructureTopple(target, sourceEntityId ?? -1)
             && !this.tryBeginSlowDeath(target, sourceEntityId ?? -1)) {
             this.markEntityDestroyed(target.id, sourceEntityId ?? -1);
           }
@@ -51779,7 +51788,11 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
-    if (target.health <= 0 && !target.destroyed && !target.slowDeathState && !target.structureCollapseState) {
+    if (target.health <= 0
+      && !target.destroyed
+      && !target.slowDeathState
+      && !target.structureCollapseState
+      && !target.structureToppleState) {
       // Source parity: DamageInfo.in.m_deathType — set death cause for die module filtering.
       target.pendingDeathType = weaponDeathType || damageTypeToDeathType(damageType);
       // Source parity: DamageInfoInput::m_sourceTemplate — record killer's template for die modules.
@@ -51793,6 +51806,7 @@ export class GameLogicSubsystem implements Subsystem {
         return; // detonateDemoTrap calls markEntityDestroyed
       }
       if (!this.tryBeginStructureCollapse(target)
+        && !this.tryBeginStructureTopple(target, sourceEntityId ?? -1)
         && !this.tryBeginSlowDeath(target, sourceEntityId ?? -1)) {
         this.markEntityDestroyed(target.id, sourceEntityId ?? -1);
       }
@@ -53782,6 +53796,7 @@ export class GameLogicSubsystem implements Subsystem {
       if (st.state === 'WAITING_DONE') {
         if (this.frameCounter >= st.toppleFrame) {
           st.state = 'DONE';
+          this.finishStructurePostCollapse(entity);
         }
       }
     }
@@ -53791,7 +53806,6 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: StructureToppleUpdate::beginStructureTopple — initiate building collapse.
    * Called from die module when a building with StructureToppleUpdate is destroyed.
    */
-  // @ts-expect-error TS6133: wired from markEntityDestroyed, will be called when topple-on-death path is active
   private beginStructureTopple(entity: MapEntity, attackerEntity: MapEntity | null): void {
     const prof = entity.structureToppleProfile;
     if (!prof) return;
@@ -53843,6 +53857,21 @@ export class GameLogicSubsystem implements Subsystem {
       },
     };
     this.emitStructureToppleNamedFX(entity, prof.toppleStartFXName);
+  }
+
+  /**
+   * Source parity: StructureToppleUpdate::onDie — check DieMuxData, mark AI dead,
+   * deselect, then start StructureToppleUpdate::beginStructureTopple.
+   */
+  private tryBeginStructureTopple(entity: MapEntity, sourceEntityId: number): boolean {
+    const profile = entity.structureToppleProfile;
+    if (!profile) return false;
+    if (!this.isDieModuleApplicable(entity, profile)) return false;
+
+    this.prepareStructureDieUpdate(entity);
+    const attackerEntity = sourceEntityId > 0 ? this.spawnedEntities.get(sourceEntityId) ?? null : null;
+    this.beginStructureTopple(entity, attackerEntity);
+    return true;
   }
 
   /**
@@ -54829,26 +54858,7 @@ export class GameLogicSubsystem implements Subsystem {
     if (!profile) return false;
     if (!this.isDieModuleApplicable(entity, profile)) return false;
 
-    // Source parity: StructureCollapseUpdate::onDie — AIUpdateInterface::markAsDead + deselect.
-    // Prevent further combat, production, movement during collapse.
-    entity.animationState = 'DIE';
-    entity.canTakeDamage = false;
-    entity.attackTargetEntityId = null;
-    entity.attackTargetPosition = null;
-    entity.attackOriginalVictimPosition = null;
-    entity.attackCommandSource = 'AI';
-    entity.attackSubState = 'IDLE';
-    entity.moving = false;
-    entity.moveTarget = null;
-    entity.movePath = [];
-    entity.pathIndex = 0;
-    entity.pathfindGoalCell = null;
-    entity.selected = false;
-
-    // Unregister energy while collapsing.
-    this.unregisterEntityEnergy(entity);
-    this.cancelEntityCommandPathActions(entity.id);
-    this.cancelAndRefundAllProductionOnDeath(entity);
+    this.prepareStructureDieUpdate(entity);
 
     // Source parity: beginStructureCollapse — randomize collapse delay, fire INITIAL OCLs.
     const collapseFrame = this.frameCounter +
@@ -54928,12 +54938,68 @@ export class GameLogicSubsystem implements Subsystem {
           state.state = 'DONE';
           // Execute FINAL phase OCLs.
           this.executeStructureCollapsePhase(entity, profile, 3); // SCPHASE_FINAL
-          // Source parity: in C++, building stays as rubble with POST_COLLAPSE model condition.
-          // In our system, destroy the entity since we don't have permanent rubble rendering.
-          entity.structureCollapseState = null;
-          this.markEntityDestroyed(entity.id, -1);
+          this.finishStructurePostCollapse(entity);
         }
       }
+    }
+  }
+
+  /**
+   * Shared source parity for StructureCollapseUpdate::onDie and StructureToppleUpdate::onDie.
+   * C++ marks the object AI dead, deselects it, and leaves the module update to finish
+   * into POST_COLLAPSE rather than routing through the generic destruction path.
+   */
+  private prepareStructureDieUpdate(entity: MapEntity): void {
+    entity.sourceAIUpdateIsDead = true;
+    entity.animationState = 'DIE';
+    entity.canTakeDamage = false;
+    entity.attackTargetEntityId = null;
+    entity.attackTargetPosition = null;
+    entity.attackOriginalVictimPosition = null;
+    entity.attackCommandSource = 'AI';
+    entity.attackSubState = 'IDLE';
+    entity.moving = false;
+    entity.moveTarget = null;
+    entity.movePath = [];
+    entity.pathIndex = 0;
+    entity.pathfindGoalCell = null;
+    entity.selected = false;
+    entity.noCollisions = true;
+    entity.modelConditionFlags.delete('POST_COLLAPSE');
+    entity.modelConditionFlags.add('RUBBLE');
+
+    this.unregisterEntityEnergy(entity);
+    this.cancelEntityCommandPathActions(entity.id);
+    this.cancelAndRefundAllProductionOnDeath(entity);
+  }
+
+  /**
+   * Source parity: StructureCollapseUpdate::doCollapseDoneStuff and
+   * StructureToppleUpdate::doToppleDoneStuff. The object remains in the world
+   * sleeping forever with POST_COLLAPSE set; BoneFXUpdate running effects stop.
+   */
+  private finishStructurePostCollapse(entity: MapEntity): void {
+    entity.sourceAIUpdateIsDead = true;
+    entity.animationState = 'DIE';
+    entity.canTakeDamage = false;
+    entity.moving = false;
+    entity.moveTarget = null;
+    entity.movePath = [];
+    entity.pathIndex = 0;
+    entity.pathfindGoalCell = null;
+    entity.attackTargetEntityId = null;
+    entity.attackTargetPosition = null;
+    entity.attackOriginalVictimPosition = null;
+    entity.attackCommandSource = 'AI';
+    entity.attackSubState = 'IDLE';
+    entity.selected = false;
+    entity.noCollisions = true;
+    entity.modelConditionFlags.delete('RUBBLE');
+    entity.modelConditionFlags.add('POST_COLLAPSE');
+    if (entity.boneFXState) {
+      entity.boneFXState.active = false;
+      entity.boneFXState.activeParticleIds.length = 0;
+      entity.boneFXState.pendingVisualEvents.length = 0;
     }
   }
 

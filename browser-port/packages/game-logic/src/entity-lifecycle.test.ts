@@ -2312,7 +2312,7 @@ describe('StructureCollapseUpdate', () => {
     });
   }
 
-  it('building persists during collapse and is eventually destroyed', () => {
+  it('building persists as permanent POST_COLLAPSE remnant after collapse completes', () => {
     const bundle = makeCollapseBundle();
     const scene = new THREE.Scene();
     const logic = new GameLogicSubsystem(scene);
@@ -2347,19 +2347,36 @@ describe('StructureCollapseUpdate', () => {
 
     // Access internal state to verify collapse state.
     const priv = logic as unknown as {
-      spawnedEntities: Map<number, { structureCollapseState: { state: string } | null; destroyed: boolean }>;
+      spawnedEntities: Map<number, {
+        structureCollapseState: { state: string } | null;
+        destroyed: boolean;
+        canTakeDamage: boolean;
+        noCollisions: boolean;
+        modelConditionFlags: Set<string>;
+      }>;
+      pendingDyingRenderableStates: Map<number, unknown>;
     };
     const buildingEntity = priv.spawnedEntities.get(1)!;
     expect(buildingEntity.structureCollapseState).not.toBeNull();
 
-    // Run enough frames for the building to fully collapse and be destroyed.
+    // Run enough frames for the building to fully collapse.
     // With height=20, gravity=-1.0, damping=0.5: velocity grows at 0.5/frame.
-    // After N frames of COLLAPSING, currentHeight reaches -20 and building is destroyed.
+    // After N frames of COLLAPSING, currentHeight reaches -20 and C++ leaves
+    // the object asleep in POST_COLLAPSE rather than deleting it.
     for (let i = 0; i < 100; i++) logic.update(1 / 30);
 
-    // Building should now be fully destroyed.
     const afterCollapse = logic.getEntityState(1);
-    expect(afterCollapse).toBeNull();
+    expect(afterCollapse).not.toBeNull();
+    expect(afterCollapse!.animationState).toBe('DIE');
+    expect(afterCollapse!.modelConditionFlags).toContain('POST_COLLAPSE');
+    expect(afterCollapse!.modelConditionFlags).not.toContain('RUBBLE');
+    expect(buildingEntity.destroyed).toBe(false);
+    expect(buildingEntity.structureCollapseState?.state).toBe('DONE');
+    expect(buildingEntity.canTakeDamage).toBe(false);
+    expect(buildingEntity.noCollisions).toBe(true);
+    expect(buildingEntity.modelConditionFlags.has('POST_COLLAPSE')).toBe(true);
+    expect(buildingEntity.modelConditionFlags.has('RUBBLE')).toBe(false);
+    expect(priv.pendingDyingRenderableStates.has(1)).toBe(false);
   });
 
   it('transitions through WAITING → COLLAPSING → DONE states', () => {
@@ -3823,7 +3840,7 @@ describe('StructureToppleUpdate', () => {
     expect(observedFX.has('FX_ToppleDone')).toBe(true);
   });
 
-  it('dying rubble render state persists for 10 seconds with RUBBLE flag for topple buildings', () => {
+  it('topple death keeps source POST_COLLAPSE remnant instead of timed rubble renderable', () => {
     const building = makeObjectDef('GLAScudStorm', 'GLA', ['STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
       makeBlock('Behavior', 'StructureToppleUpdate ModuleTag_Topple', {
@@ -3862,22 +3879,44 @@ describe('StructureToppleUpdate', () => {
     logic.setTeamRelationship('GLA', 'America', 0);
     logic.setTeamRelationship('America', 'GLA', 0);
 
-    // Kill the building via attack command.
-    logic.submitCommand({ type: 'attackEntity', entityId: 2, targetEntityId: 1 });
-    for (let i = 0; i < 30; i++) logic.update(1 / 30);
-
-    // The building should be dead.
     const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        structureToppleState: { state: string } | null;
+        destroyed: boolean;
+        canTakeDamage: boolean;
+        noCollisions: boolean;
+        modelConditionFlags: Set<string>;
+      }>;
       pendingDyingRenderableStates: Map<number, { state: { modelConditionFlags: string[] }; expireFrame: number }>;
-      frameCounter: number;
     };
-    const dyingState = priv.pendingDyingRenderableStates.get(1);
-    expect(dyingState).toBeDefined();
-    // Should have RUBBLE model condition flag.
-    expect(dyingState!.state.modelConditionFlags).toContain('RUBBLE');
-    // Expire frame should be ~10 seconds (300 frames) after death, not ~3 seconds (90 frames).
-    const framesUntilExpire = dyingState!.expireFrame - priv.frameCounter;
-    expect(framesUntilExpire).toBeGreaterThan(200); // Well above 3-second threshold.
+    const buildingEntity = priv.spawnedEntities.get(1)!;
+
+    // Kill the building via attack command. StructureToppleUpdate::onDie should
+    // start the source die module rather than the generic destroyed-corpse path.
+    logic.submitCommand({ type: 'attackEntity', entityId: 2, targetEntityId: 1 });
+    for (let i = 0; i < 60 && !buildingEntity.structureToppleState; i++) logic.update(1 / 30);
+
+    expect(buildingEntity.structureToppleState).not.toBeNull();
+    expect(buildingEntity.destroyed).toBe(false);
+    expect(buildingEntity.canTakeDamage).toBe(false);
+    expect(priv.pendingDyingRenderableStates.has(1)).toBe(false);
+
+    for (let i = 0; i < 240 && buildingEntity.structureToppleState?.state !== 'DONE'; i++) {
+      logic.update(1 / 30);
+    }
+
+    expect(buildingEntity.structureToppleState?.state).toBe('DONE');
+    expect(buildingEntity.destroyed).toBe(false);
+    expect(buildingEntity.noCollisions).toBe(true);
+    expect(buildingEntity.modelConditionFlags.has('POST_COLLAPSE')).toBe(true);
+    expect(buildingEntity.modelConditionFlags.has('RUBBLE')).toBe(false);
+    expect(priv.pendingDyingRenderableStates.has(1)).toBe(false);
+
+    const renderState = logic.getEntityState(1);
+    expect(renderState).not.toBeNull();
+    expect(renderState!.animationState).toBe('DIE');
+    expect(renderState!.modelConditionFlags).toContain('POST_COLLAPSE');
+    expect(renderState!.modelConditionFlags).not.toContain('RUBBLE');
   });
 });
 
