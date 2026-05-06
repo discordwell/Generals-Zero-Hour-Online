@@ -372,8 +372,8 @@ export function applyWeaponDamageEvent<
     tryContinueAttackOnVictimDeath(context, source, primaryVictim, weapon);
   }
 
-  // Source parity: Object.cpp:1825-1849 — apply shockwave knockback impulse to damaged entities.
-  // Shockwave pushes entities away from the impact point with tapered force based on distance.
+  // Source parity: Weapon.cpp:1435-1449 + Object.cpp:1825-1849 — apply
+  // shockwave knockback to damaged entities from the source-to-victim vector.
   const shockWaveAmount = weapon.shockWaveAmount ?? 0;
   const shockWaveRadius = weapon.shockWaveRadius ?? 0;
   const shockWaveTaperOff = weapon.shockWaveTaperOff ?? 0;
@@ -385,13 +385,16 @@ export function applyWeaponDamageEvent<
       // We approximate: skip entities that are significantly above terrain.
       if (context.isEntitySignificantlyAboveTerrain(entity)) continue;
 
-      // Source parity: damageDirection = victim.pos - impact.pos, used as shockWaveVector.
-      const dx = entity.x - impactX;
-      const dz = entity.z - impactZ;
-      const vectorLength = Math.hypot(dx, dz);
+      // Source parity: damageDirection = victim.getPosition() - source.getPosition(),
+      // used as shockWaveVector. Object positions are terrain-level, so subtract
+      // baseHeight from TS center-Y coordinates for the vertical component.
+      const dx = source ? entity.x - source.x : 0;
+      const dy = source ? (entity.y - entity.baseHeight) - (source.y - source.baseHeight) : 0;
+      const dz = source ? entity.z - source.z : 0;
+      const vectorLength = Math.hypot(dx, dy, dz);
 
       // Source parity: Weapon.cpp:1443-1449 — guard against zero vector.
-      // If entity is at impact center, push straight up.
+      // If the source-to-victim vector is zero, push straight up.
       let normDx: number, normDz: number;
       if (vectorLength > 1e-6) {
         normDx = dx / vectorLength;
@@ -410,22 +413,19 @@ export function applyWeaponDamageEvent<
       const shockTaperMult = 1.0 - distanceTaper;
 
       // Source parity: Object.cpp:1843-1846 — scale normalized direction by amount * taper.
-      const lateralForce = shockWaveAmount * shockTaperMult;
-      const impulseX = normDx * lateralForce;
-      const impulseZ = normDz * lateralForce;
-      // Source parity: shockWaveForce.z = shockWaveForce.length() — vertical impulse equals
-      // total lateral magnitude. In our Y-up coordinate system, this becomes impulseY.
-      // If at ground zero (zero lateral), apply full force upward (C++ sets z=1 in direction
-      // then scales by amount * taper, giving impulseY = lateralForce).
-      const lateralMagnitude = Math.hypot(impulseX, impulseZ);
-      const impulseY = lateralMagnitude > 0 ? lateralMagnitude : lateralForce;
+      const forceMagnitude = shockWaveAmount * shockTaperMult;
+      const impulseX = normDx * forceMagnitude;
+      const impulseZ = normDz * forceMagnitude;
+      // Source parity: shockWaveForce.z = shockWaveForce.length(). In TS Y-up
+      // coordinates this overwrites the vertical component with the full force.
+      const impulseY = forceMagnitude;
 
       context.applyShockWaveImpulse(entity, impulseX, impulseY, impulseZ);
     }
   }
 
-  // Source parity: FROM_BOUNDINGSPHERE_3D bounding-sphere subtraction implemented above.
-  // Remaining approximation: box geometry uses bounding circle radius, not exact OBB test.
+  // Source parity: Weapon.cpp uses FROM_BOUNDINGSPHERE_3D for radius damage
+  // range checks; bounding-sphere subtraction is implemented above.
 }
 
 export function updatePendingWeaponDamage<

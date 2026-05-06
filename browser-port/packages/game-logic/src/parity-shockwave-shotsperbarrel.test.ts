@@ -187,6 +187,50 @@ describe('ShockWave knockback', () => {
     expect(v2Impulse!.ix).toBeLessThan(v1Impulse!.ix);
   });
 
+  it('uses source-to-victim shockwave direction when impact point differs', () => {
+    // Source parity: Weapon.cpp:1435 computes damageDirection from source to
+    // victim, not from impact point to victim. This matters for projectile
+    // explosions whose detonation point is not the launcher's position.
+    const source = makeEntity(1, 0, 0);
+    const victim = makeEntity(2, 30, 0);
+    const impulses: { entityId: number; ix: number; iy: number; iz: number }[] = [];
+    const ctx = makeContext([source, victim], impulses);
+    ctx.getTeamRelationship = () => 2;
+
+    const event: TestEvent = {
+      sourceEntityId: 1,
+      primaryVictimEntityId: null,
+      impactX: 100,
+      impactY: 0,
+      impactZ: 0,
+      executeFrame: 0,
+      delivery: 'PROJECTILE',
+      weapon: {
+        primaryDamageRadius: 80,
+        secondaryDamageRadius: 0,
+        radiusDamageAngle: Math.PI,
+        radiusDamageAffectsMask: 4,
+        primaryDamage: 100,
+        secondaryDamage: 0,
+        damageType: 'EXPLOSION',
+        deathType: 'EXPLODED',
+        continueAttackRange: 0,
+        shockWaveAmount: 100,
+        shockWaveRadius: 100,
+        shockWaveTaperOff: 0.5,
+      },
+    };
+
+    applyWeaponDamageEvent(ctx, event);
+
+    const impulse = impulses.find((i) => i.entityId === 2);
+    expect(impulse).toBeDefined();
+    // Source-to-victim vector is +X length 30, so force = 100 * (1 - 0.3 * 0.5).
+    expect(impulse!.ix).toBeCloseTo(85, 1);
+    expect(impulse!.iy).toBeCloseTo(85, 1);
+    expect(impulse!.iz).toBeCloseTo(0, 1);
+  });
+
   it('does not apply shockwave when amount is 0', () => {
     const source = makeEntity(1, 0, 0);
     const victim = makeEntity(2, 30, 0);
