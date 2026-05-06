@@ -55,6 +55,10 @@ import {
 // Test helpers
 // ---------------------------------------------------------------------------
 
+const CMD_FROM_PLAYER_MASK = 1 << 0;
+const CMD_FROM_AI_MASK = 1 << 2;
+const CMD_DEFAULT_SWITCH_WEAPON_MASK = 1 << 4;
+
 function makeWeaponProfile(overrides: Partial<WeaponSlotProfile> = {}): WeaponSlotProfile {
   return {
     name: 'TestWeapon',
@@ -665,6 +669,52 @@ describe('Best weapon selection', () => {
 
     // Target is airborne vehicle — only anti-air can target it
     const ctx = makeChooseContext({ victimAntiMask: 0x01 });
+    const result = chooseBestWeaponForTarget(state, ctx, 'PREFER_MOST_DAMAGE');
+    expect(result).toBe(WEAPON_SLOT_SECONDARY);
+  });
+
+  it('allows DEFAULT_SWITCH_WEAPON when exact command source is absent', () => {
+    const state = createMultiWeaponEntityState();
+    state.weaponSlotProfiles[0] = makeWeaponProfile({
+      name: 'DefaultSwitchGun',
+      slotIndex: 0,
+      primaryDamage: 20,
+      autoChooseSourceMask: CMD_DEFAULT_SWITCH_WEAPON_MASK,
+    });
+    state.weaponSlotProfiles[1] = makeWeaponProfile({
+      name: 'PlayerOnlyGun',
+      slotIndex: 1,
+      primaryDamage: 100,
+      autoChooseSourceMask: CMD_FROM_PLAYER_MASK,
+    });
+    for (let i = 0; i < 2; i++) {
+      resetWeaponSlotState(state.weaponSlots[i], state.weaponSlotProfiles[i]!);
+    }
+
+    const ctx = makeChooseContext({ commandSourceBit: CMD_FROM_AI_MASK });
+    const result = chooseBestWeaponForTarget(state, ctx, 'PREFER_MOST_DAMAGE');
+    expect(result).toBe(WEAPON_SLOT_PRIMARY);
+  });
+
+  it('skips source-mismatched weapons without DEFAULT_SWITCH_WEAPON', () => {
+    const state = createMultiWeaponEntityState();
+    state.weaponSlotProfiles[0] = makeWeaponProfile({
+      name: 'PlayerOnlyGun',
+      slotIndex: 0,
+      primaryDamage: 100,
+      autoChooseSourceMask: CMD_FROM_PLAYER_MASK,
+    });
+    state.weaponSlotProfiles[1] = makeWeaponProfile({
+      name: 'AiGun',
+      slotIndex: 1,
+      primaryDamage: 20,
+      autoChooseSourceMask: CMD_FROM_AI_MASK,
+    });
+    for (let i = 0; i < 2; i++) {
+      resetWeaponSlotState(state.weaponSlots[i], state.weaponSlotProfiles[i]!);
+    }
+
+    const ctx = makeChooseContext({ commandSourceBit: CMD_FROM_AI_MASK });
     const result = chooseBestWeaponForTarget(state, ctx, 'PREFER_MOST_DAMAGE');
     expect(result).toBe(WEAPON_SLOT_SECONDARY);
   });

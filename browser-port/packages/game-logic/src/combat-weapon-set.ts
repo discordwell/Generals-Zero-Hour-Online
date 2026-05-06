@@ -28,6 +28,9 @@ export const WEAPON_SLOT_PRIMARY = 0;
 export const WEAPON_SLOT_SECONDARY = 1;
 export const WEAPON_SLOT_TERTIARY = 2;
 
+/** Source parity: CommandSourceMask CMD_DEFAULT_SWITCH_WEAPON. */
+const COMMAND_SOURCE_DEFAULT_SWITCH_WEAPON_MASK = 1 << 4;
+
 /** Source parity: WeaponChoiceCriteria enum. */
 export type WeaponChoiceCriteria = 'PREFER_MOST_DAMAGE' | 'PREFER_LONGEST_RANGE';
 
@@ -598,8 +601,12 @@ export function chooseBestWeaponForTarget(
       continue;
     }
 
-    // Source parity: command source mask check.
-    if ((profile.autoChooseSourceMask & ctx.commandSourceBit) === 0) {
+    // Source parity: WeaponSet.cpp keeps the slot if the exact command source
+    // is absent but CMD_DEFAULT_SWITCH_WEAPON is present.
+    if (
+      (profile.autoChooseSourceMask & ctx.commandSourceBit) === 0
+      && (profile.autoChooseSourceMask & COMMAND_SOURCE_DEFAULT_SWITCH_WEAPON_MASK) === 0
+    ) {
       continue;
     }
 
