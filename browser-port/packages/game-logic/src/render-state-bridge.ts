@@ -648,6 +648,16 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
       renderAssetPath: entity.renderAssetPath,
       renderAssetResolved: entity.renderAssetResolved,
       renderAnimationStateClips: entity.renderAnimationStateClips,
+      debrisAnimation: entity.debrisAnimationState
+        ? {
+            initialClipName: entity.debrisAnimationState.initialClipName,
+            flyingClipName: entity.debrisAnimationState.flyingClipName,
+            finalClipName: entity.debrisAnimationState.finalClipName,
+            finalStop: entity.debrisAnimationState.finalStop,
+            finalFXName: entity.debrisAnimationState.finalFXName || undefined,
+            isAboveTerrain: entity.y - entity.baseHeight > 0,
+          }
+        : undefined,
       modelConditionInfos: entity.modelConditionInfos,
       transitionInfos: entity.transitionInfos,
       modelConditionFlags: [...entity.modelConditionFlags],

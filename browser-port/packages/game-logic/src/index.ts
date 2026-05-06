@@ -3773,6 +3773,14 @@ interface AmbientSoundCustomState {
   definition: ScriptObjectAmbientCustomAudioDefinition;
 }
 
+interface OCLDebrisAnimationState {
+  initialClipName: string;
+  flyingClipName: string;
+  finalClipName: string;
+  finalStop: boolean;
+  finalFXName: string;
+}
+
 export interface MapEntity {
   id: number;
   /** Source parity: Object::m_drawableID, used to cross-reference GameClient/TerrainVisual chunks. */
@@ -3814,6 +3822,8 @@ export interface MapEntity {
   renderAssetPath: string | null;
   renderAssetResolved: boolean;
   renderAnimationStateClips?: RenderAnimationStateClipCandidates;
+  /** Source parity: W3DDebrisDraw animation selected by CreateDebris.AnimationSet. */
+  debrisAnimationState: OCLDebrisAnimationState | null;
   modelConditionInfos?: ModelConditionInfo[];
   transitionInfos?: TransitionInfo[];
   /** Source parity: W3DModelDrawModuleData::m_projectileBoneFeedbackEnabledSlots. */
@@ -56758,6 +56768,28 @@ export class GameLogicSubsystem implements Subsystem {
     return firstCreatedEntityId;
   }
 
+  private extractOCLDebrisAnimationSets(nugget: IniBlock): OCLDebrisAnimationState[] {
+    const sets: OCLDebrisAnimationState[] = [];
+    const finalFXName = readStringField(nugget.fields, ['FXFinal'])?.trim() ?? '';
+    for (const tokens of this.extractIniValueTokens(nugget.fields['AnimationSet'])) {
+      const initialClipName = tokens[0]?.trim() ?? '';
+      const flyingClipName = tokens[1]?.trim() ?? '';
+      const rawFinalClipName = tokens[2]?.trim() ?? '';
+      if (!initialClipName && !flyingClipName && !rawFinalClipName) {
+        continue;
+      }
+      const finalStop = rawFinalClipName.toUpperCase() === 'STOP';
+      sets.push({
+        initialClipName,
+        flyingClipName,
+        finalClipName: finalStop ? flyingClipName : rawFinalClipName,
+        finalStop,
+        finalFXName,
+      });
+    }
+    return sets;
+  }
+
   /**
    * Source parity: GenericObjectCreationNugget::reallyCreate — spawn objects from an OCL nugget.
    *
@@ -56890,6 +56922,7 @@ export class GameLogicSubsystem implements Subsystem {
     const debrisBounceSoundName = createDebris
       ? (this.extractDynamicAudioEventName(nugget.fields, 'BounceSound')?.trim() ?? '')
       : '';
+    const debrisAnimationSets = createDebris ? this.extractOCLDebrisAnimationSets(nugget) : [];
 
     let firstCreatedEntityId: number | null = null;
     let putInContainerEntity: MapEntity | null = null;
@@ -56952,6 +56985,14 @@ export class GameLogicSubsystem implements Subsystem {
           spawned.renderAssetCandidates = [debrisModelName];
           spawned.renderAssetPath = debrisModelName;
           spawned.renderAssetResolved = true;
+          if (debrisAnimationSets.length > 0) {
+            // Source parity: GenericObjectCreationNugget::doStuffToObj picks
+            // one AnimationSet with GameLogicRandomValue and passes it to
+            // W3DDebrisDraw::setAnimNames with FXFinal.
+            spawned.debrisAnimationState = {
+              ...debrisAnimationSets[this.gameRandom.nextRange(0, debrisAnimationSets.length - 1)]!,
+            };
+          }
         }
 
         if (createDebris && spawned.physicsBehaviorProfile) {

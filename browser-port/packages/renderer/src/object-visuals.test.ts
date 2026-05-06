@@ -219,6 +219,61 @@ describe('ObjectVisualManager', () => {
     expect(manager.resolveEntityBoneWorldTransform(61, 'missing_bone', position, orientation)).toBe(false);
   });
 
+  it('runs W3DDebrisDraw AnimationSet state and triggers FXFinal on final entry', async () => {
+    const scene = new THREE.Scene();
+    const finalFX: Array<{ name: string; position: THREE.Vector3 }> = [];
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithAnimationClips([
+        'UITech_Man_SKL.UITech_Man_DTC1',
+        'UITech_Man_SKL.UITech_Man_DTA',
+      ]),
+      debrisFinalFXSpawner: {
+        triggerFXList: (name, position) => {
+          finalFX.push({ name, position: position.clone() });
+        },
+      },
+    });
+
+    const airborne = makeMeshState({
+      id: 91,
+      renderAssetPath: 'debris-model.gltf',
+      renderAssetCandidates: ['debris-model.gltf'],
+      x: 12,
+      y: 4,
+      z: 18,
+      debrisAnimation: {
+        initialClipName: 'UITech_Man_SKL.UITech_Man_DTC1',
+        flyingClipName: 'UITech_Man_SKL.UITech_Man_DTA',
+        finalClipName: 'UITech_Man_SKL.UITech_Man_DTA',
+        finalStop: true,
+        finalFXName: 'FX_TechnicalGunnerHitsGround',
+        isAboveTerrain: true,
+      },
+    });
+    manager.sync([airborne], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([airborne], 1 / 30);
+    expect(finalFX).toEqual([]);
+
+    const grounded = {
+      ...airborne,
+      y: 0,
+      debrisAnimation: {
+        ...airborne.debrisAnimation!,
+        isAboveTerrain: false,
+      },
+    };
+    for (let i = 0; i < 6; i++) {
+      manager.sync([grounded], 1 / 30);
+    }
+
+    expect(finalFX).toHaveLength(1);
+    expect(finalFX[0]!.name).toBe('FX_TechnicalGunnerHitsGround');
+    expect(finalFX[0]!.position.x).toBeCloseTo(12);
+    expect(finalFX[0]!.position.y).toBeCloseTo(0);
+    expect(finalFX[0]!.position.z).toBeCloseTo(18);
+  });
+
   it('hides SHROUDED render states and restores visibility when revealed', async () => {
     const scene = new THREE.Scene();
     const manager = new ObjectVisualManager(scene, null, {

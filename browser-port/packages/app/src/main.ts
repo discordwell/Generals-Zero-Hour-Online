@@ -1520,6 +1520,7 @@ async function startGame(
   // Game logic + object visuals
   const attackUsesLineOfSight = iniDataRegistry.getAiConfig()?.attackUsesLineOfSight ?? true;
   let particleSystemManager: ParticleSystemManager | null = null;
+  let fxListManager: FXListManager | null = null;
   const objectVisualManager = new ObjectVisualManager(scene, assets, {
     particleSystemSpawner: {
       createSystem: (templateName, position, orientation) =>
@@ -1529,6 +1530,13 @@ async function startGame(
       },
       setSystemTransform: (id, position, orientation) =>
         particleSystemManager?.setSystemTransform(id, position, orientation) ?? false,
+    },
+    debrisFinalFXSpawner: {
+      triggerFXList: (templateName, position, orientation) => {
+        if (fxListManager?.hasFXList(templateName)) {
+          fxListManager.triggerFXList(templateName, position, orientation);
+        }
+      },
     },
   });
   const scriptSkyboxController = new ScriptSkyboxController(scene, assets);
@@ -3561,7 +3569,7 @@ async function startGame(
   decalManager.init();
   addPreplacedMapScorchMarks(mapData, heightmap, decalManager);
 
-  const fxListManager = new FXListManager(particleSystemManager);
+  fxListManager = new FXListManager(particleSystemManager);
   const laserBeamRenderer = new LaserBeamRenderer(scene);
   const dynamicLightManager = new DynamicLightManager(scene);
   const tracerRenderer = new TracerRenderer(scene);

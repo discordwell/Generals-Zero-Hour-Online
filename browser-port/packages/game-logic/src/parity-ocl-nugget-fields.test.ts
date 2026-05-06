@@ -113,6 +113,13 @@ interface PrivateEntity {
   renderAssetCandidates: string[];
   renderAssetPath: string | null;
   renderAssetResolved: boolean;
+  debrisAnimationState: {
+    initialClipName: string;
+    flyingClipName: string;
+    finalClipName: string;
+    finalStop: boolean;
+    finalFXName: string;
+  } | null;
   physicsBehaviorProfile: { mass: number; allowBouncing?: boolean } | null;
   physicsBehaviorState: {
     velX: number;
@@ -1129,6 +1136,39 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(debris[0]!.renderAssetPath).toBe('Debris_Model_A');
     expect(debris[0]!.renderAssetResolved).toBe(true);
     expect(debris[0]!.physicsBehaviorProfile?.mass).toBe(4);
+  });
+
+  it('passes CreateDebris AnimationSet and FXFinal to debris render state', () => {
+    // C++ parity: ObjectCreationList.cpp parseAnimSet reads exactly initial,
+    // flying, final; W3DDebrisDraw::setAnimNames treats final "STOP" as a
+    // manual hold of the flying animation and stores FXFinal for FINAL entry.
+    const { logic } = makeCreateDebrisSetup({
+      AnimationSet: ['UITech_Man_SKL.UITech_Man_DTC1', 'UITech_Man_SKL.UITech_Man_DTA', 'STOP'],
+      FXFinal: 'FX_TechnicalGunnerHitsGround',
+    });
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestDebris', source);
+
+    const debris = getEntitiesByTemplate(logic, 'GenericDebris')[0]!;
+    expect(debris.debrisAnimationState).toEqual({
+      initialClipName: 'UITech_Man_SKL.UITech_Man_DTC1',
+      flyingClipName: 'UITech_Man_SKL.UITech_Man_DTA',
+      finalClipName: 'UITech_Man_SKL.UITech_Man_DTA',
+      finalStop: true,
+      finalFXName: 'FX_TechnicalGunnerHitsGround',
+    });
+
+    const renderState = logic.getRenderableEntityStates().find((state) => state.id === debris.id);
+    expect(renderState?.debrisAnimation).toEqual(expect.objectContaining({
+      initialClipName: 'UITech_Man_SKL.UITech_Man_DTC1',
+      flyingClipName: 'UITech_Man_SKL.UITech_Man_DTA',
+      finalClipName: 'UITech_Man_SKL.UITech_Man_DTA',
+      finalStop: true,
+      finalFXName: 'FX_TechnicalGunnerHitsGround',
+      isAboveTerrain: false,
+    }));
   });
 
   it('parses OCL Offset as source Coord3D for horizontal and vertical debris placement', () => {

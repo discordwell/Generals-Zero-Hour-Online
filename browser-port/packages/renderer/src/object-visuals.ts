@@ -46,12 +46,23 @@ export type {
 
 export type RenderableAnimationState = 'IDLE' | 'MOVE' | 'ATTACK' | 'DIE' | 'PRONE';
 
+export interface RenderableDebrisAnimationState {
+  initialClipName: string;
+  flyingClipName: string;
+  finalClipName: string;
+  finalStop: boolean;
+  finalFXName?: string;
+  isAboveTerrain: boolean;
+}
+
 export interface RenderableEntityState {
   id: number;
   renderAssetPath: string | null;
   renderAssetResolved: boolean;
   renderAssetCandidates?: readonly string[];
   renderAnimationStateClips?: Partial<Record<RenderableAnimationState, string[]>>;
+  /** Source parity: W3DDebrisDraw animation state driven by CreateDebris.AnimationSet. */
+  debrisAnimation?: RenderableDebrisAnimationState;
   modelConditionInfos?: ModelConditionInfo[];
   transitionInfos?: TransitionInfo[];
   /**
@@ -127,6 +138,10 @@ export interface ConditionParticleSystemSpawner {
   setSystemTransform?(id: number, position: THREE.Vector3, orientation?: THREE.Quaternion): boolean | void;
 }
 
+export interface DebrisFinalFXSpawner {
+  triggerFXList(templateName: string, position: THREE.Vector3, orientation?: THREE.Quaternion): void;
+}
+
 interface ActiveConditionParticleSystem {
   id: number;
   boneName: string;
@@ -143,6 +158,11 @@ interface VisualAssetState {
   actions: Map<RenderableAnimationState, THREE.AnimationAction>;
   activeState: RenderableAnimationState | null;
   requestedAnimationState: RenderableAnimationState;
+  debrisAnimationSignature: string | null;
+  debrisAnimationState: 0 | 1 | 2;
+  debrisAnimationFrames: number;
+  debrisAnimationAction: THREE.AnimationAction | null;
+  debrisFinalFXFiredSignature: string | null;
   healthBarGroup: THREE.Group | null;
   healthBarFill: THREE.Mesh | null;
   selectionRing: THREE.Mesh | null;
@@ -268,6 +288,8 @@ export interface ObjectVisualManagerConfig {
   modelLoader?: (assetPath: string) => Promise<LoadedModelAsset>;
   /** Optional particle-system bridge used for ParticleSysBone state effects. */
   particleSystemSpawner?: ConditionParticleSystemSpawner | null;
+  /** Optional FX bridge for W3DDebrisDraw::m_fxFinal. */
+  debrisFinalFXSpawner?: DebrisFinalFXSpawner | null;
 }
 
 export interface ObjectVisualDebugSnapshot {
@@ -396,6 +418,7 @@ export class ObjectVisualManager {
       modelExtensions: [...DEFAULT_MODEL_EXTENSIONS],
       modelLoader: config.modelLoader ?? this.createDefaultModelLoader.bind(this),
       particleSystemSpawner: config.particleSystemSpawner ?? null,
+      debrisFinalFXSpawner: config.debrisFinalFXSpawner ?? null,
     };
     this.modelLoader = config.modelLoader ?? this.config.modelLoader;
   }
@@ -479,19 +502,25 @@ export class ObjectVisualManager {
       this.syncVeterancyBadge(visual, state);
       this.syncStatusEffects(visual, state);
       this.syncStealthOpacity(visual, state);
-      this.syncConditionAnimation(visual, state, dt);
+      const debrisAnimationActive = state.debrisAnimation !== undefined;
+      if (debrisAnimationActive) {
+        this.syncDebrisAnimation(visual, state);
+      } else {
+        this.resetDebrisAnimation(visual);
+        this.syncConditionAnimation(visual, state, dt);
+      }
       this.syncTurretBones(visual, state);
       this.syncManualAnimationFrame(visual, state);
       this.syncForcedSubObjectVisibility(visual, state);
       // Only use legacy 5-state system if condition system isn't managing animation.
-      if (visual.conditionAction === null) {
+      if (!debrisAnimationActive && visual.conditionAction === null) {
         this.applyAnimationState(visual, state.animationState);
       }
       this.syncAnimationSpeed(visual, state);
       this.syncTreadScrolling(visual, state, dt);
       // Only tick animation mixer when there are active animation actions.
       // Static entities (trees, props) have mixers but no playing clips.
-      if (visual.mixer && visual.actions.size > 0) {
+      if (visual.mixer && (visual.actions.size > 0 || visual.debrisAnimationAction !== null)) {
         visual.mixer.update(dt);
       }
     }
@@ -671,6 +700,11 @@ export class ObjectVisualManager {
       actions: new Map(),
       activeState: null,
       requestedAnimationState: 'IDLE',
+      debrisAnimationSignature: null,
+      debrisAnimationState: 0,
+      debrisAnimationFrames: 0,
+      debrisAnimationAction: null,
+      debrisFinalFXFiredSignature: null,
       healthBarGroup: null,
       healthBarFill: null,
       selectionRing: null,
@@ -1273,6 +1307,11 @@ export class ObjectVisualManager {
     }
     visual.actions.clear();
     visual.activeState = null;
+    visual.debrisAnimationSignature = null;
+    visual.debrisAnimationState = 0;
+    visual.debrisAnimationFrames = 0;
+    visual.debrisAnimationAction = null;
+    visual.debrisFinalFXFiredSignature = null;
     visual.turretBones = [];
     visual.turretPitchBones = [];
     visual.turretArtAngles = [];
@@ -1305,6 +1344,128 @@ export class ObjectVisualManager {
       visual.currentModel = null;
       visual.appliedTeamColorSide = null;
     }
+  }
+
+  private resetDebrisAnimation(visual: VisualAssetState): void {
+    if (visual.debrisAnimationAction) {
+      visual.debrisAnimationAction.stop();
+    }
+    visual.debrisAnimationSignature = null;
+    visual.debrisAnimationState = 0;
+    visual.debrisAnimationFrames = 0;
+    visual.debrisAnimationAction = null;
+    visual.debrisFinalFXFiredSignature = null;
+  }
+
+  private buildDebrisAnimationSignature(state: RenderableDebrisAnimationState): string {
+    return [
+      state.initialClipName,
+      state.flyingClipName,
+      state.finalClipName,
+      state.finalStop ? 'STOP' : 'PLAY',
+      state.finalFXName ?? '',
+    ].join('\u0000');
+  }
+
+  private resolveDebrisAnimationClip(
+    visual: VisualAssetState,
+    debris: RenderableDebrisAnimationState,
+    debrisState: 0 | 1 | 2,
+  ): THREE.AnimationClip | null {
+    const clipName = debrisState === 0
+      ? debris.initialClipName
+      : debrisState === 1
+        ? debris.flyingClipName
+        : debris.finalClipName;
+    const trimmed = clipName.trim();
+    if (!trimmed) {
+      return null;
+    }
+    return this.findMatchingClip(visual.sourceAnimations, [trimmed]);
+  }
+
+  private stopNonDebrisAnimationActions(visual: VisualAssetState): void {
+    if (visual.conditionAction) {
+      visual.conditionAction.stop();
+      visual.conditionAction = null;
+    }
+    if (visual.activeState !== null) {
+      const legacyAction = visual.actions.get(visual.activeState);
+      if (legacyAction) {
+        legacyAction.stop();
+      }
+      visual.activeState = null;
+    }
+  }
+
+  private syncDebrisAnimation(visual: VisualAssetState, state: RenderableEntityState): void {
+    const debris = state.debrisAnimation;
+    if (!debris || !visual.mixer || visual.sourceAnimations.length === 0) {
+      return;
+    }
+
+    this.stopNonDebrisAnimationActions(visual);
+
+    const signature = this.buildDebrisAnimationSignature(debris);
+    if (visual.debrisAnimationSignature !== signature) {
+      this.resetDebrisAnimation(visual);
+      visual.debrisAnimationSignature = signature;
+    }
+
+    // Source parity: W3DDebrisDraw::doDrawModule.
+    // INITIAL and FINAL play once, FLYING loops. FINAL is entered either
+    // once the object is back on terrain after >3 draw frames, or when the
+    // current animation completes.
+    const previousDebrisState = visual.debrisAnimationState;
+    const MIN_FINAL_FRAMES = 3;
+    if (visual.debrisAnimationState !== 2 && !debris.isAboveTerrain && visual.debrisAnimationFrames > MIN_FINAL_FRAMES) {
+      visual.debrisAnimationState = 2;
+    } else if (visual.debrisAnimationState < 2
+      && visual.debrisAnimationAction
+      && this.isActionFinished(visual.debrisAnimationAction)) {
+      visual.debrisAnimationState = (visual.debrisAnimationState + 1) as 0 | 1 | 2;
+    }
+
+    const needsNewAction = visual.debrisAnimationAction === null
+      || previousDebrisState !== visual.debrisAnimationState;
+    if (needsNewAction) {
+      if (visual.debrisAnimationAction) {
+        visual.debrisAnimationAction.stop();
+      }
+      const clip = this.resolveDebrisAnimationClip(visual, debris, visual.debrisAnimationState);
+      visual.debrisAnimationAction = clip ? visual.mixer.clipAction(clip) : null;
+      if (visual.debrisAnimationAction) {
+        visual.debrisAnimationAction.reset();
+        visual.debrisAnimationAction.enabled = true;
+        visual.debrisAnimationAction.timeScale = 1;
+        if (visual.debrisAnimationState === 1) {
+          visual.debrisAnimationAction.setLoop(THREE.LoopRepeat, Infinity);
+          visual.debrisAnimationAction.clampWhenFinished = false;
+        } else {
+          visual.debrisAnimationAction.setLoop(THREE.LoopOnce, 1);
+          visual.debrisAnimationAction.clampWhenFinished = true;
+          if (visual.debrisAnimationState === 2 && debris.finalStop) {
+            visual.debrisAnimationAction.timeScale = 0;
+          }
+        }
+        visual.debrisAnimationAction.play();
+      }
+
+      if (visual.debrisAnimationAction !== null
+        && visual.debrisAnimationState === 2
+        && debris.finalFXName
+        && visual.debrisFinalFXFiredSignature !== signature) {
+        const position = new THREE.Vector3();
+        const orientation = new THREE.Quaternion();
+        visual.root.updateWorldMatrix(true, false);
+        visual.root.getWorldPosition(position);
+        visual.root.getWorldQuaternion(orientation);
+        this.config.debrisFinalFXSpawner?.triggerFXList(debris.finalFXName, position, orientation);
+        visual.debrisFinalFXFiredSignature = signature;
+      }
+    }
+
+    visual.debrisAnimationFrames++;
   }
 
   private applyAnimationState(visual: VisualAssetState, animationState: RenderableAnimationState): void {

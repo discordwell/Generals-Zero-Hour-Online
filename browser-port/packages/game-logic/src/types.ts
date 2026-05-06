@@ -13,6 +13,21 @@ export interface MapObjectPlacementSummary {
 export type RenderAnimationState = 'IDLE' | 'MOVE' | 'ATTACK' | 'DIE' | 'PRONE';
 export type RenderAnimationStateClipCandidates = Partial<Record<RenderAnimationState, string[]>>;
 
+export interface RenderableDebrisAnimationState {
+  /** Source parity: W3DDebrisDraw::m_animInitial. */
+  initialClipName: string;
+  /** Source parity: W3DDebrisDraw::m_animFlying. */
+  flyingClipName: string;
+  /** Source parity: W3DDebrisDraw::m_animFinal, with STOP resolved to flying clip. */
+  finalClipName: string;
+  /** Source parity: W3DDebrisDraw::m_finalStop. */
+  finalStop: boolean;
+  /** Source parity: W3DDebrisDraw::m_fxFinal. */
+  finalFXName?: string;
+  /** Source parity: Object::isAboveTerrain() for FINAL-state transition. */
+  isAboveTerrain: boolean;
+}
+
 export type {
   ModelConditionInfo,
   TransitionInfo,
@@ -33,6 +48,8 @@ export interface RenderableEntityState {
   renderAssetPath: string | null;
   renderAssetResolved: boolean;
   renderAnimationStateClips?: RenderAnimationStateClipCandidates;
+  /** Source parity: W3DDebrisDraw animation state driven by CreateDebris.AnimationSet. */
+  debrisAnimation?: RenderableDebrisAnimationState;
   modelConditionInfos?: ModelConditionInfo[];
   transitionInfos?: TransitionInfo[];
   modelConditionFlags?: readonly string[];
