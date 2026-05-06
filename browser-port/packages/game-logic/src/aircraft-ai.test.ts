@@ -1947,8 +1947,8 @@ describe('FlightDeckBehavior', () => {
 });
 
 describe('SpectreGunshipUpdate', () => {
-  function makeGunshipDef(): ObjectDef {
-    return makeObjectDef('TestGunship', 'America', ['VEHICLE', 'AIRCRAFT'], [
+  function makeGunshipDef(options: { templateName?: string; locomotorName?: string } = {}): ObjectDef {
+    const blocks = [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
       makeBlock('Behavior', 'SpectreGunshipUpdate ModuleTag_Spectre', {
         SpecialPowerTemplate: 'SPECIAL_SPECTRE_GUNSHIP',
@@ -1965,15 +1965,19 @@ describe('SpectreGunshipUpdate', () => {
         GattlingTemplateName: 'TestGattling',
         GattlingStrafeFXParticleSystem: 'SpectreGattlingArmsSmoke',
       }),
-    ], { Speed: 5 });
+    ];
+    if (options.locomotorName) {
+      blocks.push(makeBlock('LocomotorSet', `SET_NORMAL ${options.locomotorName}`, {}));
+    }
+    return makeObjectDef(options.templateName ?? 'TestGunship', 'America', ['VEHICLE', 'AIRCRAFT'], blocks, { Speed: 5 });
   }
 
-  function makeCommandCenterDef(): ObjectDef {
+  function makeCommandCenterDef(gunshipTemplateName = 'TestGunship'): ObjectDef {
     return makeObjectDef('TestCommandCenter', 'America', ['STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 2000, InitialHealth: 2000 }),
       makeBlock('Behavior', 'SpectreGunshipDeploymentUpdate ModuleTag_Deploy', {
         SpecialPowerTemplate: 'SPECIAL_SPECTRE_GUNSHIP',
-        GunshipTemplateName: 'TestGunship',
+        GunshipTemplateName: gunshipTemplateName,
         AttackAreaRadius: 200,
         GunshipOrbitRadius: 100,
         CreateLocation: 'CREATE_AT_EDGE_FARTHEST_FROM_TARGET',
@@ -2384,6 +2388,43 @@ describe('SpectreGunshipUpdate', () => {
     expect(gunship.spectreGunshipState.status).toBe('INSERTING');
     expect(gunship.spectreGunshipState.initialTargetX).toBe(targetX);
     expect(gunship.spectreGunshipState.initialTargetZ).toBe(targetZ);
+  });
+
+  it('deployment marks the source as producer and uses gunship locomotor preferred height', () => {
+    // Source parity: SpectreGunshipDeploymentUpdate::initiateIntentToDoSpecialPower
+    // calls newGunship->setProducer(getObject()) and sets creationCoord.z to
+    // newGunship->getAI()->getCurLocomotor()->getPreferredHeight().
+    const bundle = makeBundle({
+      objects: [
+        makeCommandCenterDef('PreferredHeightGunship'),
+        makeGunshipDef({ templateName: 'PreferredHeightGunship', locomotorName: 'SpectreLoco' }),
+      ],
+      locomotors: [
+        makeLocomotorDef('SpectreLoco', 300, { PreferredHeight: 180 }),
+      ],
+      specialPowers: [makeSpecialPowerDef('SPECIAL_SPECTRE_GUNSHIP', {
+        ReloadTime: 0,
+        Enum: 'SPECIAL_SPECTRE_GUNSHIP',
+      })],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestCommandCenter', 64, 64)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as any;
+    const deployed = priv.initiateSpectreGunshipDeployment(1, 640, 640);
+    expect(deployed).toBe(true);
+
+    const gunship = Array.from(priv.spawnedEntities.values())
+      .find((entity: any) => entity.templateName === 'PreferredHeightGunship') as any;
+    expect(gunship).toBeDefined();
+    expect(gunship.producerEntityId).toBe(1);
+    expect(gunship.y).toBe(180);
+    expect(gunship.selected).toBe(true);
   });
 
   it('gunship with no spectreGunshipProfile gets null profile', () => {

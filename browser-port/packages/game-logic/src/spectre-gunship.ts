@@ -147,6 +147,18 @@ export function initiateSpectreGunshipDeployment(self: GL,
     source.side ?? '',
   );
   if (!gunshipEntity) return false;
+  // Source parity: newGunship->setProducer(getObject()) and
+  // newGunship->setPosition(... z = curLocomotor->getPreferredHeight()).
+  gunshipEntity.producerEntityId = source.id;
+  if (typeof self.resolveChinookPreferredHeight === 'function') {
+    const preferredHeight = self.resolveChinookPreferredHeight(gunshipEntity);
+    if (Number.isFinite(preferredHeight)) {
+      gunshipEntity.y = Math.max(0, preferredHeight);
+    }
+  }
+  // Source parity: deployment selects the newly created gunship for the
+  // controlling player.
+  gunshipEntity.selected = true;
   source.spectreGunshipDeploymentGunshipId = gunshipEntity.id;
 
   // Source parity: fire the gunship's own special power at the target location
