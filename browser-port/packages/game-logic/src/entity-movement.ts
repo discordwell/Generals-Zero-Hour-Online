@@ -893,25 +893,8 @@ export function updatePhysicsBehavior(self: GL): void {
     const prof = entity.physicsBehaviorProfile;
     if (!prof) continue;
 
-    // Lazy-init state on first frame.
-    // Source parity: PhysicsBehavior flags start at 0 (stickToGround=false), then
-    // Locomotor::transferLocomotorPhysicsToPhysicsBehavior sets stickToGround from the
-    // locomotor template's StickToGround field.
-    if (!entity.physicsBehaviorState) {
-      const activeLocoProfile = entity.locomotorSets?.get(entity.activeLocomotorSet);
-      entity.physicsBehaviorState = {
-        velX: 0, velY: 0, velZ: 0,
-        accelX: 0, accelY: 0, accelZ: 0,
-        yawRate: 0, pitchRate: 0, rollRate: 0,
-        wasAirborneLastFrame: false,
-        stickToGround: activeLocoProfile?.stickToGround ?? false,
-        allowToFall: false,
-        isInFreeFall: false,
-        extraBounciness: 0, extraFriction: 0,
-        isStunned: false,
-      };
-    }
-    const st = entity.physicsBehaviorState;
+    const st = ensurePhysicsBehaviorState(entity);
+    if (!st) continue;
 
     // Apply gravity (Y is vertical in THREE.js coordinate system).
     st.accelY += GRAVITY;
@@ -1032,6 +1015,35 @@ export function updatePhysicsBehavior(self: GL): void {
   }
 }
 
+function ensurePhysicsBehaviorState(entity: MapEntity): NonNullable<MapEntity['physicsBehaviorState']> | null {
+  if (!entity.physicsBehaviorProfile) {
+    return null;
+  }
+  // Lazy-init state on first frame.
+  // Source parity: PhysicsBehavior flags start at 0 (stickToGround=false), then
+  // Locomotor::transferLocomotorPhysicsToPhysicsBehavior sets stickToGround from the
+  // locomotor template's StickToGround field.
+  if (!entity.physicsBehaviorState) {
+    const activeLocoProfile = entity.locomotorSets?.get(entity.activeLocomotorSet);
+    entity.physicsBehaviorState = {
+      velX: 0, velY: 0, velZ: 0,
+      accelX: 0, accelY: 0, accelZ: 0,
+      yawRate: 0, pitchRate: 0, rollRate: 0,
+      wasAirborneLastFrame: false,
+      stickToGround: activeLocoProfile?.stickToGround ?? false,
+      allowToFall: false,
+      isInFreeFall: false,
+      extraBounciness: 0, extraFriction: 0,
+      isStunned: false,
+      turning: 0,
+    };
+  }
+  if (!Number.isFinite(entity.physicsBehaviorState.turning)) {
+    entity.physicsBehaviorState.turning = 0;
+  }
+  return entity.physicsBehaviorState;
+}
+
 export function updateEntityMovement(self: GL, dt: number): void {
   for (const entity of self.spawnedEntities.values()) {
     if (entity.destroyed) {
@@ -1045,6 +1057,13 @@ export function updateEntityMovement(self: GL, dt: number): void {
   for (const entity of self.spawnedEntities.values()) {
     if (entity.destroyed) {
       continue;
+    }
+    const physicsState = ensurePhysicsBehaviorState(entity);
+    if (physicsState) {
+      // Source parity: Locomotor::moveTowardsPosition sets TURN_NONE before
+      // dispatching to appearance-specific movement, then rotation overwrites it
+      // only when the turn is clipped by max turn rate.
+      physicsState.turning = 0;
     }
     // Source parity (ZH): AIUpdate.cpp:2899-2908 — temporary move state auto-expires.
     // If the entity has an active temporary move and the frame limit has passed, stop it.
@@ -1143,7 +1162,11 @@ export function updateEntityMovement(self: GL, dt: number): void {
       if (Math.abs(angleDiff) <= maxTurn) {
         entity.rotationY = desiredHeading;
       } else {
-        entity.rotationY += Math.sign(angleDiff) * maxTurn;
+        const turnSign = Math.sign(angleDiff);
+        entity.rotationY += turnSign * maxTurn;
+        if (physicsState) {
+          physicsState.turning = turnSign > 0 ? 1 : -1;
+        }
         // Normalize rotationY.
         while (entity.rotationY > Math.PI) entity.rotationY -= 2 * Math.PI;
         while (entity.rotationY < -Math.PI) entity.rotationY += 2 * Math.PI;
@@ -1293,25 +1316,23 @@ export function isWheelBasedLocomotor(appearance: string): boolean {
 
 export function updateAnimationSteering(self: GL): void {
   const now = self.frameCounter;
-  const TURN_EPSILON = 1e-4;
 
   for (const entity of self.spawnedEntities.values()) {
     if (entity.destroyed) continue;
     const profile = entity.animationSteeringProfile;
     if (!profile) continue;
-
-    // Source parity approximation: derive PhysicsTurningType from body yaw delta.
-    const turnDelta = self.normalizeAngle(entity.rotationY - entity.animationSteeringLastRotationY);
-    entity.animationSteeringLastRotationY = entity.rotationY;
+    const physicsState = entity.physicsBehaviorState;
+    if (!physicsState) continue;
 
     if (now < entity.animationSteeringNextTransitionFrame) {
       continue;
     }
 
     let currentTurn: 'TURN_NONE' | 'TURN_NEGATIVE' | 'TURN_POSITIVE' = 'TURN_NONE';
-    if (turnDelta < -TURN_EPSILON) {
+    const sourceTurning = Math.trunc(physicsState.turning ?? 0);
+    if (sourceTurning < 0) {
       currentTurn = 'TURN_NEGATIVE';
-    } else if (turnDelta > TURN_EPSILON) {
+    } else if (sourceTurning > 0) {
       currentTurn = 'TURN_POSITIVE';
     }
 

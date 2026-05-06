@@ -12743,15 +12743,20 @@ describe('PowerPlantUpdate', () => {
 });
 
 describe('AnimationSteeringUpdate', () => {
+  function makeSteeringUnitBlocks(): ReturnType<typeof makeBlock>[] {
+    return [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', { Mass: 1 }),
+      makeBlock('Behavior', 'AnimationSteeringUpdate ModuleTag_AnimSteer', {
+        MinTransitionTime: 100, // 100ms -> 3 frames
+      }),
+    ];
+  }
+
   it('extracts MinTransitionTime into transitionFrames', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('SteeringUnit', 'America', ['VEHICLE'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
-          makeBlock('Behavior', 'AnimationSteeringUpdate ModuleTag_AnimSteer', {
-            MinTransitionTime: 100, // 100ms -> 3 frames
-          }),
-        ]),
+        makeObjectDef('SteeringUnit', 'America', ['VEHICLE'], makeSteeringUnitBlocks()),
       ],
     });
 
@@ -12776,12 +12781,7 @@ describe('AnimationSteeringUpdate', () => {
   it('transitions turn model conditions with transition-frame gating', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('SteeringUnit', 'America', ['VEHICLE'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
-          makeBlock('Behavior', 'AnimationSteeringUpdate ModuleTag_AnimSteer', {
-            MinTransitionTime: 100, // 3 frames
-          }),
-        ]),
+        makeObjectDef('SteeringUnit', 'America', ['VEHICLE'], makeSteeringUnitBlocks()),
       ],
     });
 
@@ -12795,47 +12795,135 @@ describe('AnimationSteeringUpdate', () => {
 
     const priv = logic as unknown as {
       frameCounter: number;
+      updateAnimationSteering: () => void;
       spawnedEntities: Map<number, {
         rotationY: number;
+        physicsBehaviorState: { turning?: number } | null;
         modelConditionFlags: Set<string>;
         animationSteeringCurrentTurnAnim: string | null;
         animationSteeringNextTransitionFrame: number;
       }>;
     };
     const entity = priv.spawnedEntities.get(1)!;
+    logic.update(0);
+    expect(entity.physicsBehaviorState).not.toBeNull();
 
-    // Frame 1: negative turn delta => CENTER_TO_RIGHT.
-    entity.rotationY -= 0.5;
-    logic.update(1 / 30);
+    const stepSteering = (turning: number): void => {
+      priv.frameCounter += 1;
+      entity.physicsBehaviorState!.turning = turning;
+      priv.updateAnimationSteering();
+    };
+
+    // TURN_NEGATIVE => CENTER_TO_RIGHT, exactly as AnimationSteeringUpdate.cpp.
+    stepSteering(-1);
     expect(entity.animationSteeringCurrentTurnAnim).toBe('CENTER_TO_RIGHT');
     expect(entity.modelConditionFlags.has('CENTER_TO_RIGHT')).toBe(true);
     const firstTransitionFrame = entity.animationSteeringNextTransitionFrame;
     expect(firstTransitionFrame).toBeGreaterThan(priv.frameCounter);
 
-    // Frames 2-3: no turn, but still in transition lock window.
-    logic.update(1 / 30);
-    logic.update(1 / 30);
+    // Frames 2-3: TURN_NONE, but still in transition lock window.
+    stepSteering(0);
+    stepSteering(0);
     expect(priv.frameCounter).toBeLessThan(firstTransitionFrame);
     expect(entity.animationSteeringCurrentTurnAnim).toBe('CENTER_TO_RIGHT');
     expect(entity.modelConditionFlags.has('CENTER_TO_RIGHT')).toBe(true);
 
     // Frame 4: transition window elapsed, recenter to RIGHT_TO_CENTER.
-    logic.update(1 / 30);
+    stepSteering(0);
     expect(entity.animationSteeringCurrentTurnAnim).toBe('RIGHT_TO_CENTER');
     expect(entity.modelConditionFlags.has('CENTER_TO_RIGHT')).toBe(false);
     expect(entity.modelConditionFlags.has('RIGHT_TO_CENTER')).toBe(true);
 
     // Hold recenter animation until its own transition time expires.
-    logic.update(1 / 30);
-    logic.update(1 / 30);
+    stepSteering(0);
+    stepSteering(0);
     expect(entity.animationSteeringCurrentTurnAnim).toBe('RIGHT_TO_CENTER');
     expect(entity.modelConditionFlags.has('RIGHT_TO_CENTER')).toBe(true);
 
     // Next eligible frame with TURN_NONE clears recenter flags and returns to INVALID.
-    logic.update(1 / 30);
+    stepSteering(0);
     expect(entity.animationSteeringCurrentTurnAnim).toBeNull();
     expect(entity.modelConditionFlags.has('LEFT_TO_CENTER')).toBe(false);
     expect(entity.modelConditionFlags.has('RIGHT_TO_CENTER')).toBe(false);
+  });
+
+  it('ignores body yaw changes unless PhysicsBehavior reports turning', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('SteeringUnit', 'America', ['VEHICLE'], makeSteeringUnitBlocks()),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('SteeringUnit', 20, 20)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        rotationY: number;
+        modelConditionFlags: Set<string>;
+        animationSteeringCurrentTurnAnim: string | null;
+      }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+
+    entity.rotationY -= 0.5;
+    logic.update(1 / 30);
+
+    expect(entity.animationSteeringCurrentTurnAnim).toBeNull();
+    expect(entity.modelConditionFlags.has('CENTER_TO_RIGHT')).toBe(false);
+    expect(entity.modelConditionFlags.has('CENTER_TO_LEFT')).toBe(false);
+  });
+
+  it('copies locomotor turn clipping into PhysicsBehavior::m_turning for steering', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('SteeringUnit', 'America', ['VEHICLE'], [
+          ...makeSteeringUnitBlocks(),
+          makeBlock('LocomotorSet', 'LocomotorSet', { Locomotor: ['SET_NORMAL', 'SteerLoco'] }),
+        ]),
+      ],
+      locomotors: [
+        makeLocomotorDef('SteerLoco', 30, { TurnRate: 30 }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('SteeringUnit', 20, 20)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(256, 256),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        id: number;
+        moving: boolean;
+        movePath: Array<{ x: number; z: number }>;
+        pathIndex: number;
+        moveTarget: { x: number; z: number } | null;
+        pathfindGoalCell: { x: number; z: number } | null;
+        physicsBehaviorState: { turning?: number } | null;
+        modelConditionFlags: Set<string>;
+        animationSteeringCurrentTurnAnim: string | null;
+      }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+    const target = { x: 120, z: 20 };
+    entity.moving = true;
+    entity.movePath = [target];
+    entity.pathIndex = 0;
+    entity.moveTarget = target;
+    entity.pathfindGoalCell = { x: 6, z: 1 };
+
+    logic.update(1 / 30);
+
+    expect(entity.physicsBehaviorState?.turning).toBe(1);
+    expect(entity.animationSteeringCurrentTurnAnim).toBe('CENTER_TO_LEFT');
+    expect(entity.modelConditionFlags.has('CENTER_TO_LEFT')).toBe(true);
   });
 });
 
