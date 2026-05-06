@@ -376,7 +376,7 @@ function parseBlock(
     if (equalsIndex !== -1) {
       const key = lineTokens.slice(0, equalsIndex).join(' ');
       const valueParts = normalizeFieldValueTokens(lineTokens.slice(equalsIndex + 1));
-      block.fields[key] = parseFieldValue(valueParts);
+      block.fields[key] = appendFieldValue(block.fields[key], parseFieldValue(valueParts));
     } else if (lineTokens.length === 1 && hasNestedSubBlockBody(lines, cursor)) {
       // Standalone keyword that opens a block (e.g. Prerequisites, Turret).
       // Any single-token line followed by deeper-indented content is a block.
@@ -599,6 +599,16 @@ function parseFieldValue(tokens: string[]): IniValue {
 
   // Return as string array (e.g., KindOf flags)
   return tokens;
+}
+
+function appendFieldValue(existing: IniValue | undefined, next: IniValue): IniValue {
+  if (existing === undefined) {
+    return next;
+  }
+  if (Array.isArray(existing) && existing.some((entry) => Array.isArray(entry))) {
+    return [...existing, next] as IniValue;
+  }
+  return [existing, next] as IniValue;
 }
 
 function normalizeFieldValueTokens(tokens: string[]): string[] {

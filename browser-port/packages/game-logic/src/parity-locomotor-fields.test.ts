@@ -11,6 +11,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { parseIni } from '@generals/core';
 import { resolveLocomotorProfiles } from './entity-movement.js';
 import {
   makeBlock,
@@ -81,6 +82,31 @@ describe('locomotor profile field defaults (Locomotor.cpp constructor parity)', 
     expect(profile!.rudderCorrectionRate).toBe(0);
     expect(profile!.elevatorCorrectionDegree).toBe(0);
     expect(profile!.elevatorCorrectionRate).toBe(0);
+  });
+});
+
+describe('locomotor set extraction from repeated source fields', () => {
+  it('resolves SET_NORMAL and SET_TAXIING from repeated Locomotor assignments', () => {
+    const parsed = parseIni(`
+Object TestJet
+  Locomotor = SET_NORMAL RaptorJetLocomotor
+  Locomotor = SET_TAXIING BasicJetTaxiLocomotor
+End
+`);
+    expect(parsed.errors).toHaveLength(0);
+    const objectDef = makeObjectDef('TestJet', 'America', ['AIRCRAFT'], [], parsed.blocks[0]!.fields);
+    const bundle = makeBundle({
+      objects: [objectDef],
+      locomotors: [
+        makeLocomotorDef('RaptorJetLocomotor', 175, { PreferredHeight: 100 }),
+        makeLocomotorDef('BasicJetTaxiLocomotor', 50),
+      ],
+    });
+    const profiles = resolveLocomotorProfiles({}, bundle.objects[0]!, makeRegistry(bundle));
+
+    expect(profiles.get('SET_NORMAL')?.movementSpeed).toBe(175);
+    expect(profiles.get('SET_NORMAL')?.preferredHeight).toBe(100);
+    expect(profiles.get('SET_TAXIING')?.movementSpeed).toBe(50);
   });
 });
 

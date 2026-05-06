@@ -360,6 +360,40 @@ End
     });
   });
 
+  describe('repeated regular fields', () => {
+    it('preserves repeated multi-token assignments as separate entries', () => {
+      const source = `
+Object TestJet
+  Locomotor = SET_NORMAL RaptorJetLocomotor
+  Locomotor = SET_TAXIING BasicJetTaxiLocomotor
+End
+`;
+      const result = parseIni(source);
+      expect(result.errors).toHaveLength(0);
+      expect(result.blocks[0]!.fields['Locomotor']).toEqual([
+        ['SET_NORMAL', 'RaptorJetLocomotor'],
+        ['SET_TAXIING', 'BasicJetTaxiLocomotor'],
+      ]);
+    });
+
+    it('appends later repeated assignments without flattening earlier entries', () => {
+      const source = `
+Object TestWeaponCarrier
+  Weapon = PRIMARY MainGun
+  Weapon = SECONDARY MissileRack
+  Weapon = TERTIARY PointDefenseLaser
+End
+`;
+      const result = parseIni(source);
+      expect(result.errors).toHaveLength(0);
+      expect(result.blocks[0]!.fields['Weapon']).toEqual([
+        ['PRIMARY', 'MainGun'],
+        ['SECONDARY', 'MissileRack'],
+        ['TERTIARY', 'PointDefenseLaser'],
+      ]);
+    });
+  });
+
   describe('AddModule / RemoveModule / ReplaceModule', () => {
     it('parses AddModule as sub-block', () => {
       const source = `
@@ -479,7 +513,7 @@ End
       expect(draw.blocks).toHaveLength(1);
       expect(draw.blocks[0]!.type).toBe('ConditionState');
       expect(draw.blocks[0]!.name).toBe('NONE');
-      expect(draw.fields['AliasConditionState']).toEqual(['SNOW', 'NIGHT']);
+      expect(draw.fields['AliasConditionState']).toEqual(['NIGHT', ['SNOW', 'NIGHT']]);
     });
 
     it('parses empty sub-block bodies that only contain comments', () => {
