@@ -950,4 +950,23 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(spawned[0]!.physicsBehaviorState!.accelY).toBeCloseTo(2);
     expect(spawned[0]!.physicsBehaviorState!.accelZ).toBeCloseTo(4);
   });
+
+  it('records IgnorePrimaryObstacle on spawned physics state', () => {
+    // C++ parity: ObjectCreationList.cpp doStuffToObj calls
+    // PhysicsBehavior::setIgnoreCollisionsWith(sourceObj) for this field.
+    const { logic } = makeCreateObjectSetup(
+      { IgnorePrimaryObstacle: 'Yes' },
+      undefined,
+      { withPhysics: true },
+    );
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestCreate', source);
+
+    const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
+    expect(spawned.length).toBe(1);
+    expect(spawned[0]!.physicsBehaviorState).not.toBeNull();
+    expect(spawned[0]!.physicsBehaviorState!.ignoreCollisionsWith).toBe(source.id);
+  });
 });

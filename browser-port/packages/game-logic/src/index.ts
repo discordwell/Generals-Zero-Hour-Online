@@ -56795,6 +56795,7 @@ export class GameLogicSubsystem implements Subsystem {
     if (skipIfAirborne && sourceEntity.y > sourceEntity.baseHeight + 30) {
       return null;
     }
+    const ignorePrimaryObstacle = readBooleanField(nugget.fields, ['IgnorePrimaryObstacle']) ?? false;
 
     // Source parity: RequiresLivePlayer — skip if the owning player is dead.
     // C++ GenericObjectCreationNugget.cpp:876 — m_requiresLivePlayer gates creation on player alive.
@@ -56921,6 +56922,16 @@ export class GameLogicSubsystem implements Subsystem {
             spawned.attackersMissExpireFrame,
             this.frameCounter + invulnerableFrames,
           );
+        }
+
+        if (ignorePrimaryObstacle) {
+          // Source parity: GenericObjectCreationNugget::doStuffToObj calls
+          // PhysicsBehavior::setIgnoreCollisionsWith(sourceObj) when
+          // IgnorePrimaryObstacle is set.
+          const physicsState = this.ensurePhysicsBehaviorStateForEntity(spawned);
+          if (physicsState) {
+            physicsState.ignoreCollisionsWith = sourceEntity.id;
+          }
         }
 
         if (inheritVelocity) {
