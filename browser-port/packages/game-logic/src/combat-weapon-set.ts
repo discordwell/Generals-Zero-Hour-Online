@@ -940,9 +940,6 @@ export function getVictimAntiMask(
   const WEAPON_ANTI_BALLISTIC_MISSILE = 0x40;
   const WEAPON_ANTI_PARACHUTE = 0x80;
 
-  if (isMine) {
-    return WEAPON_ANTI_MINE | WEAPON_ANTI_GROUND;
-  }
   if (isSmallMissile) {
     return WEAPON_ANTI_SMALL_MISSILE;
   }
@@ -951,6 +948,9 @@ export function getVictimAntiMask(
   }
   if (isProjectile) {
     return WEAPON_ANTI_PROJECTILE;
+  }
+  if (isMine) {
+    return WEAPON_ANTI_MINE | WEAPON_ANTI_GROUND;
   }
   if (isAirborne) {
     if (isVehicle) {

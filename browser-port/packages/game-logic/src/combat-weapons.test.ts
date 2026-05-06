@@ -1186,13 +1186,17 @@ describe('Victim anti-mask', () => {
     expect(mask).toBe(0x80); // WEAPON_ANTI_PARACHUTE
   });
 
-  it('priority: mine > smallMissile > ballisticMissile > projectile > airborne', () => {
-    // Mine takes priority even if also projectile
+  it('priority: smallMissile > ballisticMissile > projectile > mine > airborne', () => {
+    // Generic projectile takes priority over mine, matching WeaponSet.cpp.
     expect(getVictimAntiMask(false, true, false, false, true, false, false, false))
-      .toBe(0x10 | 0x02);
+      .toBe(0x04);
 
     // Small missile takes priority over generic projectile
     expect(getVictimAntiMask(false, false, true, false, true, false, false, false))
+      .toBe(0x08);
+
+    // Small missile also takes priority over mine
+    expect(getVictimAntiMask(false, true, true, false, false, false, false, false))
       .toBe(0x08);
 
     // Ballistic missile priority

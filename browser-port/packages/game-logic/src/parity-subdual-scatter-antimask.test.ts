@@ -410,16 +410,9 @@ describe('Anti-mask priority order (parity: WeaponSet.cpp:371-413)', () => {
       expect(mask).toBe(WEAPON_ANTI_SMALL_MISSILE);
     });
 
-    it('MINE flag takes priority over SMALL_MISSILE in combat-weapon-set.ts', () => {
-      // Documentation: In combat-weapon-set.ts getVictimAntiMask, MINE is checked
-      // BEFORE SMALL_MISSILE (line 878 vs 881). An entity with both flags returns
-      // ANTI_MINE | ANTI_GROUND.
-      //
-      // C++ reference (WeaponSet.cpp:373-386): SMALL_MISSILE is checked BEFORE MINE.
-      // An entity with both flags in C++ would return ANTI_SMALL_MISSILE.
-      //
-      // This is a known divergence: the standalone getVictimAntiMask in
-      // combat-weapon-set.ts prioritizes MINE, while the C++ prioritizes SMALL_MISSILE.
+    it('SMALL_MISSILE takes priority over MINE in combat-weapon-set.ts', () => {
+      // Source parity: WeaponSet.cpp checks KINDOF_SMALL_MISSILE before
+      // KINDOF_MINE, so a target carrying both flags is treated as a missile.
       const mask = getVictimAntiMask(
         false, // isAirborne
         true,  // isMine
@@ -431,16 +424,7 @@ describe('Anti-mask priority order (parity: WeaponSet.cpp:371-413)', () => {
         false, // isParachute
       );
 
-      // TS combat-weapon-set.ts: MINE wins (checked first at line 878)
-      expect(mask).toBe(WEAPON_ANTI_MINE | WEAPON_ANTI_GROUND);
-
-      // NOTE: In C++ (WeaponSet.cpp:373), SMALL_MISSILE is checked first, so
-      // the C++ result would be WEAPON_ANTI_SMALL_MISSILE (0x08).
-      // The C++ parity expectation is documented here for reference:
-      const cppExpectedMask = WEAPON_ANTI_SMALL_MISSILE;
-      expect(cppExpectedMask).toBe(0x08);
-      // The TS result differs from C++ when both MINE and SMALL_MISSILE are set.
-      expect(mask).not.toBe(cppExpectedMask);
+      expect(mask).toBe(WEAPON_ANTI_SMALL_MISSILE);
     });
   });
 
@@ -480,31 +464,25 @@ describe('Anti-mask priority order (parity: WeaponSet.cpp:371-413)', () => {
       expect(mask).toBe(WEAPON_ANTI_SMALL_MISSILE);
     });
 
-    it('documents priority divergence between the two TS anti-mask functions', () => {
+    it('standalone and runtime anti-mask helpers share source priority', () => {
       // Entity with both MINE and SMALL_MISSILE flags:
       //
       // C++ getVictimAntiMask (WeaponSet.cpp):
       //   SMALL_MISSILE checked first -> returns ANTI_SMALL_MISSILE
       //
       // TS resolveTargetAntiMask (combat-targeting.ts):
-      //   SMALL_MISSILE checked first -> returns ANTI_SMALL_MISSILE (MATCHES C++)
+      //   SMALL_MISSILE checked first -> returns ANTI_SMALL_MISSILE
       //
       // TS getVictimAntiMask (combat-weapon-set.ts):
-      //   MINE checked first -> returns ANTI_MINE | ANTI_GROUND (DIVERGES from C++)
-      //
-      // The runtime targeting path (resolveTargetAntiMask) is correct.
-      // The standalone helper (getVictimAntiMask) has inverted priority.
+      //   SMALL_MISSILE checked first -> returns ANTI_SMALL_MISSILE
 
       const kindOf = new Set(['SMALL_MISSILE', 'MINE']);
       const runtimeMask = resolveTargetAntiMask(makeMockSelf(), makeMockTarget(), kindOf);
       const standaloneMask = getVictimAntiMask(false, true, true, false, false, false, false, false);
 
-      // Runtime path matches C++
       expect(runtimeMask).toBe(WEAPON_ANTI_SMALL_MISSILE);
-      // Standalone helper diverges
-      expect(standaloneMask).toBe(WEAPON_ANTI_MINE | WEAPON_ANTI_GROUND);
-      // They produce different results for the same entity
-      expect(runtimeMask).not.toBe(standaloneMask);
+      expect(standaloneMask).toBe(WEAPON_ANTI_SMALL_MISSILE);
+      expect(runtimeMask).toBe(standaloneMask);
     });
 
     it('BALLISTIC_MISSILE takes priority over PROJECTILE', () => {
