@@ -3824,6 +3824,8 @@ export interface MapEntity {
   renderAnimationStateClips?: RenderAnimationStateClipCandidates;
   /** Source parity: W3DDebrisDraw animation selected by CreateDebris.AnimationSet. */
   debrisAnimationState: OCLDebrisAnimationState | null;
+  /** Source parity: CreateDebris::m_okToChangeModelColor passed to W3DDebrisDraw::setModelName. */
+  debrisAllowsModelColorChange: boolean | null;
   modelConditionInfos?: ModelConditionInfo[];
   transitionInfos?: TransitionInfo[];
   /** Source parity: W3DModelDrawModuleData::m_projectileBoneFeedbackEnabledSlots. */
@@ -56923,6 +56925,11 @@ export class GameLogicSubsystem implements Subsystem {
       ? (this.extractDynamicAudioEventName(nugget.fields, 'BounceSound')?.trim() ?? '')
       : '';
     const debrisAnimationSets = createDebris ? this.extractOCLDebrisAnimationSets(nugget) : [];
+    // Source parity: ObjectCreationList.cpp::doStuffToObj passes either
+    // obj->getIndicatorColor() or 0 into W3DDebrisDraw::setModelName.
+    const debrisAllowsModelColorChange = createDebris
+      ? (readBooleanField(nugget.fields, ['OkToChangeModelColor']) ?? false)
+      : false;
 
     let firstCreatedEntityId: number | null = null;
     let putInContainerEntity: MapEntity | null = null;
@@ -56985,6 +56992,7 @@ export class GameLogicSubsystem implements Subsystem {
           spawned.renderAssetCandidates = [debrisModelName];
           spawned.renderAssetPath = debrisModelName;
           spawned.renderAssetResolved = true;
+          spawned.debrisAllowsModelColorChange = debrisAllowsModelColorChange;
           if (debrisAnimationSets.length > 0) {
             // Source parity: GenericObjectCreationNugget::doStuffToObj picks
             // one AnimationSet with GameLogicRandomValue and passes it to

@@ -2821,6 +2821,71 @@ describe('condition-state model fallback resolution', () => {
     expect(mat.emissiveIntensity).toBeCloseTo(0.4, 2);
   });
 
+  it('suppresses team tint for CreateDebris when OkToChangeModelColor is false', async () => {
+    const scene = new THREE.Scene();
+    const mat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+    mesh.name = 'BODY';
+    const root = new THREE.Group();
+    root.add(mesh);
+    const model = { scene: root, animations: [] } as LoadedModelAsset;
+
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => model,
+    });
+
+    const state = makeMeshState({
+      id: 551,
+      side: 'china',
+      debrisAllowsModelColorChange: false,
+    });
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([state], 1 / 30);
+
+    expect(mat.color.getHex()).toBe(0xaaaaaa);
+    expect(mat.emissive.getHex()).toBe(0x000000);
+    expect(mat.emissiveIntensity).toBe(0);
+  });
+
+  it('keeps CreateDebris team tint suppressed after damage flash ends', async () => {
+    const scene = new THREE.Scene();
+    const mat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+    mesh.name = 'BODY';
+    const root = new THREE.Group();
+    root.add(mesh);
+    const model = { scene: root, animations: [] } as LoadedModelAsset;
+
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => model,
+    });
+
+    const state = makeMeshState({
+      id: 552,
+      health: 100,
+      maxHealth: 100,
+      side: 'america',
+      debrisAllowsModelColorChange: false,
+    });
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([state], 1 / 30);
+
+    const damagedState = makeMeshState({
+      ...state,
+      health: 80,
+    });
+    manager.sync([damagedState], 1 / 30);
+    expect(mat.emissive.getHex()).toBe(0xff0000);
+    expect(mat.emissiveIntensity).toBeCloseTo(0.5, 2);
+
+    manager.sync([damagedState], 0.25);
+    // clearTeamColor resets visibility through intensity; the cached emissive
+    // color value itself may remain red from the preceding flash.
+    expect(mat.emissiveIntensity).toBe(0);
+  });
+
   it('matches HOUSECOLOR mesh names case-insensitively after dot separator', async () => {
     const scene = new THREE.Scene();
     // Test HLOD compound name format: "MODELNAME.HOUSECOLOR01"

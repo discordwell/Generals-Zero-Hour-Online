@@ -120,6 +120,7 @@ interface PrivateEntity {
     finalStop: boolean;
     finalFXName: string;
   } | null;
+  debrisAllowsModelColorChange: boolean | null;
   physicsBehaviorProfile: { mass: number; allowBouncing?: boolean } | null;
   physicsBehaviorState: {
     velX: number;
@@ -1136,6 +1137,24 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(debris[0]!.renderAssetPath).toBe('Debris_Model_A');
     expect(debris[0]!.renderAssetResolved).toBe(true);
     expect(debris[0]!.physicsBehaviorProfile?.mass).toBe(4);
+    expect(debris[0]!.debrisAllowsModelColorChange).toBe(false);
+  });
+
+  it('passes CreateDebris OkToChangeModelColor to debris render state', () => {
+    // C++ parity: ObjectCreationList.cpp passes obj->getIndicatorColor() to
+    // W3DDebrisDraw::setModelName only when m_okToChangeModelColor is true.
+    const { logic } = makeCreateDebrisSetup({
+      OkToChangeModelColor: 'Yes',
+    });
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestDebris', source);
+
+    const debris = getEntitiesByTemplate(logic, 'GenericDebris')[0]!;
+    expect(debris.debrisAllowsModelColorChange).toBe(true);
+    const renderState = logic.getRenderableEntityStates().find((state) => state.id === debris.id);
+    expect(renderState?.debrisAllowsModelColorChange).toBe(true);
   });
 
   it('passes CreateDebris AnimationSet and FXFinal to debris render state', () => {

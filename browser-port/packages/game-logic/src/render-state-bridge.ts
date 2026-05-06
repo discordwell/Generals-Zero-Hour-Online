@@ -658,6 +658,7 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
             isAboveTerrain: entity.y - entity.baseHeight > 0,
           }
         : undefined,
+      debrisAllowsModelColorChange: entity.debrisAllowsModelColorChange ?? undefined,
       modelConditionInfos: entity.modelConditionInfos,
       transitionInfos: entity.transitionInfos,
       modelConditionFlags: [...entity.modelConditionFlags],

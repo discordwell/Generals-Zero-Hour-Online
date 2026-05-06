@@ -50,6 +50,8 @@ export interface RenderableEntityState {
   renderAnimationStateClips?: RenderAnimationStateClipCandidates;
   /** Source parity: W3DDebrisDraw animation state driven by CreateDebris.AnimationSet. */
   debrisAnimation?: RenderableDebrisAnimationState;
+  /** Source parity: CreateDebris.OkToChangeModelColor gates W3DDebrisDraw model recolor. */
+  debrisAllowsModelColorChange?: boolean;
   modelConditionInfos?: ModelConditionInfo[];
   transitionInfos?: TransitionInfo[];
   modelConditionFlags?: readonly string[];

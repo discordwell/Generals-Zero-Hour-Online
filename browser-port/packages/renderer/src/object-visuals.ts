@@ -63,6 +63,8 @@ export interface RenderableEntityState {
   renderAnimationStateClips?: Partial<Record<RenderableAnimationState, string[]>>;
   /** Source parity: W3DDebrisDraw animation state driven by CreateDebris.AnimationSet. */
   debrisAnimation?: RenderableDebrisAnimationState;
+  /** Source parity: CreateDebris.OkToChangeModelColor gates W3DDebrisDraw model recolor. */
+  debrisAllowsModelColorChange?: boolean;
   modelConditionInfos?: ModelConditionInfo[];
   transitionInfos?: TransitionInfo[];
   /**
@@ -2321,11 +2323,18 @@ export class ObjectVisualManager {
    * distinguish sides during gameplay.
    */
   private syncTeamColor(visual: VisualAssetState, state: RenderableEntityState): void {
-    const side = state.side?.toLowerCase() ?? null;
-    if (!visual.currentModel || side === visual.appliedTeamColorSide) {
+    const suppressTeamColor = ObjectVisualManager.shouldSuppressTeamColor(state);
+    const side = suppressTeamColor ? null : (state.side?.toLowerCase() ?? null);
+    const appliedKey = suppressTeamColor ? '__debris_color_disabled__' : side;
+    if (!visual.currentModel || appliedKey === visual.appliedTeamColorSide) {
       return;
     }
-    visual.appliedTeamColorSide = side;
+    visual.appliedTeamColorSide = appliedKey;
+
+    if (suppressTeamColor) {
+      this.clearTeamColor(visual);
+      return;
+    }
 
     const colorHex = side ? (ObjectVisualManager.TEAM_COLORS[side] ?? null) : null;
     if (colorHex === null) {
@@ -2457,6 +2466,11 @@ export class ObjectVisualManager {
    * other meshes get fallback emissive or nothing.
    */
   private restoreEmissiveAfterFlash(visual: VisualAssetState, state: RenderableEntityState): void {
+    if (ObjectVisualManager.shouldSuppressTeamColor(state)) {
+      this.clearTeamColor(visual);
+      return;
+    }
+
     const side = state.side?.toLowerCase() ?? null;
     const colorHex = side ? (ObjectVisualManager.TEAM_COLORS[side] ?? null) : null;
 
@@ -3001,6 +3015,13 @@ export class ObjectVisualManager {
       }
     });
     return found;
+  }
+
+  private static shouldSuppressTeamColor(state: RenderableEntityState): boolean {
+    // Source parity: CreateDebris::doStuffToObj passes 0 instead of
+    // Object::getIndicatorColor() to W3DDebrisDraw::setModelName when
+    // OkToChangeModelColor is absent/false.
+    return state.debrisAllowsModelColorChange === false;
   }
 
   private syncManualAnimationFrame(visual: VisualAssetState, state: RenderableEntityState): void {
