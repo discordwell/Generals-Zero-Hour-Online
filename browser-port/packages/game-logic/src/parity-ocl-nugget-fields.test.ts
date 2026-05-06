@@ -132,6 +132,7 @@ interface PrivateEntity {
     extraFriction: number;
     isStunned: boolean;
     motiveForceExpires?: number;
+    bounceSoundName?: string;
   } | null;
 }
 
@@ -1175,5 +1176,38 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(events[0]!.x).toBeCloseTo(debris[0]!.x);
     expect(events[0]!.y).toBeCloseTo(debris[0]!.y);
     expect(events[0]!.z).toBeCloseTo(debris[0]!.z);
+  });
+
+  it('plays CreateDebris BounceSound when airborne debris lands', () => {
+    // C++ parity: ObjectCreationList.cpp parseDebris stores BounceSound, and
+    // PhysicsUpdate::doBounceSound queues that event when airborne debris lands.
+    const { logic } = makeCreateDebrisSetup({
+      Disposition: 'SEND_IT_UP',
+      DispositionIntensity: 4,
+      BounceSound: 'DebrisMetalBounce',
+    });
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestDebris', source);
+
+    const debris = getEntitiesByTemplate(logic, 'GenericDebris')[0]!;
+    expect(debris.physicsBehaviorState?.bounceSoundName).toBe('DebrisMetalBounce');
+
+    // Drive an explicit landing frame so the test exercises PhysicsUpdate's
+    // airborne-to-ground sound hook, independent of random force duration.
+    debris.y = source.y + 2;
+    debris.physicsBehaviorState!.wasAirborneLastFrame = true;
+    debris.physicsBehaviorState!.accelX = 0;
+    debris.physicsBehaviorState!.accelY = 0;
+    debris.physicsBehaviorState!.accelZ = 0;
+    debris.physicsBehaviorState!.velY = -8;
+    logic.update(1 / 30);
+
+    expect(logic.drainScriptAudioPlaybackRequests()).toContainEqual(expect.objectContaining({
+      audioName: 'DebrisMetalBounce',
+      playbackType: 'SOUND_EFFECT',
+      sourceEntityId: debris.id,
+    }));
   });
 });

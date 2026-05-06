@@ -7323,6 +7323,8 @@ interface PhysicsBehaviorState {
   applyFriction2dWhenAirborne?: boolean;
   /** Source parity: PhysicsBehavior::IMMUNE_TO_FALLING_DAMAGE. */
   immuneToFallingDamage?: boolean;
+  /** Source parity: PhysicsBehavior::m_bounceSound — per-object DynamicAudioEventRTS. */
+  bounceSoundName?: string;
   /** Source parity: PhysicsBehavior::IS_IN_UPDATE. */
   isInUpdate?: boolean;
   /** Source parity: PhysicsBehavior::m_velMag cache; -1 means invalid. */
@@ -31987,6 +31989,10 @@ export class GameLogicSubsystem implements Subsystem {
       y: entity.y,
       z: entity.z,
     });
+  }
+
+  /* @internal */ requestRuntimeSoundPlayFromNamed(audioName: string, sourceEntityId: number): boolean {
+    return this.requestScriptSoundPlayFromNamed(audioName, sourceEntityId);
   }
 
   setScriptBackgroundSoundsPaused(paused: boolean): void {
@@ -56881,6 +56887,9 @@ export class GameLogicSubsystem implements Subsystem {
     const minForcePitch = (readNumericField(nugget.fields, ['MinForcePitch']) ?? 0) * Math.PI / 180;
     const maxForcePitch = (readNumericField(nugget.fields, ['MaxForcePitch']) ?? 0) * Math.PI / 180;
     const debrisMass = createDebris ? (readNumericField(nugget.fields, ['Mass']) ?? 1) : 0;
+    const debrisBounceSoundName = createDebris
+      ? (this.extractDynamicAudioEventName(nugget.fields, 'BounceSound')?.trim() ?? '')
+      : '';
 
     let firstCreatedEntityId: number | null = null;
     let putInContainerEntity: MapEntity | null = null;
@@ -57056,6 +57065,11 @@ export class GameLogicSubsystem implements Subsystem {
             spawned.physicsBehaviorProfile.allowBouncing = true;
             physicsState.extraBounciness = extraBounciness;
             physicsState.extraFriction = extraFriction;
+            if (debrisBounceSoundName) {
+              // Source parity: CreateDebris::doStuffToObj stores BounceSound
+              // on the spawned PhysicsBehavior before airborne force is applied.
+              physicsState.bounceSoundName = debrisBounceSoundName;
+            }
             physicsState.yawRate = (this.gameRandom.nextFloat() * 2 - 1) * yawRate;
             physicsState.rollRate = (this.gameRandom.nextFloat() * 2 - 1) * rollRate;
             physicsState.pitchRate = (this.gameRandom.nextFloat() * 2 - 1) * pitchRate;

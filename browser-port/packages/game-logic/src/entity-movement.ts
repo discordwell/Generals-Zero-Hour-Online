@@ -998,6 +998,11 @@ export function updatePhysicsBehavior(self: GL): void {
 
     // Landing collision (was airborne, now grounded).
     if (st.wasAirborneLastFrame && entity.y <= groundY + 0.5) {
+      // Source parity: PhysicsBehavior::doBounceSound(prevPos) plays the
+      // per-object bounce sound when an airborne physics object lands.
+      if (!st.immuneToFallingDamage && st.bounceSoundName) {
+        self.requestRuntimeSoundPlayFromNamed(st.bounceSoundName, entity.id);
+      }
       // Source parity: onCollide(NULL, pos, normal) — ground collision event.
     }
     st.wasAirborneLastFrame = entity.y > groundY + 0.5;
