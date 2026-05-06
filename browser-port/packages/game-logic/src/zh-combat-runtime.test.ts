@@ -7,6 +7,7 @@
  *   3. Weapon.cpp:3143-3156 — transferNextShotStatsFrom() for Jarmen Kell / combat bike
  *   4. Weapon.cpp:1148-1162 — scattered projectiles don't home (pass NULL victim)
  */
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   createMultiWeaponEntityState,
@@ -20,6 +21,17 @@ import {
   applyWeaponDamageEvent,
   type CombatDamageEventContext,
 } from './combat-damage-events.js';
+import { queueWeaponDamageEvent } from './combat-targeting.js';
+import { GameLogicSubsystem } from './index.js';
+import {
+  makeBlock,
+  makeBundle,
+  makeHeightmap,
+  makeMap,
+  makeMapObject,
+  makeObjectDef,
+  makeRegistry,
+} from './test-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -221,9 +233,8 @@ describe('inflictDamage parameter on weapon firing (ZH: Weapon.cpp:764-787)', ()
     expect(applied[0]!.targetId).toBe(2);
   });
 
-  it('queueWeaponDamageEvent signature accepts inflictDamage parameter', async () => {
-    // Verify the function signature accepts the parameter by importing it
-    const { queueWeaponDamageEvent } = await import('./combat-targeting.js');
+  it('queueWeaponDamageEvent signature accepts inflictDamage parameter', () => {
+    // Verify the function signature accepts the parameter.
     expect(typeof queueWeaponDamageEvent).toBe('function');
     // The function has 5 params (self, attacker, target, weapon, inflictDamage)
     // JS .length counts required params before the first one with a default.
@@ -246,26 +257,12 @@ describe('parameterized kill() with damage/death type (ZH: Object.cpp:1951-1966)
    * applyWeaponDamageAmount with forceKill=true.
    */
 
-  it('killEntity method exists on GameLogicSubsystem', async () => {
-    const THREE = await import('three');
-    const { GameLogicSubsystem } = await import('./index.js');
+  it('killEntity method exists on GameLogicSubsystem', () => {
     const logic = new GameLogicSubsystem(new THREE.Scene());
     expect(typeof (logic as unknown as { killEntity: unknown }).killEntity).toBe('function');
   });
 
-  it('killEntity with default params kills the entity (Generals compat)', async () => {
-    const THREE = await import('three');
-    const { GameLogicSubsystem } = await import('./index.js');
-    const {
-      makeBundle,
-      makeRegistry,
-      makeHeightmap,
-      makeMap,
-      makeMapObject,
-      makeObjectDef,
-      makeBlock,
-    } = await import('./test-helpers.js');
-
+  it('killEntity with default params kills the entity (Generals compat)', () => {
     const objectDef = makeObjectDef('TestUnit', 'America', ['INFANTRY'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 100,
@@ -296,19 +293,7 @@ describe('parameterized kill() with damage/death type (ZH: Object.cpp:1951-1966)
     expect(unit!.health).toBe(0);
   });
 
-  it('killEntity with custom damage/death types sets pendingDeathType', async () => {
-    const THREE = await import('three');
-    const { GameLogicSubsystem } = await import('./index.js');
-    const {
-      makeBundle,
-      makeRegistry,
-      makeHeightmap,
-      makeMap,
-      makeMapObject,
-      makeObjectDef,
-      makeBlock,
-    } = await import('./test-helpers.js');
-
+  it('killEntity with custom damage/death types sets pendingDeathType', () => {
     const objectDef = makeObjectDef('TestUnit', 'America', ['INFANTRY'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 100,
@@ -338,19 +323,7 @@ describe('parameterized kill() with damage/death type (ZH: Object.cpp:1951-1966)
     expect(unit!.pendingDeathType).toBe('EXPLODED');
   });
 
-  it('forceKill bypasses armor — kills entity even when armor blocks damage type', async () => {
-    const THREE = await import('three');
-    const { GameLogicSubsystem } = await import('./index.js');
-    const {
-      makeBundle,
-      makeRegistry,
-      makeHeightmap,
-      makeMap,
-      makeMapObject,
-      makeObjectDef,
-      makeBlock,
-    } = await import('./test-helpers.js');
-
+  it('forceKill bypasses armor — kills entity even when armor blocks damage type', () => {
     const objectDef = makeObjectDef('TestUnit', 'America', ['INFANTRY'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 100,
