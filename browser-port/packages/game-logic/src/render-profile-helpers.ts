@@ -472,27 +472,37 @@ export function collectTransitionInfos(objectDef: ObjectDef | undefined): Transi
 
   const infos: TransitionInfo[] = [];
 
-  const visitBlock = (block: IniBlock): void => {
+  const visitBlock = (block: IniBlock, defaultInfo: ModelConditionInfo | null): void => {
+    const childDefaultInfo = findDefaultConditionInfo(block) ?? defaultInfo;
     if (block.type.toUpperCase() === 'TRANSITIONSTATE') {
-      const parsed = parseTransitionStateBlock(block);
+      const parsed = parseTransitionStateBlock(block, defaultInfo);
       if (parsed) {
         infos.push(parsed);
       }
     }
 
     for (const childBlock of block.blocks) {
-      visitBlock(childBlock);
+      visitBlock(childBlock, childDefaultInfo);
     }
   };
 
   for (const block of objectDef.blocks) {
-    visitBlock(block);
+    visitBlock(block, null);
   }
 
   return infos;
 }
 
-function parseTransitionStateBlock(block: IniBlock): TransitionInfo | null {
+function findDefaultConditionInfo(block: IniBlock): ModelConditionInfo | null {
+  for (const childBlock of block.blocks) {
+    if (childBlock.type.toUpperCase() === 'DEFAULTCONDITIONSTATE') {
+      return parseModelConditionStateBlock(childBlock);
+    }
+  }
+  return null;
+}
+
+function parseTransitionStateBlock(block: IniBlock, defaultInfo: ModelConditionInfo | null): TransitionInfo | null {
   const tokens = block.name.trim().split(/\s+/);
   if (tokens.length < 2) {
     return null;
@@ -512,11 +522,11 @@ function parseTransitionStateBlock(block: IniBlock): TransitionInfo | null {
   return {
     fromKey,
     toKey,
-    modelName: modelName ?? null,
-    animationName: animationName ?? null,
+    modelName: modelName ?? defaultInfo?.modelName ?? null,
+    animationName: animationName ?? defaultInfo?.animationName ?? null,
     animationMode: 'ONCE',
-    hideSubObjects,
-    showSubObjects,
+    hideSubObjects: [...(defaultInfo?.hideSubObjects ?? []), ...hideSubObjects],
+    showSubObjects: [...(defaultInfo?.showSubObjects ?? []), ...showSubObjects],
   };
 }
 

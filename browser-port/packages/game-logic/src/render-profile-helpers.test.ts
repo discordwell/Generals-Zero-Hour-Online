@@ -493,6 +493,42 @@ describe('collectTransitionInfos', () => {
     expect(infos[0].hideSubObjects).toEqual(['Turret']);
     expect(infos[0].showSubObjects).toEqual(['Legs']);
   });
+
+  it('inherits DefaultConditionState visuals for TransitionState blocks', () => {
+    const drawModule: IniBlock = {
+      type: 'Draw',
+      name: 'W3DModelDraw',
+      fields: {},
+      blocks: [
+        {
+          type: 'DefaultConditionState',
+          name: '',
+          fields: {
+            Model: 'DefaultSoldier',
+            Animation: 'DefaultStand',
+            HideSubObject: ['PACK'],
+          },
+          blocks: [],
+        },
+        {
+          type: 'TransitionState',
+          name: 'TRANS_Stand TRANS_StandInjured',
+          fields: {
+            Animation: 'StandToInjured',
+            ShowSubObject: ['WOUND'],
+          },
+          blocks: [],
+        },
+      ],
+    };
+
+    const infos = collectTransitionInfos(makeObjectDef([drawModule]));
+    expect(infos).toHaveLength(1);
+    expect(infos[0].modelName).toBe('DefaultSoldier');
+    expect(infos[0].animationName).toBe('StandToInjured');
+    expect(infos[0].hideSubObjects).toEqual(['PACK']);
+    expect(infos[0].showSubObjects).toEqual(['WOUND']);
+  });
 });
 
 describe('IgnoreConditionStates parsing', () => {

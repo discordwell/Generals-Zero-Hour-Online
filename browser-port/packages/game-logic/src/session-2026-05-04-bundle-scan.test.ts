@@ -41,7 +41,7 @@ import {
 } from './entity-factory.js';
 import { extractChinookAIProfile, extractJetSlowDeathProfiles } from './aircraft-ai.js';
 import { extractFlightDeckProfile } from './flight-deck.js';
-import { collectModelConditionInfos } from './render-profile-helpers.js';
+import { collectModelConditionInfos, collectTransitionInfos } from './render-profile-helpers.js';
 import { extractSlavedUpdateProfile } from './spawner-behavior.js';
 import { extractFireWhenDamagedProfiles } from './status-effects.js';
 import { LOGIC_FRAME_RATE } from './index.js';
@@ -1149,6 +1149,55 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       }
     }
     expect(aliasCount, 'expected retail AliasConditionState users').toBeGreaterThan(0);
+  });
+
+  it('TransitionState entries inherit default-state models for every retail user', () => {
+    let transitionCount = 0;
+    for (const obj of bundle.objects ?? []) {
+      const expected: Array<{ fromKey: string; toKey: string; modelName: string }> = [];
+      const visit = (block: BundleBlock): void => {
+        if ((block.type ?? '').toUpperCase() === 'DRAW') {
+          const defaultBlock = (block.blocks ?? []).find(
+            (child) => (child.type ?? '').toUpperCase() === 'DEFAULTCONDITIONSTATE',
+          );
+          const defaultModel = splitTokens(defaultBlock?.fields?.['Model'] ?? defaultBlock?.fields?.['ModelName'])[0] ?? '';
+          if (defaultModel.length > 0) {
+            for (const child of block.blocks ?? []) {
+              if ((child.type ?? '').toUpperCase() !== 'TRANSITIONSTATE') continue;
+              const fields = child.fields ?? {};
+              if ('Model' in fields || 'ModelName' in fields) continue;
+              const nameTokens = (child.name ?? '').trim().split(/\s+/).filter(Boolean);
+              if (nameTokens.length < 2 || nameTokens[0] === nameTokens[1]) continue;
+              expected.push({
+                fromKey: nameTokens[0]!.toLowerCase(),
+                toKey: nameTokens[1]!.toLowerCase(),
+                modelName: defaultModel,
+              });
+            }
+          }
+        }
+        for (const child of block.blocks ?? []) {
+          visit(child);
+        }
+      };
+      for (const block of obj.blocks ?? []) {
+        visit(block);
+      }
+      if (expected.length === 0) continue;
+
+      transitionCount += expected.length;
+      const infos = collectTransitionInfos(obj as never);
+      for (const transition of expected) {
+        expect(
+          infos.some((info) =>
+            info.fromKey === transition.fromKey
+            && info.toKey === transition.toKey
+            && info.modelName === transition.modelName),
+          `TransitionState default model missing on ${obj.name}: ${transition.fromKey}->${transition.toKey}`,
+        ).toBe(true);
+      }
+    }
+    expect(transitionCount, 'expected retail TransitionState users inheriting default model').toBeGreaterThan(800);
   });
 
   it('extractIniValueTokens decodes flat primitive arrays as a single multi-token entry', () => {
