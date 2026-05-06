@@ -47,6 +47,18 @@ interface SimulationFixture {
 
 const simulationFixtures: SimulationFixture[] = [
   {
+    fileName: 'zipeater_GN_000.sav',
+    title: 'Brutal Start - Training ',
+  },
+  {
+    fileName: 'zipeater_GN_016.sav',
+    title: 'Brutal Start - USA 2 ',
+  },
+  {
+    fileName: 'zipeater_GN_038.sav',
+    title: 'Normal Start - USA 2 ',
+  },
+  {
     fileName: 'zipeater_ZH_000.sav',
     title: 'Hard Start - USA',
   },
@@ -66,7 +78,21 @@ const simulationFixtures: SimulationFixture[] = [
     fileName: 'zipeater_ZH_160.sav',
     title: 'Brutal Finale - China Nuke Party',
   },
+  {
+    fileName: 'zipeater_ZH_162.sav',
+    title: "Brutal Finale - General Alexander's Particle Party",
+  },
 ];
+
+const crcRepeatFixtureNames = new Set([
+  'zipeater_GN_000.sav',
+  'zipeater_GN_016.sav',
+  'zipeater_ZH_000.sav',
+  'zipeater_ZH_005.sav',
+]);
+
+const crcRepeatFixtures = simulationFixtures.filter((fixture) =>
+  crcRepeatFixtureNames.has(fixture.fileName));
 
 interface SourceSaveSimulationSnapshot {
   frame: number;
@@ -215,7 +241,7 @@ for (const fixture of simulationFixtures) {
   });
 }
 
-for (const fixture of simulationFixtures.slice(0, 2)) {
+for (const fixture of crcRepeatFixtures) {
   test(`source save CRC repeats across two 300-frame resumes: ${fixture.fileName}`, async ({ page }) => {
     test.setTimeout(360_000);
     const { errors, diagnostics } = installPageDiagnostics(page);
