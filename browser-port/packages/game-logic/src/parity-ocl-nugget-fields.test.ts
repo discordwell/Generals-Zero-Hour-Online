@@ -107,6 +107,8 @@ interface PrivateEntity {
   experienceState: { currentLevel: number };
   parkingSpaceProducerId: number | null;
   baseHeight: number;
+  sourceObjectLayer: number;
+  sourceObjectDestinationLayer: number;
   moving: boolean;
   moveTarget: { x: number; z: number } | null;
   attackTargetPosition: { x: number; z: number } | null;
@@ -928,6 +930,63 @@ describe('parity: CreateObject nugget missing fields', () => {
         z: source.z,
       }));
     }
+  });
+
+  it('preserves non-ground source layer by default when no wrapper container exists', () => {
+    // C++ parity: GenericObjectCreationNugget ctor defaults
+    // m_preserveLayer=true, and ObjectCreationList.cpp:1380-1384 copies
+    // sourceObj->getLayer() when that layer is not LAYER_GROUND (1).
+    const { logic } = makeCreateObjectSetup({});
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    source.sourceObjectLayer = 2;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => void })
+      .executeOCL('OCL_TestCreate', source);
+
+    const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
+    expect(spawned.length).toBe(1);
+    expect(spawned[0]!.sourceObjectLayer).toBe(2);
+  });
+
+  it('does not preserve source layer when PreserveLayer is No', () => {
+    // C++ parity: PreserveLayer parseBool disables the non-ground layer copy.
+    const { logic } = makeCreateObjectSetup({ PreserveLayer: 'No' });
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    source.sourceObjectLayer = 2;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => void })
+      .executeOCL('OCL_TestCreate', source);
+
+    const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
+    expect(spawned.length).toBe(1);
+    expect(spawned[0]!.sourceObjectLayer).toBe(1);
+  });
+
+  it('does not preserve source layer into objects wrapped by PutInContainer', () => {
+    // C++ parity: ObjectCreationList.cpp:1380 gates PreserveLayer with
+    // container == NULL, so generated objects inside a wrapper keep defaults.
+    const { logic } = makeCreateObjectSetup(
+      { PutInContainer: 'Wrapper' },
+      [
+        makeObjectDef('Wrapper', 'America', ['VEHICLE'], [
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', { ContainMax: 4 }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+        ]),
+      ],
+    );
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    source.sourceObjectLayer = 2;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => void })
+      .executeOCL('OCL_TestCreate', source);
+
+    const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
+    const wrapper = getEntitiesByTemplate(logic, 'Wrapper');
+    expect(spawned.length).toBe(1);
+    expect(wrapper.length).toBe(1);
+    expect(spawned[0]!.transportContainerId).toBe(wrapper[0]!.id);
+    expect(spawned[0]!.sourceObjectLayer).toBe(1);
+    expect(wrapper[0]!.sourceObjectLayer).toBe(1);
   });
 
   it('skips creation when RequiresLivePlayer is Yes and owning side is defeated', () => {

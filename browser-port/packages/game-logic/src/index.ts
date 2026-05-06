@@ -56891,6 +56891,7 @@ export class GameLogicSubsystem implements Subsystem {
     const fadeTimeMs = readNumericField(nugget.fields, ['FadeTime']) ?? 0;
     const fadeFrames = fadeTimeMs > 0 ? this.msToLogicFrames(fadeTimeMs) : 0;
     const fadeSoundName = this.extractDynamicAudioEventName(nugget.fields, 'FadeSound')?.trim() ?? '';
+    const preserveLayer = readBooleanField(nugget.fields, ['PreserveLayer']) ?? true;
 
     // Source parity: DiesOnBadLand — ZH-only: kill unit if spawned on water/impassable/cliff/off-map.
     // C++ ObjectCreationList.cpp:1267-1300 — if m_diesOnBadLand, check isUnderwater, isOffMap, impassable.
@@ -57037,6 +57038,12 @@ export class GameLogicSubsystem implements Subsystem {
         // Source parity (ZH): track first created entity for return value.
         if (firstCreatedEntityId === null) {
           firstCreatedEntityId = spawned.id;
+        }
+        // Source parity: ObjectCreationList.cpp:1380-1384 preserves a
+        // non-ground source pathfind layer when no PutInContainer wrapper
+        // exists. GameType.h defines LAYER_GROUND = 1.
+        if (preserveLayer && putInContainerEntity === null && sourceEntity.sourceObjectLayer !== 1) {
+          spawned.sourceObjectLayer = sourceEntity.sourceObjectLayer;
         }
         if (inheritsVet) {
           spawned.experienceState.currentLevel = sourceEntity.experienceState.currentLevel;
