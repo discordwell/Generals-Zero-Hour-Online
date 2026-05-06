@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ObjectDef } from '@generals/ini-data';
 
-import { createEmptySourceMapEntitySaveState, GameLogicSubsystem } from './index.js';
+import { createEmptySourceMapEntitySaveState, GameLogicSubsystem, type MapEntity } from './index.js';
 import {
   tryEjectPilotOnDeath,
 } from './entity-lifecycle.js';
@@ -377,6 +377,52 @@ describe('slow death behavior', () => {
     expect(dyingState).not.toBeNull();
     expect(dyingState!.animationState).toBe('DIE');
     expect(dyingState!.health).toBeLessThanOrEqual(0);
+  });
+
+  it('weights SlowDeathBehavior selection from DamageInfo overkill output', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('OverkillDeathUnit', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_Sedate', {
+            DestructionDelay: 100,
+            ProbabilityModifier: 1,
+            ModifierBonusPerOverkillPercent: 0,
+          }),
+          makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_Overkill', {
+            DestructionDelay: 100,
+            ProbabilityModifier: 1,
+            ModifierBonusPerOverkillPercent: 10,
+          }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('OverkillDeathUnit', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    const priv = logic as unknown as {
+      gameRandom: { nextRange(min: number, max: number): number };
+      applyWeaponDamageAmount(id: number | null, target: MapEntity, amount: number, type: string, deathType?: string): void;
+      spawnedEntities: Map<number, MapEntity>;
+    };
+    const selectionRanges: Array<{ min: number; max: number }> = [];
+    priv.gameRandom.nextRange = (min: number, max: number): number => {
+      selectionRanges.push({ min, max });
+      return selectionRanges.length === 1 ? Math.min(max, 3) : min;
+    };
+    const target = priv.spawnedEntities.get(1)!;
+
+    priv.applyWeaponDamageAmount(null, target, 140, 'EXPLOSION', 'NORMAL');
+
+    expect(target.pendingDeathActualDamageDealt).toBe(140);
+    expect(target.pendingDeathActualDamageClipped).toBe(100);
+    // Source parity: overkill=(140-100)/100=0.4, modifier=floor(0.4*10)=4.
+    // Total weight is 1 + (1+4) = 6; the previous post-clamp health shortcut produced 2.
+    expect(selectionRanges[0]).toEqual({ min: 1, max: 6 });
+    expect(target.slowDeathState?.profileIndex).toBe(1);
   });
 
   it('excludes slow-death entities from victory condition counting', () => {

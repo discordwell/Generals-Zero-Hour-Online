@@ -4494,6 +4494,10 @@ export interface MapEntity {
    * this entity. (Damage.cpp:148-157, Object.cpp:onDie)
    */
   pendingDeathSourceTemplateName: string | null;
+  /** Source parity: DamageInfoOutput::m_actualDamageDealt for the killing blow. */
+  pendingDeathActualDamageDealt: number;
+  /** Source parity: DamageInfoOutput::m_actualDamageClipped for the killing blow. */
+  pendingDeathActualDamageClipped: number;
 
   // ── Source parity: LifetimeUpdate — timed self-destruction ──
   /** Frame at which this entity should self-destruct (null = no lifetime limit). */
@@ -51133,6 +51137,8 @@ export class GameLogicSubsystem implements Subsystem {
         target.health = 0;
         target.pendingDeathType = weaponDeathType || damageTypeToDeathType(damageType);
         target.pendingDeathSourceTemplateName = sourceTemplateName;
+        target.pendingDeathActualDamageDealt = 0;
+        target.pendingDeathActualDamageClipped = 0;
         if (!target.slowDeathState && !target.structureCollapseState) {
           if (!this.tryBeginStructureCollapse(target)
             && !this.tryBeginSlowDeath(target, sourceEntityId ?? -1)) {
@@ -51433,9 +51439,12 @@ export class GameLogicSubsystem implements Subsystem {
       : 0 as BodyDamageState;
 
     // Source parity: ActiveBody.cpp — capture previous health ratio for yellow damage check.
-    const prevHealthRatio = target.maxHealth > 0 ? target.health / target.maxHealth : 1;
+    const prevHealth = target.health;
+    const prevHealthRatio = target.maxHealth > 0 ? prevHealth / target.maxHealth : 1;
+    const actualDamageDealt = adjustedDamage;
 
-    target.health = Math.max(0, target.health - adjustedDamage);
+    target.health = Math.max(0, prevHealth - adjustedDamage);
+    const actualDamageClipped = Math.max(0, prevHealth - target.health);
 
     // Source parity: onBodyDamageStateChange — SupplyWarehouseCrippling + BoneFXUpdate + GarrisonContain.
     if (needsDamageStateTracking) {
@@ -51636,6 +51645,9 @@ export class GameLogicSubsystem implements Subsystem {
       target.pendingDeathType = weaponDeathType || damageTypeToDeathType(damageType);
       // Source parity: DamageInfoInput::m_sourceTemplate — record killer's template for die modules.
       target.pendingDeathSourceTemplateName = sourceTemplateName;
+      // Source parity: DamageInfoOutput is consumed by SlowDeathBehavior::getProbabilityModifier.
+      target.pendingDeathActualDamageDealt = actualDamageDealt;
+      target.pendingDeathActualDamageClipped = actualDamageClipped;
       // Source parity: DemoTrapUpdate::update() — detonate on kill if configured.
       if (target.demoTrapProfile?.detonateWhenKilled && !target.demoTrapDetonated) {
         this.detonateDemoTrap(target, target.demoTrapProfile);

@@ -460,9 +460,12 @@ export function tryBeginSlowDeath(self: GL, entity: MapEntity, _attackerId: numb
   for (let i = 0; i < entity.slowDeathProfiles.length; i++) {
     const profile = entity.slowDeathProfiles[i]!;
     if (!isSlowDeathApplicable(self, entity, profile)) continue;
-    // Source parity: overkill bonus = (overkillDamage / maxHealth) * bonusPerOverkillPercent.
-    // C++ uses fraction (0.0–1.0+), not percentage. Simplified: overkill = -health.
-    const overkillFraction = entity.maxHealth > 0 ? -entity.health / entity.maxHealth : 0;
+    // Source parity: SlowDeathBehavior::getProbabilityModifier uses DamageInfoOutput.
+    // m_actualDamageDealt - m_actualDamageClipped is the source overkill amount.
+    const actualDamageDealt = Math.max(0, Number(entity.pendingDeathActualDamageDealt ?? 0));
+    const actualDamageClipped = Math.max(0, Number(entity.pendingDeathActualDamageClipped ?? 0));
+    const overkillDamage = Math.max(0, actualDamageDealt - actualDamageClipped);
+    const overkillFraction = entity.maxHealth > 0 ? overkillDamage / entity.maxHealth : 0;
     const overkillBonus = Math.floor(overkillFraction * profile.modifierBonusPerOverkillPercent);
     const weight = Math.max(1, profile.probabilityModifier + overkillBonus);
     candidates.push({ index: i, weight });
