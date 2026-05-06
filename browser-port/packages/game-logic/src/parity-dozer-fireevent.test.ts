@@ -16,6 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
+import type { IniBlock } from '@generals/core';
 
 import { GameLogicSubsystem } from './index.js';
 import {
@@ -278,13 +279,14 @@ describe('Dozer idle behavior after building destruction (C++ parity)', () => {
 //   index.ts:8829-8834 — drainVisualEvents() returns accumulated events.
 
 describe('Weapon fire visual event timing (C++ parity)', () => {
-  function makeAttackSetup() {
+  function makeAttackSetup(extraAttackerBlocks: IniBlock[] = []) {
     const attackerDef = makeObjectDef('Tank', 'America', ['VEHICLE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 500,
         InitialHealth: 500,
       }),
       makeWeaponBlock('TankGun'),
+      ...extraAttackerBlocks,
     ]);
 
     const targetDef = makeObjectDef('TargetDummy', 'China', ['VEHICLE'], [
@@ -383,6 +385,82 @@ describe('Weapon fire visual event timing (C++ parity)', () => {
     // TS parity: emitWeaponFiredVisualEvent receives target { x, y, z }.
     expect(firstFireEvent!.targetX).toBeDefined();
     expect(firstFireEvent!.targetZ).toBeDefined();
+  });
+
+  it('anchors WEAPON_FIRED to WeaponFireFXBone for the active firing condition', () => {
+    // Source parity: W3DModelDraw::handleWeaponFireFX uses the current
+    // ModelConditionInfo::m_weaponFireFXBoneName[slot] bone transform for FireFX.
+    const drawBlock = makeBlock('Draw', 'W3DModelDraw ModuleTag_Draw', {}, [
+      makeBlock('DefaultConditionState', '', {
+        Model: 'Tank',
+        WeaponFireFXBone: ['PRIMARY', 'DefaultMuzzle'],
+      }),
+      makeBlock('ModelConditionState', 'FIRING_A', {
+        Model: 'Tank',
+        WeaponFireFXBone: ['PRIMARY', 'FiringMuzzle'],
+      }),
+    ]);
+    const { logic } = makeAttackSetup([drawBlock]);
+
+    logic.drainVisualEvents();
+    logic.submitCommand({
+      type: 'attackEntity',
+      entityId: 1,
+      targetEntityId: 2,
+    });
+
+    let fireEvent: { type: string; sourceBoneName?: string } | null = null;
+    for (let frame = 1; frame <= 30 && !fireEvent; frame++) {
+      logic.update(1 / 30);
+      fireEvent = logic.drainVisualEvents()
+        .find((event) => event.type === 'WEAPON_FIRED') as typeof fireEvent;
+    }
+
+    expect(fireEvent).not.toBeNull();
+    expect(fireEvent!.sourceBoneName).toBe('firingmuzzle');
+  });
+
+  it('keeps explicit fire-origin overrides in world space instead of forcing a bone anchor', () => {
+    // Enclosed/garrisoned fire uses an explicit sourceOverride computed from
+    // source positions; source W3D hidden-transport fallback does not use a
+    // live model bone transform there.
+    const drawBlock = makeBlock('Draw', 'W3DModelDraw ModuleTag_Draw', {}, [
+      makeBlock('DefaultConditionState', '', {
+        Model: 'Tank',
+        WeaponFireFXBone: ['PRIMARY', 'DefaultMuzzle'],
+      }),
+    ]);
+    const { logic } = makeAttackSetup([drawBlock]);
+    const internals = logic as unknown as {
+      spawnedEntities: Map<number, any>;
+      emitWeaponFiredVisualEvent(
+        attacker: any,
+        weapon: any,
+        target?: { x: number; y: number; z: number },
+        sourceOverride?: { x: number; y: number; z: number },
+      ): void;
+    };
+    const attacker = internals.spawnedEntities.get(1)!;
+    attacker.attackSubState = 'FIRING';
+
+    logic.drainVisualEvents();
+    internals.emitWeaponFiredVisualEvent(
+      attacker,
+      attacker.attackWeapon,
+      { x: 30, y: 0, z: 10 },
+      { x: 12, y: 3, z: 14 },
+    );
+    const fireEvent = logic.drainVisualEvents().find((event) => event.type === 'WEAPON_FIRED');
+
+    expect(fireEvent).toEqual(expect.objectContaining({
+      x: 12,
+      y: 3,
+      z: 14,
+      sourceEntityId: 1,
+    }));
+    expect(fireEvent).not.toEqual(expect.objectContaining({
+      sourceBoneName: expect.any(String),
+    }));
   });
 
   it('WEAPON_FIRED event coincides with damage application on the same frame', () => {

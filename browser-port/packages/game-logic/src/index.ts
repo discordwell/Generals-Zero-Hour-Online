@@ -78,6 +78,7 @@ import {
   shouldPathfindObstacle as shouldPathfindObstacleImpl,
 } from './render-profile-helpers.js';
 import type { ModelConditionInfo, TransitionInfo } from './render-profile-helpers.js';
+import { findBestConditionMatch as findBestConditionMatchImpl } from './condition-state-matcher.js';
 import {
   INVALID_RAILED_TRANSPORT_PATH,
   createRailedTransportWaypointIndex as createRailedTransportWaypointIndexImpl,
@@ -49651,6 +49652,7 @@ export class GameLogicSubsystem implements Subsystem {
     target?: { x: number; y: number; z: number },
     sourceOverride?: { x: number; y: number; z: number },
   ): void {
+    const sourceBoneName = this.resolveWeaponFireFXSourceBoneName(attacker, sourceOverride);
     const event: import('./types.js').VisualEvent = {
       type: 'WEAPON_FIRED',
       x: sourceOverride?.x ?? attacker.x,
@@ -49661,12 +49663,65 @@ export class GameLogicSubsystem implements Subsystem {
       projectileType: this.classifyWeaponVisualType(weapon),
       fireSoundEvent: weapon.fireSoundEvent ?? undefined,
     };
+    if (sourceBoneName) {
+      event.sourceBoneName = sourceBoneName;
+    }
     if (target) {
       event.targetX = target.x;
       event.targetY = target.y;
       event.targetZ = target.z;
     }
     this.visualEventBuffer.push(event);
+  }
+
+  private resolveWeaponFireFXSourceBoneName(
+    attacker: MapEntity,
+    sourceOverride?: { x: number; y: number; z: number },
+  ): string | undefined {
+    if (sourceOverride || !attacker.modelConditionInfos || attacker.modelConditionInfos.length === 0) {
+      return undefined;
+    }
+
+    const weaponSlotIndex = Math.max(0, Math.min(SOURCE_OBJECT_WEAPON_SLOT_COUNT - 1, attacker.attackWeaponSlotIndex));
+    const activeFlags = new Set(attacker.modelConditionFlags);
+    this.applyTransientWeaponConditionFlags(activeFlags, attacker, weaponSlotIndex);
+
+    const matchedInfo = findBestConditionMatchImpl(attacker.modelConditionInfos, activeFlags);
+    const boneName = matchedInfo?.weaponBones?.[weaponSlotIndex]?.fireFXBoneName?.trim();
+    return boneName ? boneName : undefined;
+  }
+
+  private applyTransientWeaponConditionFlags(
+    flags: Set<string>,
+    entity: MapEntity,
+    weaponSlotIndex: number,
+  ): void {
+    for (const suffix of ['A', 'B', 'C'] as const) {
+      flags.delete(`FIRING_${suffix}`);
+      flags.delete(`PREATTACK_${suffix}`);
+      flags.delete(`BETWEEN_FIRING_SHOTS_${suffix}`);
+      flags.delete(`RELOADING_${suffix}`);
+      flags.delete(`USING_WEAPON_${suffix}`);
+    }
+    flags.delete('ATTACKING');
+
+    const suffix = weaponSlotIndex === 0 ? 'A' : (weaponSlotIndex === 1 ? 'B' : 'C');
+    if (entity.attackTargetEntityId !== null || entity.attackTargetPosition !== null) {
+      flags.add('ATTACKING');
+      if (entity.attackSubState !== 'IDLE') {
+        flags.add(`USING_WEAPON_${suffix}`);
+      }
+    }
+
+    if (entity.attackSubState === 'FIRING') {
+      flags.add(`FIRING_${suffix}`);
+    } else if (entity.attackReloadFinishFrame > this.frameCounter) {
+      flags.add(`RELOADING_${suffix}`);
+    } else if (entity.attackSubState === 'AIMING' && entity.preAttackFinishFrame > this.frameCounter) {
+      flags.add(`PREATTACK_${suffix}`);
+    } else if (entity.attackSubState === 'AIMING' && entity.nextAttackFrame > this.frameCounter) {
+      flags.add(`BETWEEN_FIRING_SHOTS_${suffix}`);
+    }
   }
 
   /* @internal */ emitLaserParticleSystemVisualEvents(
