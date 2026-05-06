@@ -32,6 +32,9 @@ import {
 import { MAP_XY_FACTOR } from '@generals/terrain';
 type GL = any;
 
+const SOURCE_CHINOOK_ROPE_INITIAL_LEN = 1.0;
+const SOURCE_CHINOOK_ROPE_GRAVITY_ACCEL_PER_FRAME = 1.0; // GlobalData::m_gravity default is -1.0 dist/frame^2.
+
 // ---- Aircraft AI implementations ----
 
 export function extractParkingPlaceProfile(self: GL, objectDef: ObjectDef | undefined): ParkingPlaceProfile | null {
@@ -760,22 +763,33 @@ export function resolveChinookCombatDropInitialDelayFrames(self: GL, source: Map
   if (!profile || !profile.waitForRopesToDrop) {
     return 0;
   }
-  if (!Number.isFinite(profile.ropeDropSpeed) || profile.ropeDropSpeed <= 0) {
-    return 0;
-  }
 
   const groundY = self.resolveGroundHeight(source.x, source.z);
-  const dropHeight = Math.max(0, (source.y - source.baseHeight) - groundY - profile.ropeFinalHeight);
-  if (dropHeight <= 0) {
+  const ropeLenMax = Math.max(0, (source.y - source.baseHeight) - groundY - profile.ropeFinalHeight);
+  if (ropeLenMax <= SOURCE_CHINOOK_ROPE_INITIAL_LEN) {
     return 0;
   }
 
-  // Source parity approximation: rope speed is world-units/sec.
-  const dropSpeedPerFrame = profile.ropeDropSpeed / LOGIC_FRAME_RATE;
-  if (dropSpeedPerFrame <= 0) {
-    return 0;
+  if (!Number.isFinite(profile.ropeDropSpeed) || profile.ropeDropSpeed <= 0) {
+    return Number.POSITIVE_INFINITY;
   }
-  return Math.max(0, Math.ceil(dropHeight / dropSpeedPerFrame));
+
+  // Source parity: ChinookCombatDropState::update grows ropeLen each frame by
+  // ropeSpeed, where ropeSpeed accelerates by abs(GlobalData::m_gravity) and is
+  // capped by m_ropeDropSpeed. While waiting for ropes, it increments
+  // nextDropTime once per growth frame. This is the closed form of:
+  //   speed_n = min(RopeDropSpeed, n * abs(gravity))
+  //   ropeLen_n = 1 + sum(speed_i)
+  const targetGrowth = ropeLenMax - SOURCE_CHINOOK_ROPE_INITIAL_LEN;
+  const gravity = SOURCE_CHINOOK_ROPE_GRAVITY_ACCEL_PER_FRAME;
+  const uncappedFrames = Math.max(0, Math.floor(profile.ropeDropSpeed / gravity));
+  const uncappedGrowth = gravity * uncappedFrames * (uncappedFrames + 1) / 2;
+  if (targetGrowth <= uncappedGrowth) {
+    return Math.max(0, Math.ceil((Math.sqrt(1 + (8 * targetGrowth / gravity)) - 1) / 2));
+  }
+
+  const cappedGrowth = targetGrowth - uncappedGrowth;
+  return uncappedFrames + Math.ceil(cappedGrowth / profile.ropeDropSpeed);
 }
 
 export function resolveChinookCombatDropIntervalFrames(self: GL, profile: ChinookAIProfile): number {

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import { GameLogicSubsystem, LOGIC_FRAME_RATE } from './index.js';
+import { resolveChinookCombatDropInitialDelayFrames } from './aircraft-ai.js';
 import { resolveScriptReinforcementDeliverPayloadProfile } from './script-actions.js';
 import {
   makeBlock,
@@ -22,6 +23,62 @@ import {
   makeMapObject,
   makeInputState,
 } from './test-helpers.js';
+
+describe('ChinookAIUpdate combat drop rope timing', () => {
+  function makeChinookSource(overrides?: Partial<{
+    y: number;
+    baseHeight: number;
+    ropeDropSpeed: number;
+    ropeFinalHeight: number;
+    waitForRopesToDrop: boolean;
+  }>) {
+    return {
+      x: 0,
+      z: 0,
+      y: overrides?.y ?? 10,
+      baseHeight: overrides?.baseHeight ?? 0,
+      chinookAIProfile: {
+        waitForRopesToDrop: overrides?.waitForRopesToDrop ?? true,
+        ropeDropSpeed: overrides?.ropeDropSpeed ?? 3,
+        ropeFinalHeight: overrides?.ropeFinalHeight ?? 0,
+      },
+    } as never;
+  }
+
+  const selfStub = {
+    resolveGroundHeight: () => 0,
+  } as never;
+
+  it('uses source per-frame gravity acceleration when waiting for ropes to drop', () => {
+    // Source parity: ChinookCombatDropState::update starts ropeLen at 1 and,
+    // each frame, increments ropeSpeed by abs(GlobalData::m_gravity), clamps to
+    // RopeDropSpeed, then adds ropeSpeed to ropeLen. For ropeLenMax 10 and cap
+    // 3: 1->2->4->7->10, so the first rappeller waits 4 frames.
+    const delayFrames = resolveChinookCombatDropInitialDelayFrames(
+      selfStub,
+      makeChinookSource({ y: 10, ropeDropSpeed: 3 }),
+    );
+    expect(delayFrames).toBe(4);
+  });
+
+  it('does not wait when WaitForRopesToDrop is disabled', () => {
+    const delayFrames = resolveChinookCombatDropInitialDelayFrames(
+      selfStub,
+      makeChinookSource({ y: 30, ropeDropSpeed: 1, waitForRopesToDrop: false }),
+    );
+    expect(delayFrames).toBe(0);
+  });
+
+  it('matches default source acceleration before the high default RopeDropSpeed cap is reached', () => {
+    // Source default RopeDropSpeed is effectively uncapped, so ropeLenMax 30
+    // reaches on the 8th frame: 1 + (1+2+...+8) = 37.
+    const delayFrames = resolveChinookCombatDropInitialDelayFrames(
+      selfStub,
+      makeChinookSource({ y: 30, ropeDropSpeed: 1e10 }),
+    );
+    expect(delayFrames).toBe(8);
+  });
+});
 
 describe('CountermeasuresBehavior', () => {
   /**
