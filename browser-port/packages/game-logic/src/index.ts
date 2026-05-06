@@ -97,6 +97,7 @@ import {
   readNumericList,
   readNumericListField,
   readStringField,
+  readStringList,
 } from './ini-readers.js';
 import {
   type BuildableStatus,
@@ -56835,6 +56836,9 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: DiesOnBadLand — ZH-only: kill unit if spawned on water/impassable/cliff/off-map.
     // C++ ObjectCreationList.cpp:1267-1300 — if m_diesOnBadLand, check isUnderwater, isOffMap, impassable.
     const diesOnBadLand = readBooleanField(nugget.fields, ['DiesOnBadLand']) ?? false;
+    const dispositionTokens = readStringList(nugget.fields, ['Disposition'])
+      .map((token) => token.toUpperCase());
+    const inheritVelocity = dispositionTokens.includes('INHERIT_VELOCITY');
 
     let firstCreatedEntityId: number | null = null;
     let putInContainerEntity: MapEntity | null = null;
@@ -56917,6 +56921,21 @@ export class GameLogicSubsystem implements Subsystem {
             spawned.attackersMissExpireFrame,
             this.frameCounter + invulnerableFrames,
           );
+        }
+
+        if (inheritVelocity) {
+          const sourcePhysics = sourceEntity.physicsBehaviorState;
+          if (sourcePhysics) {
+            // Source parity: GenericObjectCreationNugget::doStuffToObj applies
+            // the source physics velocity as a force when Disposition includes
+            // INHERIT_VELOCITY.
+            this.applyPhysicsForceToEntity(
+              spawned,
+              sourcePhysics.velX,
+              sourcePhysics.velY,
+              sourcePhysics.velZ,
+            );
+          }
         }
 
         // Source parity: MinHealth / MaxHealth — clamp spawned health.

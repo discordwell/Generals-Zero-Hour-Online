@@ -655,13 +655,23 @@ describe('parity: CreateObject nugget missing fields', () => {
    *   m_fadeOut(false), m_fadeFrames(0), etc.
    */
 
-  function makeCreateObjectSetup(nuggetFields: Record<string, unknown>, extraObjects?: ReturnType<typeof makeObjectDef>[]) {
+  function makeCreateObjectSetup(
+    nuggetFields: Record<string, unknown>,
+    extraObjects?: ReturnType<typeof makeObjectDef>[],
+    opts: { withPhysics?: boolean } = {},
+  ) {
     const bundle = makeBundle({
       objects: [
         makeObjectDef('Source', 'America', ['STRUCTURE'], [
+          ...(opts.withPhysics
+            ? [makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', { Mass: 5 })]
+            : []),
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
         ]),
         makeObjectDef('SpawnedUnit', 'America', ['INFANTRY'], [
+          ...(opts.withPhysics
+            ? [makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', { Mass: 2 })]
+            : []),
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
         ], { TransportSlotCount: 1 }),
         ...(extraObjects ?? []),
@@ -897,5 +907,47 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(wrappers.length).toBe(1);
     expect(createdId).toBe(wrappers[0]!.id);
     expect(spawned.every((entity) => entity.transportContainerId === wrappers[0]!.id)).toBe(true);
+  });
+
+  it('applies source physics velocity as force when Disposition inherits velocity', () => {
+    // C++ parity: ObjectCreationList.cpp doStuffToObj checks
+    // BitTest(m_disposition, INHERIT_VELOCITY) and calls
+    // objectPhysics->applyForce(sourcePhysics->getVelocity()).
+    const { logic } = makeCreateObjectSetup(
+      { Disposition: ['SEND_IT_FLYING', 'INHERIT_VELOCITY'] },
+      undefined,
+      { withPhysics: true },
+    );
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    source.physicsBehaviorState = {
+      velX: 6,
+      velY: 4,
+      velZ: 8,
+      accelX: 0,
+      accelY: 0,
+      accelZ: 0,
+      yawRate: 0,
+      pitchRate: 0,
+      rollRate: 0,
+      wasAirborneLastFrame: false,
+      stickToGround: false,
+      allowToFall: false,
+      isInFreeFall: false,
+      extraBounciness: 0,
+      extraFriction: 0,
+      isStunned: false,
+    };
+
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestCreate', source);
+
+    const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
+    expect(spawned.length).toBe(1);
+    expect(spawned[0]!.physicsBehaviorProfile?.mass).toBe(2);
+    expect(spawned[0]!.physicsBehaviorState).not.toBeNull();
+    expect(spawned[0]!.physicsBehaviorState!.accelX).toBeCloseTo(3);
+    expect(spawned[0]!.physicsBehaviorState!.accelY).toBeCloseTo(2);
+    expect(spawned[0]!.physicsBehaviorState!.accelZ).toBeCloseTo(4);
   });
 });
