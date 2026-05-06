@@ -222,9 +222,13 @@ export function canAttackerTargetEntity(self: GL,
     const dz = target.z - attacker.z;
     const horizontalDist = Math.hypot(dx, dz);
     const dy = (target.y ?? 0) - (attacker.y ?? 0);
-    const pitch = Math.atan2(dy, Math.max(horizontalDist, 0.001));
-    if (pitch < weapon.minTargetPitch || pitch > weapon.maxTargetPitch) {
-      return false;
+    // Source parity: Weapon.cpp accepts small vertical deltas regardless of
+    // target pitch (ACCCEPTABLE_DZ = 10.0f).
+    if (Math.abs(dy) >= 10) {
+      const pitch = Math.atan2(dy, Math.max(horizontalDist, 0.001));
+      if (pitch < weapon.minTargetPitch || pitch > weapon.maxTargetPitch) {
+        return false;
+      }
     }
   }
 
