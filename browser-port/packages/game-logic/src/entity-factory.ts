@@ -6018,52 +6018,9 @@ export function extractStructureCollapseProfile(self: GL, objectDef: ObjectDef |
         }
 
         // Parse phase OCLs: "OCL = INITIAL SomeOCLName AnotherOCL", possibly
-        // appearing multiple times in the source. The bundle may emit a single
-        // OCL line as a flat array of tokens (["INITIAL", "OCL_X"]) and
-        // multiple lines as either a string list (["INITIAL OCL_X", "FINAL
-        // OCL_Y"]) or a 2D array of token arrays. Treat all three shapes
-        // uniformly by classifying each top-level array entry: an inner array
-        // becomes one entry's tokens, a string becomes one entry's tokens
-        // after whitespace-split, and a flat array of only-strings is taken
-        // as a single entry's tokens (the most common shape — every retail
-        // SlowDeath/Collapse OCL ships this way).
+        // appearing multiple times in the source.
         const phaseOCLs: [string[], string[], string[], string[]] = [[], [], [], []];
-        const rawOCL = block.fields['OCL'];
-        const oclEntries: string[][] = [];
-        if (typeof rawOCL === 'string') {
-          oclEntries.push(rawOCL.trim().split(/\s+/).filter((token) => token.length > 0));
-        } else if (Array.isArray(rawOCL)) {
-          const allStrings = rawOCL.every((entry) => typeof entry === 'string');
-          if (allStrings && rawOCL.length > 0) {
-            // Flat string array — could be one entry's tokens OR multiple
-            // entries each as a single string. Heuristic: if the first token
-            // matches a known phase name, the entire array is one entry; else
-            // each element is its own whitespace-separated entry.
-            const firstToken = String(rawOCL[0]).trim().toUpperCase();
-            const isSingleEntry = scPhaseNames.includes(firstToken as typeof scPhaseNames[number]);
-            if (isSingleEntry) {
-              oclEntries.push(rawOCL.map((entry) => String(entry).trim()).filter((token) => token.length > 0));
-            } else {
-              for (const entry of rawOCL) {
-                const tokens = String(entry).trim().split(/\s+/).filter((token) => token.length > 0);
-                if (tokens.length > 0) oclEntries.push(tokens);
-              }
-            }
-          } else {
-            for (const entry of rawOCL) {
-              if (Array.isArray(entry)) {
-                const tokens = entry
-                  .filter((token): token is string => typeof token === 'string')
-                  .map((token) => token.trim())
-                  .filter((token) => token.length > 0);
-                if (tokens.length > 0) oclEntries.push(tokens);
-              } else if (typeof entry === 'string') {
-                const tokens = entry.trim().split(/\s+/).filter((token) => token.length > 0);
-                if (tokens.length > 0) oclEntries.push(tokens);
-              }
-            }
-          }
-        }
+        const oclEntries = extractIniValueTokens(self, block.fields['OCL']);
         for (const tokens of oclEntries) {
           if (tokens.length < 2) continue;
           const phaseIdx = scPhaseNames.indexOf(tokens[0]!.toUpperCase() as typeof scPhaseNames[number]);
