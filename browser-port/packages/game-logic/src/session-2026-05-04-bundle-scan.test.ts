@@ -41,7 +41,7 @@ import {
 } from './entity-factory.js';
 import { extractChinookAIProfile, extractJetSlowDeathProfiles } from './aircraft-ai.js';
 import { extractFlightDeckProfile } from './flight-deck.js';
-import { collectModelConditionInfos, collectTransitionInfos } from './render-profile-helpers.js';
+import { collectModelConditionInfos, collectTransitionInfos, resolveRenderAssetProfile } from './render-profile-helpers.js';
 import { extractSlavedUpdateProfile } from './spawner-behavior.js';
 import { extractFireWhenDamagedProfiles } from './status-effects.js';
 import { readCoord3DField } from './ini-readers.js';
@@ -1281,6 +1281,59 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       }
     }
     expect(transitionCount, 'expected retail TransitionState users inheriting default model').toBeGreaterThan(800);
+  });
+
+  it('ConditionState Animation metadata does not become render clip names', () => {
+    let checked = 0;
+    for (const obj of bundle.objects ?? []) {
+      const expectedByState = new Map<string, Set<string>>();
+      const visit = (block: BundleBlock): void => {
+        if ((block.type ?? '').toUpperCase() === 'CONDITIONSTATE') {
+          const value = block.fields?.['Animation'];
+          if (
+            Array.isArray(value)
+            && value.length >= 2
+            && typeof value[0] === 'string'
+            && value.slice(1).some((entry) => typeof entry === 'string' && /^[-+]?\d+(?:\.\d+)?$/.test(entry))
+          ) {
+            const stateName = (block.name ?? '').toUpperCase();
+            const renderState = stateName.includes('FIRING') || stateName.includes('ATTACK') || stateName.includes('RELOADING')
+              ? 'ATTACK'
+              : stateName.includes('MOVING') || stateName.includes('MOVE') || stateName.includes('RUN')
+                ? 'MOVE'
+                : null;
+            if (renderState) {
+              const clips = expectedByState.get(renderState) ?? new Set<string>();
+              clips.add(value[0].trim());
+              expectedByState.set(renderState, clips);
+              checked++;
+            }
+          }
+        }
+        for (const child of block.blocks ?? []) {
+          visit(child);
+        }
+      };
+      for (const block of obj.blocks ?? []) {
+        visit(block);
+      }
+      if (expectedByState.size === 0) continue;
+
+      const profile = resolveRenderAssetProfile(obj as never);
+      for (const [state, expectedClips] of expectedByState) {
+        const actualClips = profile.renderAnimationStateClips[state as keyof typeof profile.renderAnimationStateClips] ?? [];
+        for (const clipName of expectedClips) {
+          expect(actualClips, `Animation clip missing on ${obj.name}/${state}: ${clipName}`).toContain(clipName);
+        }
+        for (const actual of actualClips) {
+          expect(
+            /^[-+]?\d+(?:\.\d+)?$/.test(actual),
+            `numeric animation metadata leaked as clip on ${obj.name}/${state}: ${actual}`,
+          ).toBe(false);
+        }
+      }
+    }
+    expect(checked, 'expected retail ConditionState.Animation entries with numeric metadata').toBeGreaterThan(100);
   });
 
   it('extractIniValueTokens decodes flat primitive arrays as a single multi-token entry', () => {

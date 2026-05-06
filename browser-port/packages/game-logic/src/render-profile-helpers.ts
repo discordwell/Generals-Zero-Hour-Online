@@ -91,6 +91,13 @@ export interface ResolvedRenderAssetProfile {
   ignoreConditionStates: string[];
 }
 
+function isModelConditionStateBlockType(blockType: string): boolean {
+  const normalized = blockType.toUpperCase();
+  return normalized === 'MODELCONDITIONSTATE'
+    || normalized === 'CONDITIONSTATE'
+    || normalized === 'DEFAULTCONDITIONSTATE';
+}
+
 export function resolveRenderAssetProfile(
   objectDef: ObjectDef | undefined,
 ): ResolvedRenderAssetProfile {
@@ -213,7 +220,7 @@ export function collectModelConditionInfos(objectDef: ObjectDef | undefined): Mo
 
   const visitBlock = (block: IniBlock): void => {
     const blockType = block.type.toUpperCase();
-    if (blockType === 'MODELCONDITIONSTATE' || blockType === 'DEFAULTCONDITIONSTATE') {
+    if (isModelConditionStateBlockType(blockType)) {
       rawInfos.push(parseModelConditionStateBlock(block));
     } else if (blockType === 'ALIASCONDITIONSTATE' && rawInfos.length > 0) {
       const previous = rawInfos[rawInfos.length - 1]!;
@@ -547,7 +554,7 @@ export function collectIgnoreConditionStates(objectDef: ObjectDef | undefined): 
     // IgnoreConditionStates lives on draw module blocks (the parent blocks
     // containing ModelConditionState children), not on ModelConditionState itself.
     const hasChildModelConditionState = block.blocks.some(
-      child => child.type.toUpperCase() === 'MODELCONDITIONSTATE',
+      child => isModelConditionStateBlockType(child.type),
     );
     if (hasChildModelConditionState) {
       const tokens = collectAllStringTokens(block.fields, 'IgnoreConditionStates');
@@ -595,7 +602,7 @@ function collectRenderAnimationStateClips(objectDef: ObjectDef | undefined): Ren
   };
 
   const visitBlock = (block: IniBlock): void => {
-    if (block.type.toUpperCase() === 'MODELCONDITIONSTATE') {
+    if (isModelConditionStateBlockType(block.type)) {
       const inferredStateFromName = inferRenderAnimationStateFromConditionStateName(block.name);
       for (const [fieldName, fieldValue] of Object.entries(block.fields)) {
         const inferredState = inferRenderAnimationStateFromFieldName(
@@ -606,11 +613,14 @@ function collectRenderAnimationStateClips(objectDef: ObjectDef | undefined): Ren
           continue;
         }
 
+        // Source parity: W3DModelDraw::parseConditionState uses parseAnimation
+        // for Animation/IdleAnimation. W3DAnimationInfo stores the first token
+        // as m_name and optional later tokens as distance/repeat metadata, so
+        // only the first non-empty token in each INI entry is an animation clip.
         for (const tokenGroup of extractIniValueTokens(fieldValue)) {
-          for (const token of tokenGroup) {
-            if (typeof token === 'string') {
-              addClip(inferredState, token);
-            }
+          const clipName = tokenGroup.find((token) => typeof token === 'string' && token.trim().length > 0);
+          if (clipName) {
+            addClip(inferredState, clipName);
           }
         }
       }

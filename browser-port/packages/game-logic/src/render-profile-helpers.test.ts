@@ -253,6 +253,35 @@ describe('resolveRenderAssetProfile backward compatibility', () => {
     expect(profile.renderAnimationStateClips['MOVE']).toContain('MoveAnim');
   });
 
+  it('treats source ConditionState blocks as normal model condition states', () => {
+    const block: IniBlock = {
+      ...makeModelConditionStateBlock('MOVING', {
+        Animation: 'MoveAnim',
+      }),
+      type: 'ConditionState',
+    };
+    const objectDef = makeObjectDef([block]);
+    const profile = resolveRenderAssetProfile(objectDef);
+
+    expect(profile.modelConditionInfos).toHaveLength(1);
+    expect(profile.modelConditionInfos[0]!.conditionFlags).toEqual(['MOVING']);
+    expect(profile.modelConditionInfos[0]!.animationName).toBe('MoveAnim');
+    expect(profile.renderAnimationStateClips['MOVE']).toEqual(['MoveAnim']);
+  });
+
+  it('does not treat Animation distance metadata as a render clip', () => {
+    const block: IniBlock = {
+      ...makeModelConditionStateBlock('MOVING', {
+        Animation: ['MoveAnim', '26'],
+      }),
+      type: 'ConditionState',
+    };
+    const profile = resolveRenderAssetProfile(makeObjectDef([block]));
+
+    expect(profile.modelConditionInfos[0]!.animationName).toBe('MoveAnim');
+    expect(profile.renderAnimationStateClips['MOVE']).toEqual(['MoveAnim']);
+  });
+
   it('also populates modelConditionInfos alongside renderAnimationStateClips', () => {
     const block = makeModelConditionStateBlock('MOVING', {
       Animation: 'MoveAnim',
