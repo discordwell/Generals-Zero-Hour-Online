@@ -1779,20 +1779,7 @@ export function extractWeaponNamesBySlot(self: GL, fields: Record<string, IniVal
       continue;
     }
 
-    const tokenGroups = extractIniValueTokens(self, fieldValue);
-    if (
-      Array.isArray(fieldValue)
-      && fieldValue.every((entry) => typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean')
-    ) {
-      const inlineTokens = fieldValue
-        .map((entry) => String(entry).trim())
-        .filter((entry) => entry.length > 0);
-      if (inlineTokens.length > 0) {
-        tokenGroups.unshift(inlineTokens);
-      }
-    }
-
-    for (const tokens of tokenGroups) {
+    for (const tokens of extractIniValueTokens(self, fieldValue)) {
       const slotName = tokens[0]?.trim().toUpperCase() ?? '';
       const weaponName = tokens[1]?.trim();
       if (!weaponName) {
