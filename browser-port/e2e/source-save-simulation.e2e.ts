@@ -87,8 +87,13 @@ const simulationFixtures: SimulationFixture[] = [
 const crcRepeatFixtureNames = new Set([
   'zipeater_GN_000.sav',
   'zipeater_GN_016.sav',
+  'zipeater_GN_038.sav',
   'zipeater_ZH_000.sav',
   'zipeater_ZH_005.sav',
+  'zipeater_ZH_010.sav',
+  'zipeater_ZH_038.sav',
+  'zipeater_ZH_160.sav',
+  'zipeater_ZH_162.sav',
 ]);
 
 const crcRepeatFixtures = simulationFixtures.filter((fixture) =>
