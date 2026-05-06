@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-06T12:00:15.256Z",
+  "generatedAt": "2026-05-06T12:51:50.337Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -2600,13 +2600,17 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/render-state-bridge.ts",
+        "packages/game-logic/src/types.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
-        "packages/game-logic/src/entity-lifecycle.test.ts"
+        "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/parity-float-stream.test.ts"
       ],
       "priority": "P0"
     },
@@ -8025,6 +8029,7 @@
         "packages/game-logic/src/parity-conflict-respawn.test.ts",
         "packages/game-logic/src/parity-disguise-shroud.test.ts",
         "packages/game-logic/src/parity-dozer-fireevent.test.ts",
+        "packages/game-logic/src/parity-float-stream.test.ts",
         "packages/game-logic/src/parity-heightdie-firespread.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
@@ -10593,6 +10598,7 @@
         "packages/game-logic/src/parity-conflict-respawn.test.ts",
         "packages/game-logic/src/parity-disguise-shroud.test.ts",
         "packages/game-logic/src/parity-dozer-fireevent.test.ts",
+        "packages/game-logic/src/parity-float-stream.test.ts",
         "packages/game-logic/src/parity-heightdie-firespread.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
@@ -15962,10 +15968,14 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/laser-beam-config.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/app/src/laser-beam-config.test.ts"
+      ],
       "priority": "P1"
     },
     {
@@ -15992,10 +16002,13 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts"
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/laser-beam-config.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/app/src/laser-beam-config.test.ts"
+      ],
       "priority": "P1"
     },
     {
@@ -16020,10 +16033,14 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/laser-beam-config.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/app/src/laser-beam-config.test.ts"
+      ],
       "priority": "P1"
     },
     {
@@ -16048,10 +16065,13 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts",
         "packages/game-logic/src/render-state.test.ts"
       ],
       "priority": "P1"
@@ -17824,10 +17844,14 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/laser-beam-config.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/app/src/laser-beam-config.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -17854,10 +17878,13 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts"
+        "packages/app/src/game-shell.ts",
+        "packages/app/src/laser-beam-config.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/app/src/laser-beam-config.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -20527,10 +20554,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts",
+        "packages/game-logic/src/render-state-bridge.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -23354,10 +23386,14 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/laser-beam-config.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/app/src/laser-beam-config.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -23382,10 +23418,14 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/laser-beam-config.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/app/src/laser-beam-config.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -27172,6 +27212,7 @@
       "testReferenceFiles": [
         "packages/app/src/control-bar-dispatch.test.ts",
         "packages/app/src/game-shell.test.ts",
+        "packages/app/src/laser-beam-config.test.ts",
         "packages/app/src/player-side-sync.test.ts",
         "packages/app/src/runtime-save-game.test.ts",
         "packages/app/src/script-eva-runtime.test.ts",
@@ -35821,10 +35862,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts",
+        "packages/game-logic/src/render-state-bridge.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -35849,10 +35895,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts",
+        "packages/game-logic/src/render-state-bridge.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -35877,10 +35928,13 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts",
         "packages/game-logic/src/render-state.test.ts"
       ],
       "priority": "P2"
@@ -35907,10 +35961,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts",
+        "packages/game-logic/src/render-state-bridge.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -35948,9 +36007,11 @@
         "packages/app/src/replay-menu-screen.ts",
         "packages/app/src/skirmish-setup-screen.ts",
         "packages/game-logic/src/deterministic-state.ts",
+        "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/index.ts",
         "packages/game-logic/src/navigation-pathfinding.ts",
         "packages/game-logic/src/pathfinding.ts",
+        "packages/game-logic/src/render-state-bridge.ts",
         "packages/game-logic/src/script-actions.ts",
         "packages/game-logic/src/skirmish-ai.ts"
       ],
@@ -52987,10 +53048,14 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/laser-beam-config.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/app/src/laser-beam-config.test.ts"
+      ],
       "priority": "P2"
     },
     {

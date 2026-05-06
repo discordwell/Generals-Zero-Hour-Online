@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-06T12:00:15.501Z",
+  "generatedAt": "2026-05-06T12:51:50.553Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -236,14 +236,21 @@
         "AvengerLaserBeam",
         "AvengerPointDefenseLaserBeam"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/laser-beam-config.ts",
+        "packages/app/src/main.ts"
+      ],
       "broadRuntimeReferenced": true,
       "broadRuntimeReferenceFiles": [
+        "packages/app/src/laser-beam-config.ts",
+        "packages/app/src/main.ts",
         "packages/app/src/runtime-save-game.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/app/src/laser-beam-config.test.ts"
+      ],
       "saveCovered": true,
       "priority": "P1"
     },
@@ -290,14 +297,19 @@
         "FlamethrowerProjectileStreamUpgraded",
         "GC_Chem_ToxinProjectileStream"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
       "broadRuntimeReferenced": true,
       "broadRuntimeReferenceFiles": [
-        "packages/app/src/runtime-save-game.ts"
+        "packages/app/src/runtime-save-game.ts",
+        "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts"
+      ],
       "saveCovered": true,
       "priority": "P2"
     },
@@ -3390,14 +3402,21 @@
         "AvengerLaserBeam",
         "AvengerPointDefenseLaserBeam"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/app/src/laser-beam-config.ts",
+        "packages/app/src/main.ts"
+      ],
       "broadRuntimeReferenced": true,
       "broadRuntimeReferenceFiles": [
+        "packages/app/src/laser-beam-config.ts",
+        "packages/app/src/main.ts",
         "packages/app/src/runtime-save-game.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/app/src/laser-beam-config.test.ts"
+      ],
       "saveCovered": true,
       "priority": "P1"
     },
@@ -5997,14 +6016,19 @@
         "FlamethrowerProjectileStreamUpgraded",
         "GC_Chem_ToxinProjectileStream"
       ],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/entity-factory.ts"
+      ],
       "broadRuntimeReferenced": true,
       "broadRuntimeReferenceFiles": [
-        "packages/app/src/runtime-save-game.ts"
+        "packages/app/src/runtime-save-game.ts",
+        "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/parity-float-stream.test.ts"
+      ],
       "saveCovered": true,
       "priority": "P2"
     },
