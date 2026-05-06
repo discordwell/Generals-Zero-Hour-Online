@@ -8188,6 +8188,7 @@ interface ScriptReinforcementTransportArrivalState {
   deliveryDistance: number;
   deliverPayloadPreOpenDistance: number;
   deliverPayloadPreviousDistanceSqr: number;
+  deliverPayloadSelfDestructObject: boolean;
   deliverPayloadMode: boolean;
   deliverPayloadDoorDelayFrames: number;
   deliverPayloadDropDelayFrames: number;
@@ -34191,6 +34192,11 @@ export class GameLogicSubsystem implements Subsystem {
     pending: ScriptReinforcementTransportArrivalState,
   ): void {
     if (pending.deliverPayloadMode) {
+      if (pending.deliverPayloadSelfDestructObject) {
+        this.markEntityDestroyed(transport.id, -1);
+        this.pendingScriptReinforcementTransportArrivalByEntityId.delete(transport.id);
+        return;
+      }
       const mapExtentDistance = this.mapHeightmap
         ? Math.hypot(this.mapHeightmap.worldWidth, this.mapHeightmap.worldDepth) * 1.2
         : 1024;
@@ -57147,6 +57153,7 @@ export class GameLogicSubsystem implements Subsystem {
           deliveryDistance: Math.max(0, deliveryDistance),
           deliverPayloadPreOpenDistance: Math.max(0, preOpenDistance),
           deliverPayloadPreviousDistanceSqr: 0,
+          deliverPayloadSelfDestructObject: selfDestructObject,
           deliverPayloadMode: true,
           deliverPayloadDoorDelayFrames: deliverPayloadProfile.doorDelayFrames,
           deliverPayloadDropDelayFrames: Math.max(0, dropDelayFrames),
@@ -57196,10 +57203,9 @@ export class GameLogicSubsystem implements Subsystem {
         }
       }
 
-      // Source parity: selfDestructObject — schedule transport self-destruction after delivery.
-      if (selfDestructObject) {
-        transport.lifetimeDieFrame = this.frameCounter + 300; // ~10s fallback lifetime
-      }
+      // Source parity: SelfDestructObject destroys in HeadOffMapState::onEnter; the pending delivery
+      // state carries the flag until that transition.
+      void selfDestructObject;
     }
 
     // Preserve references to parsed data for not-yet-implemented DeliverPayloadData branches.

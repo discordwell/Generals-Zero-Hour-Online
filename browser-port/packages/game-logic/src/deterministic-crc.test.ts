@@ -460,6 +460,7 @@ describe('GameLogic deterministic CRC ownership', () => {
           deliveryDistance: number;
           deliverPayloadPreOpenDistance: number;
           deliverPayloadPreviousDistanceSqr: number;
+          deliverPayloadSelfDestructObject: boolean;
           deliverPayloadMode: boolean;
           deliverPayloadDoorDelayFrames: number;
           deliverPayloadDropDelayFrames: number;
@@ -485,6 +486,7 @@ describe('GameLogic deterministic CRC ownership', () => {
         deliveryDistance: 7,
         deliverPayloadPreOpenDistance: 0,
         deliverPayloadPreviousDistanceSqr: 0,
+        deliverPayloadSelfDestructObject: false,
         deliverPayloadMode: true,
         deliverPayloadDoorDelayFrames: 8,
         deliverPayloadDropDelayFrames: 9,

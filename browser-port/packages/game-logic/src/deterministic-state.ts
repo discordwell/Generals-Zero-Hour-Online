@@ -170,6 +170,7 @@ interface ScriptReinforcementTransportArrivalStateLike {
   deliveryDistance: number;
   deliverPayloadPreOpenDistance: number;
   deliverPayloadPreviousDistanceSqr: number;
+  deliverPayloadSelfDestructObject: boolean;
   deliverPayloadMode: boolean;
   deliverPayloadDoorDelayFrames: number;
   deliverPayloadDropDelayFrames: number;
@@ -958,6 +959,7 @@ function writePendingScriptReinforcementTransportArrivalCrc(
     addFloat32Crc(context, crc, pending.deliveryDistance);
     addFloat32Crc(context, crc, pending.deliverPayloadPreOpenDistance);
     addFloat32Crc(context, crc, pending.deliverPayloadPreviousDistanceSqr);
+    crc.addUnsignedByte(pending.deliverPayloadSelfDestructObject ? 1 : 0);
     crc.addUnsignedByte(pending.deliverPayloadMode ? 1 : 0);
     addSignedIntCrc(context, crc, pending.deliverPayloadDoorDelayFrames);
     addSignedIntCrc(context, crc, pending.deliverPayloadDropDelayFrames);

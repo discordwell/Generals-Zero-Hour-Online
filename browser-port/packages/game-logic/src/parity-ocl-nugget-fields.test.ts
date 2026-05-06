@@ -72,6 +72,7 @@ interface PrivateLogic {
     deliveryDistance: number;
     deliverPayloadPreOpenDistance: number;
     deliverPayloadPreviousDistanceSqr: number;
+    deliverPayloadSelfDestructObject: boolean;
     deliverPayloadMode: boolean;
     deliverPayloadDoorDelayFrames: number;
     deliverPayloadDropDelayFrames: number;
@@ -310,7 +311,7 @@ describe('parity: DeliverPayload nugget', () => {
     expect(transport.y).toBe(0);
   });
 
-  it('sets lifetime on transport when SelfDestructObject is Yes', () => {
+  it('destroys SelfDestructObject transports when delivery exits', () => {
     // C++ parity: ObjectCreationList.cpp:84 — m_selfDestructObject parsed as bool.
     const { logic } = makeDeliverPayloadSetup({ selfDestructObject: 'Yes' });
 
@@ -319,7 +320,13 @@ describe('parity: DeliverPayload nugget', () => {
       .executeOCL('OCL_DeliverPayload', launcher);
 
     const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
-    expect(transport.lifetimeDieFrame).not.toBeNull();
+    expect(transport.lifetimeDieFrame).toBeNull();
+
+    logic.update(1 / 30);
+    expect(getEntitiesByTemplate(logic, 'TestTransport')).toHaveLength(1);
+
+    logic.update(1 / 30);
+    expect(getEntitiesByTemplate(logic, 'TestTransport')).toHaveLength(0);
   });
 
   it('creates PutInContainer entities when specified', () => {
