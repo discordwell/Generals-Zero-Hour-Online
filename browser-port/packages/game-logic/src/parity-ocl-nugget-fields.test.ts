@@ -1045,4 +1045,34 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(physics!.accelY).toBeLessThanOrEqual(3);
     expect(spawned[0]!.rotationY).toBeCloseTo(Math.atan2(physics!.accelZ, physics!.accelX), 5);
   });
+
+  it('applies RANDOM_FORCE magnitude and pitch when no flying/up disposition is set', () => {
+    // C++ parity: ObjectCreationList.cpp calcRandomForce chooses angle,
+    // pitch, and magnitude, then applies the transformed X-vector. With
+    // fixed 90-degree pitch and fixed magnitude, the force is vertical.
+    const { logic } = makeCreateObjectSetup(
+      {
+        Disposition: 'RANDOM_FORCE',
+        MinForceMagnitude: 60,
+        MaxForceMagnitude: 60,
+        MinForcePitch: 90,
+        MaxForcePitch: 90,
+      },
+      undefined,
+      { withPhysics: true },
+    );
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestCreate', source);
+
+    const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
+    expect(spawned.length).toBe(1);
+    const physics = spawned[0]!.physicsBehaviorState;
+    expect(physics).not.toBeNull();
+    expect(Math.abs(physics!.accelX)).toBeLessThan(1e-9);
+    expect(Math.abs(physics!.accelZ)).toBeLessThan(1e-9);
+    // Force 60 divided by spawned mass 2.
+    expect(physics!.accelY).toBeCloseTo(30);
+  });
 });

@@ -56843,6 +56843,7 @@ export class GameLogicSubsystem implements Subsystem {
     const sendItOut = dispositionTokens.includes('SEND_IT_OUT');
     const sendItFlying = dispositionTokens.includes('SEND_IT_FLYING');
     const sendItUp = dispositionTokens.includes('SEND_IT_UP');
+    const randomForceDisposition = dispositionTokens.includes('RANDOM_FORCE');
     const orientInForceDirection = readBooleanField(nugget.fields, ['OrientInForceDirection']) ?? false;
     const dispositionIntensity = readNumericField(nugget.fields, ['DispositionIntensity']) ?? 0;
     const extraBounciness = readNumericField(nugget.fields, ['ExtraBounciness']) ?? 0;
@@ -56858,6 +56859,10 @@ export class GameLogicSubsystem implements Subsystem {
     const yawRate = yawRateRaw != null ? degPerSecToRadPerFrame(yawRateRaw) : spinRate;
     const rollRate = rollRateRaw != null ? degPerSecToRadPerFrame(rollRateRaw) : spinRate;
     const pitchRate = pitchRateRaw != null ? degPerSecToRadPerFrame(pitchRateRaw) : spinRate;
+    const minForceMagnitude = readNumericField(nugget.fields, ['MinForceMagnitude']) ?? 0;
+    const maxForceMagnitude = readNumericField(nugget.fields, ['MaxForceMagnitude']) ?? minForceMagnitude;
+    const minForcePitch = (readNumericField(nugget.fields, ['MinForcePitch']) ?? 0) * Math.PI / 180;
+    const maxForcePitch = (readNumericField(nugget.fields, ['MaxForcePitch']) ?? 0) * Math.PI / 180;
 
     let firstCreatedEntityId: number | null = null;
     let putInContainerEntity: MapEntity | null = null;
@@ -56987,10 +56992,10 @@ export class GameLogicSubsystem implements Subsystem {
           }
         }
 
-        if (sendItFlying || sendItUp) {
+        if (sendItFlying || sendItUp || randomForceDisposition) {
           // Source parity: GenericObjectCreationNugget::doStuffToObj airborne
-          // disposition branch. SEND_IT_FLYING wins over SEND_IT_UP, matching
-          // the source if/else ordering.
+          // disposition branch. SEND_IT_FLYING wins over SEND_IT_UP, and both
+          // win over RANDOM_FORCE, matching the source if/else ordering.
           const physicsState = this.ensurePhysicsBehaviorStateForEntity(spawned);
           if (physicsState && spawned.physicsBehaviorProfile) {
             spawned.physicsBehaviorProfile.allowBouncing = true;
@@ -57009,12 +57014,24 @@ export class GameLogicSubsystem implements Subsystem {
               forceX = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
               forceZ = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
               forceY = (verticalForce * 0.33) + this.gameRandom.nextFloat() * (verticalForce - verticalForce * 0.33);
-            } else {
+            } else if (sendItUp) {
               const horizontalForce = 2.0 * dispositionIntensity;
               const verticalForce = 4.0 * dispositionIntensity;
               forceX = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
               forceZ = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
               forceY = (verticalForce * 0.75) + this.gameRandom.nextFloat() * (verticalForce - verticalForce * 0.75);
+            } else {
+              const magnitudeMin = Math.min(minForceMagnitude, maxForceMagnitude);
+              const magnitudeMax = Math.max(minForceMagnitude, maxForceMagnitude);
+              const pitchMin = Math.min(minForcePitch, maxForcePitch);
+              const pitchMax = Math.max(minForcePitch, maxForcePitch);
+              const angle = this.gameRandom.nextFloat() * Math.PI * 2;
+              const pitch = pitchMin + this.gameRandom.nextFloat() * (pitchMax - pitchMin);
+              const magnitude = magnitudeMin + this.gameRandom.nextFloat() * (magnitudeMax - magnitudeMin);
+              const horizontalMagnitude = Math.cos(pitch) * magnitude;
+              forceX = Math.cos(angle) * horizontalMagnitude;
+              forceZ = Math.sin(angle) * horizontalMagnitude;
+              forceY = Math.sin(pitch) * magnitude;
             }
             this.applyPhysicsForceToEntity(spawned, forceX, forceY, forceZ);
             if (orientInForceDirection && (forceX !== 0 || forceZ !== 0)) {
