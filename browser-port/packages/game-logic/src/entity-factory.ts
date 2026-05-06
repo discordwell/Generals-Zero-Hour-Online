@@ -148,6 +148,7 @@ export function createMapEntity(self: GL,
   const ambientSoundProfile = extractAmbientSoundProfile(self, objectDef);
   const jetAIProfile = self.extractJetAIProfile(objectDef);
   const aiUpdateModuleData = extractAIUpdateModuleData(self, objectDef);
+  const hasAIUpdateInterface = hasAIUpdateInterfaceModule(objectDef);
   const animationSteeringProfile = extractAnimationSteeringProfile(self, objectDef);
   const tensileFormationProfile = extractTensileFormationProfile(self, objectDef);
   const weaponTemplateSets = extractWeaponTemplateSets(self, objectDef);
@@ -361,6 +362,7 @@ export function createMapEntity(self: GL,
     isIndestructible: false,
     receivingDifficultyBonus: self.scriptObjectsReceiveDifficultyBonus,
     scriptAiRecruitable: true,
+    hasAIUpdateInterface,
     sourceAIUpdateIsDead: false,
     sourceAIIdleInitialSleepOffset: 0,
     scriptAttackPrioritySetName: '',
@@ -1385,7 +1387,7 @@ export function createMapEntity(self: GL,
     };
   }
 
-  if (hasAIUpdateInterfaceModule(objectDef)) {
+  if (hasAIUpdateInterface) {
     self.refreshSourceLocomotorRuntimeSnapshots(entity, entity.activeLocomotorSet);
     entity.sourceAIIdleInitialSleepOffset = self.gameRandom.nextRange(0, LOGIC_FRAME_RATE * 2);
   }

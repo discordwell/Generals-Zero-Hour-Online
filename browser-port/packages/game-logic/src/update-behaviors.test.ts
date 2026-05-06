@@ -10049,6 +10049,57 @@ describe('processDamageToContained', () => {
 });
 
 describe('BunkerBusterBehavior', () => {
+  it('only captures victims and plays crash-through FX when the object has an AIUpdateInterface', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('BunkerBusterBomb', 'America', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+          makeBlock('Behavior', 'BunkerBusterBehavior ModuleTag_BB', {
+            CrashThroughBunkerFX: 'WeaponFX_BunkerBusterInitialImpact',
+            CrashThroughBunkerFXFrequency: 33,
+          }),
+        ]),
+        makeObjectDef('CivilianBuilding', 'China', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_GC', {
+            MaxOccupants: 10,
+          }),
+        ], { GeometryMajorRadius: 10, GeometryMinorRadius: 10, GeometryHeight: 10 }),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('BunkerBusterBomb', 50, 50),
+        makeMapObject('CivilianBuilding', 60, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        hasAIUpdateInterface: boolean;
+        attackTargetEntityId: number | null;
+        bunkerBusterVictimId: number | null;
+        objectStatusFlags: Set<string>;
+      }>;
+    };
+    const bomb = priv.spawnedEntities.get(1)!;
+    expect(bomb.hasAIUpdateInterface).toBe(false);
+
+    bomb.attackTargetEntityId = 2;
+    bomb.objectStatusFlags.add('MISSILE_KILLING_SELF');
+    logic.update(1 / 30);
+
+    expect(bomb.bunkerBusterVictimId).toBeNull();
+    expect(logic.drainVisualEvents()).not.toContainEqual(expect.objectContaining({
+      type: 'NAMED_FX',
+      effectName: 'WeaponFX_BunkerBusterInitialImpact',
+    }));
+  });
+
   it('kills garrisoned units on bomb death with occupant damage weapon', () => {
     const bundle = makeBundle({
       objects: [
@@ -10057,6 +10108,7 @@ describe('BunkerBusterBehavior', () => {
           makeBlock('Behavior', 'BunkerBusterBehavior ModuleTag_BB', {
             OccupantDamageWeaponTemplate: 'BunkerBusterOccupantWeapon',
           }),
+          makeBlock('Behavior', 'MissileAIUpdate ModuleTag_AI', {}),
         ]),
         makeObjectDef('CivilianBuilding', 'China', ['STRUCTURE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
@@ -10134,6 +10186,7 @@ describe('BunkerBusterBehavior', () => {
         makeObjectDef('BunkerBusterBomb', 'America', ['PROJECTILE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
           makeBlock('Behavior', 'BunkerBusterBehavior ModuleTag_BB', {}),
+          makeBlock('Behavior', 'MissileAIUpdate ModuleTag_AI', {}),
         ]),
         makeObjectDef('CivilianBuilding', 'China', ['STRUCTURE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
@@ -10198,6 +10251,7 @@ describe('BunkerBusterBehavior', () => {
           makeBlock('Behavior', 'BunkerBusterBehavior ModuleTag_BB', {
             UpgradeRequired: 'Upgrade_BunkerBuster',
           }),
+          makeBlock('Behavior', 'MissileAIUpdate ModuleTag_AI', {}),
         ]),
         makeObjectDef('CivilianBuilding', 'China', ['STRUCTURE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
@@ -10264,6 +10318,7 @@ describe('BunkerBusterBehavior', () => {
         makeObjectDef('BunkerBusterBomb', 'America', ['PROJECTILE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
           makeBlock('Behavior', 'BunkerBusterBehavior ModuleTag_BB', {}),
+          makeBlock('Behavior', 'MissileAIUpdate ModuleTag_AI', {}),
         ]),
         makeObjectDef('Humvee', 'China', ['VEHICLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
@@ -10337,6 +10392,7 @@ describe('BunkerBusterBehavior', () => {
             SeismicEffectRadius: 200,
             SeismicEffectMagnitude: 5,
           }),
+          makeBlock('Behavior', 'MissileAIUpdate ModuleTag_AI', {}),
         ]),
         makeObjectDef('CivilianBuilding', 'China', ['STRUCTURE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
@@ -10419,6 +10475,7 @@ describe('BunkerBusterBehavior', () => {
           makeBlock('Behavior', 'BunkerBusterBehavior ModuleTag_BB', {
             ShockwaveWeaponTemplate: 'BunkerBusterShockwave',
           }),
+          makeBlock('Behavior', 'MissileAIUpdate ModuleTag_AI', {}),
         ]),
         makeObjectDef('CivilianBuilding', 'China', ['STRUCTURE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),

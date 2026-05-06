@@ -3839,6 +3839,8 @@ export interface MapEntity {
   receivingDifficultyBonus: boolean;
   /** Source parity: ScriptActions::changeObjectPanelFlagForSingleObject "AI Recruitable". */
   scriptAiRecruitable: boolean;
+  /** Source parity: Object::getAI() is non-null when the template owns an AIUpdateInterface module. */
+  hasAIUpdateInterface: boolean;
   /** Source parity: AIUpdateInterface::m_isAiDead. */
   sourceAIUpdateIsDead: boolean;
   /** Source parity: AIIdleState::m_initialSleepOffset initialized by AIUpdateInterface::onObjectCreated. */
@@ -56967,6 +56969,7 @@ export class GameLogicSubsystem implements Subsystem {
     for (const entity of this.spawnedEntities.values()) {
       const profile = entity.bunkerBusterProfile;
       if (!profile || entity.destroyed) continue;
+      if (!entity.hasAIUpdateInterface) continue;
       if (entity.bunkerBusterVictimId === null && entity.attackTargetEntityId !== null) {
         entity.bunkerBusterVictimId = entity.attackTargetEntityId;
       }
