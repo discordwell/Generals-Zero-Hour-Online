@@ -1336,6 +1336,46 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     expect(checked, 'expected retail ConditionState.Animation entries with numeric metadata').toBeGreaterThan(100);
   });
 
+  it('ShowSubObject/HideSubObject conflicts resolve to one source visibility action', () => {
+    let sourceConflictCount = 0;
+    const splitNames = (value: unknown): string[] =>
+      (Array.isArray(value) ? value : [value])
+        .filter((entry) => entry !== undefined && entry !== null)
+        .flatMap((entry) => String(entry).trim().split(/\s+/).filter(Boolean))
+        .filter((entry) => entry.toUpperCase() !== 'NONE');
+
+    for (const obj of bundle.objects ?? []) {
+      const visit = (block: BundleBlock): void => {
+        const fields = block.fields ?? {};
+        const hidden = new Set(splitNames(fields['HideSubObject']).map((entry) => entry.toUpperCase()));
+        for (const shown of splitNames(fields['ShowSubObject'])) {
+          if (hidden.has(shown.toUpperCase())) {
+            sourceConflictCount++;
+          }
+        }
+        for (const child of block.blocks ?? []) {
+          visit(child);
+        }
+      };
+      for (const block of obj.blocks ?? []) {
+        visit(block);
+      }
+
+      const infos = collectModelConditionInfos(obj as never);
+      for (const info of infos) {
+        const hidden = new Set(info.hideSubObjects.map((entry) => entry.toUpperCase()));
+        for (const shown of info.showSubObjects) {
+          expect(
+            hidden.has(shown.toUpperCase()),
+            `sub-object remained both hidden and shown on ${obj.name}: ${shown}`,
+          ).toBe(false);
+        }
+      }
+    }
+
+    expect(sourceConflictCount, 'expected retail show/hide conflict users').toBeGreaterThan(0);
+  });
+
   it('extractIniValueTokens decodes flat primitive arrays as a single multi-token entry', () => {
     // This regression bundle scan proves that EVERY shipped retail field
     // emitted as a flat-token array (e.g. ['HEROIC', 'WeaponFX_X']) parses

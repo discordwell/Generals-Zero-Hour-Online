@@ -151,6 +151,50 @@ describe('collectModelConditionInfos', () => {
     expect(infos[0].showSubObjects).toEqual(['DAMAGED_HULL', 'SMOKE']);
   });
 
+  it('lets ShowSubObject override a previous HideSubObject for the same sub-object', () => {
+    const block = makeModelConditionStateBlock('', {
+      HideSubObject: ['20Cal', '50Cal'],
+      ShowSubObject: '20Cal',
+    });
+    const infos = collectModelConditionInfos(makeObjectDef([block]));
+    expect(infos[0].hideSubObjects).toEqual(['50Cal']);
+    expect(infos[0].showSubObjects).toEqual(['20Cal']);
+  });
+
+  it('treats HideSubObject None as clearing inherited transition sub-object overrides', () => {
+    const drawModule: IniBlock = {
+      type: 'Draw',
+      name: 'W3DModelDraw',
+      fields: {},
+      blocks: [
+        {
+          ...makeModelConditionStateBlock('', {
+            HideSubObject: ['GUN', 'BARREL'],
+            TransitionKey: 'TRANS_A',
+          }),
+          type: 'DefaultConditionState',
+        },
+        makeModelConditionStateBlock('MOVING', {
+          TransitionKey: 'TRANS_B',
+        }),
+        {
+          type: 'TransitionState',
+          name: 'TRANS_A TRANS_B',
+          fields: {
+            HideSubObject: 'None',
+            Animation: 'TransAB',
+          },
+          blocks: [],
+        },
+      ],
+    };
+
+    const infos = collectTransitionInfos(makeObjectDef([drawModule]));
+    expect(infos).toHaveLength(1);
+    expect(infos[0].hideSubObjects).toEqual([]);
+    expect(infos[0].showSubObjects).toEqual([]);
+  });
+
   it('returns empty arrays when no hide/show sub-objects', () => {
     const block = makeModelConditionStateBlock('', {});
     const infos = collectModelConditionInfos(makeObjectDef([block]));

@@ -51,6 +51,11 @@ export interface ModelConditionInfo {
   idleAnimations: IdleAnimationVariant[];
 }
 
+interface SubObjectVisibilityInfo {
+  hideSubObjects: string[];
+  showSubObjects: string[];
+}
+
 /**
  * Source parity: TransitionState — an animation played during a transition
  * between two named condition states.
@@ -319,8 +324,7 @@ function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
   const animationName = readFirstStringToken(block.fields, 'Animation');
   const idleAnimationName = readFirstStringToken(block.fields, 'IdleAnimation');
 
-  const hideSubObjects = collectAllStringTokens(block.fields, 'HideSubObject');
-  const showSubObjects = collectAllStringTokens(block.fields, 'ShowSubObject');
+  const subObjectVisibility = collectSubObjectVisibility(block.fields);
 
   const animationModeRaw = readFirstStringToken(block.fields, 'AnimationMode');
   let animationMode: 'LOOP' | 'ONCE' | 'MANUAL' | 'ONCE_BACKWARDS' | 'LOOP_BACKWARDS' = 'LOOP';
@@ -357,8 +361,8 @@ function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
     modelName: modelName ?? null,
     animationName: animationName ?? null,
     idleAnimationName: idleAnimationName ?? null,
-    hideSubObjects,
-    showSubObjects,
+    hideSubObjects: subObjectVisibility.hideSubObjects,
+    showSubObjects: subObjectVisibility.showSubObjects,
     animationMode,
     transitionKey,
     animSpeedFactorMin,
@@ -400,6 +404,53 @@ function collectAllStringTokens(fields: Record<string, IniValue>, fieldName: str
     }
   }
   return tokens;
+}
+
+function collectSubObjectVisibility(
+  fields: Record<string, IniValue>,
+  base?: SubObjectVisibilityInfo | null,
+): SubObjectVisibilityInfo {
+  const states = new Map<string, { name: string; hide: boolean }>();
+  if (base) {
+    for (const name of base.hideSubObjects) {
+      states.set(name.toUpperCase(), { name, hide: true });
+    }
+    for (const name of base.showSubObjects) {
+      states.set(name.toUpperCase(), { name, hide: false });
+    }
+  }
+
+  for (const [fieldName, value] of Object.entries(fields)) {
+    const normalized = fieldName.toUpperCase();
+    if (normalized !== 'HIDESUBOBJECT' && normalized !== 'SHOWSUBOBJECT') {
+      continue;
+    }
+    const hide = normalized === 'HIDESUBOBJECT';
+    for (const group of extractIniValueTokens(value)) {
+      const first = group.find((token) => typeof token === 'string' && token.trim().length > 0);
+      if (first?.trim().toUpperCase() === 'NONE') {
+        states.clear();
+        continue;
+      }
+      for (const token of group) {
+        const trimmed = token.trim();
+        if (trimmed.length > 0) {
+          states.set(trimmed.toUpperCase(), { name: trimmed, hide });
+        }
+      }
+    }
+  }
+
+  const hideSubObjects: string[] = [];
+  const showSubObjects: string[] = [];
+  for (const state of states.values()) {
+    if (state.hide) {
+      hideSubObjects.push(state.name);
+    } else {
+      showSubObjects.push(state.name);
+    }
+  }
+  return { hideSubObjects, showSubObjects };
 }
 
 /**
@@ -523,8 +574,7 @@ function parseTransitionStateBlock(block: IniBlock, defaultInfo: ModelConditionI
   const modelName = readFirstStringToken(block.fields, 'Model')
     ?? readFirstStringToken(block.fields, 'ModelName');
   const animationName = readFirstStringToken(block.fields, 'Animation');
-  const hideSubObjects = collectAllStringTokens(block.fields, 'HideSubObject');
-  const showSubObjects = collectAllStringTokens(block.fields, 'ShowSubObject');
+  const subObjectVisibility = collectSubObjectVisibility(block.fields, defaultInfo);
 
   return {
     fromKey,
@@ -532,8 +582,8 @@ function parseTransitionStateBlock(block: IniBlock, defaultInfo: ModelConditionI
     modelName: modelName ?? defaultInfo?.modelName ?? null,
     animationName: animationName ?? defaultInfo?.animationName ?? null,
     animationMode: 'ONCE',
-    hideSubObjects: [...(defaultInfo?.hideSubObjects ?? []), ...hideSubObjects],
-    showSubObjects: [...(defaultInfo?.showSubObjects ?? []), ...showSubObjects],
+    hideSubObjects: subObjectVisibility.hideSubObjects,
+    showSubObjects: subObjectVisibility.showSubObjects,
   };
 }
 
