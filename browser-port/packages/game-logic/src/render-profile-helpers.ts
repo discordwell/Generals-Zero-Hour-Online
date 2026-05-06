@@ -31,6 +31,22 @@ export interface ModelConditionTurretInfo {
   turretArtPitch: number;
 }
 
+export type ModelConditionWeaponSlotName = 'PRIMARY' | 'SECONDARY' | 'TERTIARY';
+
+export interface ModelConditionWeaponBonesInfo {
+  weaponSlot: ModelConditionWeaponSlotName;
+  /** Source parity: ModelConditionInfo::m_weaponFireFXBoneName[slot]. */
+  fireFXBoneName: string | null;
+  /** Source parity: ModelConditionInfo::m_weaponRecoilBoneName[slot]. */
+  recoilBoneName: string | null;
+  /** Source parity: ModelConditionInfo::m_weaponMuzzleFlashName[slot]. */
+  muzzleFlashBoneName: string | null;
+  /** Source parity: ModelConditionInfo::m_weaponProjectileLaunchBoneName[slot]. */
+  launchBoneName: string | null;
+  /** Source parity: ModelConditionInfo::m_weaponProjectileHideShowName[slot]. */
+  hideShowBoneName: string | null;
+}
+
 export interface ModelConditionInfo {
   conditionFlags: string[];
   /** Pre-computed sorted key for O(1) comparison in hot paths. */
@@ -69,6 +85,8 @@ export interface ModelConditionInfo {
   particleSysBones?: ParticleSysBoneInfo[];
   /** Source parity: ModelConditionInfo::m_turrets[0..1]. */
   turrets?: ModelConditionTurretInfo[];
+  /** Source parity: ModelConditionInfo weapon bone arrays indexed by WeaponSlotType. */
+  weaponBones?: ModelConditionWeaponBonesInfo[];
 }
 
 interface SubObjectVisibilityInfo {
@@ -99,6 +117,8 @@ export interface TransitionInfo {
   particleSysBones?: ParticleSysBoneInfo[];
   /** Source parity: TransitionState copies default ModelConditionInfo turret info. */
   turrets?: ModelConditionTurretInfo[];
+  /** Source parity: TransitionState copies default ModelConditionInfo weapon bone info. */
+  weaponBones?: ModelConditionWeaponBonesInfo[];
 }
 
 export interface ResolvedRenderAssetProfile {
@@ -300,6 +320,14 @@ function buildVisualKey(info: ModelConditionInfo): string {
       String(v.turretArtAngle),
       String(v.turretArtPitch),
     ].join(':')).join(','),
+    (info.weaponBones ?? []).map(v => [
+      v.weaponSlot,
+      v.fireFXBoneName ?? '',
+      v.recoilBoneName ?? '',
+      v.muzzleFlashBoneName ?? '',
+      v.launchBoneName ?? '',
+      v.hideShowBoneName ?? '',
+    ].join(':')).join(','),
   ].join('\0');
 }
 
@@ -387,6 +415,7 @@ function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
   const idleAnimations = collectIdleAnimationVariants(block.fields);
   const particleSysBones = collectParticleSysBones(block.fields);
   const turrets = collectTurretInfos(block.fields);
+  const weaponBones = collectWeaponBoneInfos(block.fields);
 
   return {
     conditionFlags,
@@ -403,6 +432,7 @@ function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
     idleAnimations,
     particleSysBones,
     turrets: turrets.length > 0 ? turrets : undefined,
+    weaponBones: weaponBones.length > 0 ? weaponBones : undefined,
   };
 }
 
@@ -555,6 +585,95 @@ function hasTurretInfo(info: ModelConditionTurretInfo): boolean {
     || info.turretPitchBoneName !== null
     || info.turretArtAngle !== 0
     || info.turretArtPitch !== 0;
+}
+
+const WEAPON_SLOT_NAMES = ['PRIMARY', 'SECONDARY', 'TERTIARY'] as const satisfies readonly ModelConditionWeaponSlotName[];
+
+const WEAPON_BONE_FIELD_SETS = [
+  { fieldName: 'WeaponFireFXBone', property: 'fireFXBoneName' },
+  { fieldName: 'WeaponRecoilBone', property: 'recoilBoneName' },
+  { fieldName: 'WeaponMuzzleFlash', property: 'muzzleFlashBoneName' },
+  { fieldName: 'WeaponLaunchBone', property: 'launchBoneName' },
+  { fieldName: 'WeaponHideShowBone', property: 'hideShowBoneName' },
+] as const;
+
+function collectWeaponBoneInfos(
+  fields: Record<string, IniValue>,
+  base?: readonly ModelConditionWeaponBonesInfo[] | null,
+): ModelConditionWeaponBonesInfo[] {
+  const result: ModelConditionWeaponBonesInfo[] = WEAPON_SLOT_NAMES.map((weaponSlot, index) => ({
+    weaponSlot,
+    fireFXBoneName: base?.[index]?.fireFXBoneName ?? null,
+    recoilBoneName: base?.[index]?.recoilBoneName ?? null,
+    muzzleFlashBoneName: base?.[index]?.muzzleFlashBoneName ?? null,
+    launchBoneName: base?.[index]?.launchBoneName ?? null,
+    hideShowBoneName: base?.[index]?.hideShowBoneName ?? null,
+  }));
+
+  for (const spec of WEAPON_BONE_FIELD_SETS) {
+    const value = readIniFieldValue(fields, spec.fieldName);
+    if (value === undefined || value === null) {
+      continue;
+    }
+    for (const entry of extractWeaponBoneFieldEntries(value)) {
+      const slotToken = entry.weaponSlot;
+      const slotIndex = WEAPON_SLOT_NAMES.findIndex((slotName) => slotName === slotToken);
+      if (slotIndex < 0) {
+        continue;
+      }
+      const boneToken = entry.boneName;
+      if (!boneToken) {
+        continue;
+      }
+      const normalizedBoneName = boneToken.toLowerCase();
+      result[slotIndex]![spec.property] = normalizedBoneName === 'none' ? null : normalizedBoneName;
+    }
+  }
+
+  while (result.length > 0 && !hasWeaponBoneInfo(result[result.length - 1]!)) {
+    result.pop();
+  }
+  return result;
+}
+
+function extractWeaponBoneFieldEntries(value: IniValue): Array<{ weaponSlot: string; boneName: string }> {
+  if (Array.isArray(value)) {
+    if (value.some((entry) => Array.isArray(entry))) {
+      return value.flatMap((entry) => extractWeaponBoneFieldEntries(entry as IniValue));
+    }
+    const primitiveTokens = value
+      .filter((entry): entry is string | number | boolean =>
+        typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean')
+      .map((entry) => String(entry).trim())
+      .filter((entry) => entry.length > 0);
+    const first = primitiveTokens[0]?.toUpperCase();
+    if (first && WEAPON_SLOT_NAMES.some((slotName) => slotName === first) && primitiveTokens.length >= 2) {
+      return [{
+        weaponSlot: first,
+        // Source parseWeaponBoneName reads a WeaponSlotType token and then an
+        // ASCII string bone key, so preserve whitespace inside the bone name.
+        boneName: primitiveTokens.slice(1).join(' '),
+      }];
+    }
+  }
+
+  const entries: Array<{ weaponSlot: string; boneName: string }> = [];
+  for (const tokens of extractIniValueTokens(value)) {
+    const slotToken = tokens[0]?.trim().toUpperCase();
+    const boneName = tokens.slice(1).join(' ').trim();
+    if (slotToken && boneName) {
+      entries.push({ weaponSlot: slotToken, boneName });
+    }
+  }
+  return entries;
+}
+
+function hasWeaponBoneInfo(info: ModelConditionWeaponBonesInfo): boolean {
+  return info.fireFXBoneName !== null
+    || info.recoilBoneName !== null
+    || info.muzzleFlashBoneName !== null
+    || info.launchBoneName !== null
+    || info.hideShowBoneName !== null;
 }
 
 function readBoneNameField(fields: Record<string, IniValue>, fieldName: string): string | null | undefined {
@@ -713,6 +832,7 @@ function parseTransitionStateBlock(block: IniBlock, defaultInfo: ModelConditionI
   const subObjectVisibility = collectSubObjectVisibility(block.fields, defaultInfo);
   const particleSysBones = collectParticleSysBones(block.fields, defaultInfo?.particleSysBones ?? null);
   const turrets = collectTurretInfos(block.fields, defaultInfo?.turrets ?? null);
+  const weaponBones = collectWeaponBoneInfos(block.fields, defaultInfo?.weaponBones ?? null);
 
   return {
     fromKey,
@@ -724,6 +844,7 @@ function parseTransitionStateBlock(block: IniBlock, defaultInfo: ModelConditionI
     showSubObjects: subObjectVisibility.showSubObjects,
     particleSysBones,
     turrets: turrets.length > 0 ? turrets : undefined,
+    weaponBones: weaponBones.length > 0 ? weaponBones : undefined,
   };
 }
 

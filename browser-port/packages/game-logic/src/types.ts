@@ -19,6 +19,8 @@ export type {
   IdleAnimationVariant,
   ParticleSysBoneInfo,
   ModelConditionTurretInfo,
+  ModelConditionWeaponBonesInfo,
+  ModelConditionWeaponSlotName,
 } from './render-profile-helpers.js';
 
 export type RenderableObjectCategory = 'air' | 'building' | 'ground' | 'infantry' | 'vehicle' | 'unknown';

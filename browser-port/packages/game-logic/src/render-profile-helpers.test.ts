@@ -238,6 +238,43 @@ describe('collectModelConditionInfos', () => {
     ]);
   });
 
+  it('parses source weapon bone fields by weapon slot from condition states', () => {
+    const block = makeModelConditionStateBlock('', {
+      WeaponFireFXBone: ['PRIMARY', 'MUZZLEFX'],
+      WeaponRecoilBone: 'PRIMARY Barrel',
+      WeaponMuzzleFlash: ['SECONDARY', 'Muzzle Flash'],
+      WeaponLaunchBone: ['TERTIARY', 'LAUNCH03'],
+      WeaponHideShowBone: ['PRIMARY', 'None'],
+    });
+    const infos = collectModelConditionInfos(makeObjectDef([block]));
+    expect(infos[0].weaponBones).toEqual([
+      {
+        weaponSlot: 'PRIMARY',
+        fireFXBoneName: 'muzzlefx',
+        recoilBoneName: 'barrel',
+        muzzleFlashBoneName: null,
+        launchBoneName: null,
+        hideShowBoneName: null,
+      },
+      {
+        weaponSlot: 'SECONDARY',
+        fireFXBoneName: null,
+        recoilBoneName: null,
+        muzzleFlashBoneName: 'muzzle flash',
+        launchBoneName: null,
+        hideShowBoneName: null,
+      },
+      {
+        weaponSlot: 'TERTIARY',
+        fireFXBoneName: null,
+        recoilBoneName: null,
+        muzzleFlashBoneName: null,
+        launchBoneName: 'launch03',
+        hideShowBoneName: null,
+      },
+    ]);
+  });
+
   it('lets TransitionState inherit default turret bindings', () => {
     const drawModule: IniBlock = {
       type: 'Draw',
@@ -276,6 +313,56 @@ describe('collectModelConditionInfos', () => {
     }]);
   });
 
+  it('lets TransitionState inherit and clear default weapon bone bindings', () => {
+    const drawModule: IniBlock = {
+      type: 'Draw',
+      name: 'W3DModelDraw',
+      fields: {},
+      blocks: [
+        {
+          ...makeModelConditionStateBlock('', {
+            WeaponLaunchBone: ['PRIMARY', 'MUZZLE01'],
+            WeaponHideShowBone: ['SECONDARY', 'MISSILE'],
+            TransitionKey: 'TRANS_A',
+          }),
+          type: 'DefaultConditionState',
+        },
+        makeModelConditionStateBlock('DAMAGED', {
+          TransitionKey: 'TRANS_B',
+        }),
+        {
+          type: 'TransitionState',
+          name: 'TRANS_A TRANS_B',
+          fields: {
+            Animation: 'TransAB',
+            WeaponLaunchBone: ['PRIMARY', 'NONE'],
+          },
+          blocks: [],
+        },
+      ],
+    };
+    const infos = collectTransitionInfos(makeObjectDef([drawModule]));
+    expect(infos).toHaveLength(1);
+    expect(infos[0].weaponBones).toEqual([
+      {
+        weaponSlot: 'PRIMARY',
+        fireFXBoneName: null,
+        recoilBoneName: null,
+        muzzleFlashBoneName: null,
+        launchBoneName: null,
+        hideShowBoneName: null,
+      },
+      {
+        weaponSlot: 'SECONDARY',
+        fireFXBoneName: null,
+        recoilBoneName: null,
+        muzzleFlashBoneName: null,
+        launchBoneName: null,
+        hideShowBoneName: 'missile',
+      },
+    ]);
+  });
+
   it('keeps particle-system bones in the visual merge key', () => {
     const infos = collectModelConditionInfos(makeObjectDef([
       makeModelConditionStateBlock('DAMAGED', {
@@ -306,6 +393,22 @@ describe('collectModelConditionInfos', () => {
     expect(infos).toHaveLength(2);
     expect(infos[0].turrets?.[0]?.turretBoneName).toBe('turret01');
     expect(infos[1].turrets?.[0]?.turretBoneName).toBe('turret02');
+  });
+
+  it('keeps source weapon bone bindings in the visual merge key', () => {
+    const infos = collectModelConditionInfos(makeObjectDef([
+      makeModelConditionStateBlock('DAMAGED', {
+        Model: 'SharedModel',
+        WeaponFireFXBone: ['PRIMARY', 'MUZZLEFX01'],
+      }),
+      makeModelConditionStateBlock('REALLYDAMAGED', {
+        Model: 'SharedModel',
+        WeaponFireFXBone: ['PRIMARY', 'MUZZLEFX02'],
+      }),
+    ]));
+    expect(infos).toHaveLength(2);
+    expect(infos[0].weaponBones?.[0]?.fireFXBoneName).toBe('muzzlefx01');
+    expect(infos[1].weaponBones?.[0]?.fireFXBoneName).toBe('muzzlefx02');
   });
 
   it('lets TransitionState inherit default ParticleSysBone entries', () => {

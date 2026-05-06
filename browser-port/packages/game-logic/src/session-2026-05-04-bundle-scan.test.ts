@@ -1481,6 +1481,109 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     expect(artAngleUsers, 'expected retail TurretArtAngle draw users').toBeGreaterThan(30);
   });
 
+  it('Weapon*Bone source draw fields flow into model and transition condition profiles for every retail user', () => {
+    const weaponSlotByName = new Map([
+      ['PRIMARY', 0],
+      ['SECONDARY', 1],
+      ['TERTIARY', 2],
+    ]);
+    const expectedFields = [
+      { field: 'WeaponFireFXBone', property: 'fireFXBoneName' },
+      { field: 'WeaponRecoilBone', property: 'recoilBoneName' },
+      { field: 'WeaponMuzzleFlash', property: 'muzzleFlashBoneName' },
+      { field: 'WeaponLaunchBone', property: 'launchBoneName' },
+      { field: 'WeaponHideShowBone', property: 'hideShowBoneName' },
+    ] as const;
+    const weaponBoneEntry = (value: unknown): { slot: number; boneName: string } | null => {
+      if (Array.isArray(value) && value.length >= 2) {
+        const slotToken = typeof value[0] === 'string' ? value[0].trim().toUpperCase() : '';
+        const slot = weaponSlotByName.get(slotToken);
+        const boneName = value.slice(1)
+          .filter((entry): entry is string | number | boolean =>
+            typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean')
+          .map((entry) => String(entry).trim())
+          .filter(Boolean)
+          .join(' ');
+        return slot !== undefined && boneName ? { slot, boneName } : null;
+      }
+      const tokens = splitTokens(value);
+      const slot = weaponSlotByName.get(tokens[0]?.trim().toUpperCase() ?? '');
+      const boneName = tokens.slice(1).join(' ').trim();
+      return slot !== undefined && boneName ? { slot, boneName } : null;
+    };
+
+    let conditionUsers = 0;
+    let transitionUsers = 0;
+    for (const obj of bundle.objects ?? []) {
+      const expectedConditions: Array<{
+        field: string;
+        slot: number;
+        property: typeof expectedFields[number]['property'];
+        value: string;
+      }> = [];
+      const expectedTransitions: Array<{
+        field: string;
+        slot: number;
+        property: typeof expectedFields[number]['property'];
+        value: string;
+      }> = [];
+
+      const visit = (block: BundleBlock): void => {
+        const blockType = (block.type ?? '').toUpperCase();
+        const isConditionState = blockType === 'CONDITIONSTATE'
+          || blockType === 'MODELCONDITIONSTATE'
+          || blockType === 'DEFAULTCONDITIONSTATE';
+        const isTransitionState = blockType === 'TRANSITIONSTATE';
+        if (isConditionState || isTransitionState) {
+          const fields = block.fields ?? {};
+          for (const spec of expectedFields) {
+            const entry = weaponBoneEntry(fields[spec.field]);
+            if (!entry || entry.boneName.toUpperCase() === 'NONE') {
+              continue;
+            }
+            const expected = {
+              field: spec.field,
+              slot: entry.slot,
+              property: spec.property,
+              value: entry.boneName.toLowerCase(),
+            };
+            if (isTransitionState) {
+              expectedTransitions.push(expected);
+            } else {
+              expectedConditions.push(expected);
+            }
+          }
+        }
+        for (const child of block.blocks ?? []) visit(child);
+      };
+      for (const block of obj.blocks ?? []) visit(block);
+
+      if (expectedConditions.length > 0) {
+        const infos = collectModelConditionInfos(obj as never);
+        for (const expected of expectedConditions) {
+          conditionUsers++;
+          expect(
+            infos.some((info) => info.weaponBones?.[expected.slot]?.[expected.property] === expected.value),
+            `${expected.field} missing on ${obj.name}: slot ${expected.slot} ${expected.value}`,
+          ).toBe(true);
+        }
+      }
+      if (expectedTransitions.length > 0) {
+        const infos = collectTransitionInfos(obj as never);
+        for (const expected of expectedTransitions) {
+          transitionUsers++;
+          expect(
+            infos.some((info) => info.weaponBones?.[expected.slot]?.[expected.property] === expected.value),
+            `${expected.field} transition missing on ${obj.name}: slot ${expected.slot} ${expected.value}`,
+          ).toBe(true);
+        }
+      }
+    }
+
+    expect(conditionUsers, 'expected retail Weapon*Bone condition users').toBeGreaterThan(3000);
+    expect(transitionUsers, 'expected retail Weapon*Bone transition users').toBeGreaterThan(50);
+  });
+
   it('ShowSubObject/HideSubObject conflicts resolve to one source visibility action', () => {
     let sourceConflictCount = 0;
     const splitNames = (value: unknown): string[] =>
