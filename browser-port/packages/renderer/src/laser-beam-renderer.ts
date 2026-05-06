@@ -19,6 +19,10 @@ export interface LaserBeamConfig {
   innerColor?: number;
   /** Outer glow color (hex). Default 0xff0000 (dark red). */
   outerColor?: number;
+  /** Inner core opacity from W3DLaserDraw InnerColor alpha. Default 1.0. */
+  innerOpacity?: number;
+  /** Outer glow opacity from W3DLaserDraw OuterColor alpha. Default 0.5. */
+  outerOpacity?: number;
   /** Duration the beam stays at full intensity (ms). Default 100. */
   fullIntensityMs?: number;
   /** Duration the beam fades out (ms). Default 300. */
@@ -44,6 +48,8 @@ const DEFAULT_INNER_WIDTH = 0.15;
 const DEFAULT_OUTER_WIDTH = 0.6;
 const DEFAULT_INNER_COLOR = 0xff4444;
 const DEFAULT_OUTER_COLOR = 0xff0000;
+const DEFAULT_INNER_OPACITY = 1.0;
+const DEFAULT_OUTER_OPACITY = 0.5;
 const DEFAULT_FULL_INTENSITY_MS = 100;
 const DEFAULT_FADE_MS = 300;
 
@@ -106,6 +112,13 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, value));
+}
+
 /** Linearly interpolate between two hex colors (component-wise). */
 function lerpColor(colorA: number, colorB: number, t: number): number {
   const rA = (colorA >> 16) & 0xff;
@@ -163,6 +176,8 @@ export class LaserBeamRenderer {
     const outerWidth = config.outerWidth ?? DEFAULT_OUTER_WIDTH;
     const innerColor = config.innerColor ?? DEFAULT_INNER_COLOR;
     const outerColor = config.outerColor ?? DEFAULT_OUTER_COLOR;
+    const innerOpacity = clamp01(config.innerOpacity ?? DEFAULT_INNER_OPACITY);
+    const outerOpacity = clamp01(config.outerOpacity ?? DEFAULT_OUTER_OPACITY);
     const fullIntensityMs = config.fullIntensityMs ?? DEFAULT_FULL_INTENSITY_MS;
     const fadeMs = config.fadeMs ?? DEFAULT_FADE_MS;
     const numBeams = config.numBeams ?? 2;
@@ -183,7 +198,7 @@ export class LaserBeamRenderer {
       const t = numBeams > 1 ? layer / (numBeams - 1) : 0;
       const width = lerp(innerWidth, outerWidth, t);
       const color = lerpColor(innerColor, outerColor, t);
-      const opacity = lerp(1.0, 0.5, t);
+      const opacity = lerp(innerOpacity, outerOpacity, t);
 
       // Create a mesh for each segment in this layer.
       for (let s = 0; s < segments; s++) {

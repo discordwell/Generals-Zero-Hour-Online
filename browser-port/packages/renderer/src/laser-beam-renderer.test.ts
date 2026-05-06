@@ -168,6 +168,22 @@ describe('LaserBeamRenderer', () => {
     expect(opacities[2]).toBeCloseTo(0.5, 3);
   });
 
+  it('numBeams layers interpolate W3DLaserDraw alpha opacity', () => {
+    renderer.addBeam(0, 0, 0, 10, 0, 0, {
+      numBeams: 3,
+      innerOpacity: 250 / 255,
+      outerOpacity: 150 / 255,
+    });
+
+    const meshes = scene.children.filter((c) => c.name.startsWith('laser-beam-layer-'));
+    const opacities = meshes.map(
+      (m) => ((m as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity,
+    );
+    expect(opacities[0]).toBeCloseTo(250 / 255, 3);
+    expect(opacities[1]).toBeCloseTo(200 / 255, 3);
+    expect(opacities[2]).toBeCloseTo(150 / 255, 3);
+  });
+
   // --- Bug 2: Segmented arcing ---
 
   it('segments=4 creates 4 cylinder segments per layer', () => {

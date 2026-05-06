@@ -49737,6 +49737,9 @@ export class GameLogicSubsystem implements Subsystem {
       projectileType: this.classifyWeaponVisualType(weapon),
       fireSoundEvent: weapon.fireSoundEvent ?? undefined,
     };
+    if (weapon.laserName) {
+      event.laserName = weapon.laserName;
+    }
     if (sourceBoneName) {
       event.sourceBoneName = sourceBoneName;
     }
@@ -49911,6 +49914,9 @@ export class GameLogicSubsystem implements Subsystem {
       sourceEntityId: event.sourceEntityId,
       projectileType: this.classifyWeaponVisualType(event.weapon),
     };
+    if (event.weapon.laserName) {
+      visualEvent.laserName = event.weapon.laserName;
+    }
     // Source parity: DamageInfoInput::m_damageFXOverride — pass through to renderer so
     // the visual FX system can use the weapon's override instead of the default FX.
     if (event.damageFXOverride && event.damageFXOverride !== 'UNRESISTABLE') {

@@ -224,6 +224,8 @@ export interface VisualEvent {
   sourceEntityId: number | null;
   /** Visual type hint for the effect. */
   projectileType: ProjectileVisualType;
+  /** Source parity: WeaponTemplate::m_laserName for W3DLaserDraw beam styling. */
+  laserName?: string;
   /** Target endpoint for directed weapon visuals (laser beams, bullet tracers). */
   targetX?: number;
   targetY?: number;

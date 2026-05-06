@@ -498,7 +498,12 @@ describe('Weapon ZH fields', () => {
       logic.update(1 / 30);
     }
 
-    const particleEvents = Array.from(new Set(logic.drainVisualEvents()
+    const visualEvents = logic.drainVisualEvents();
+    const laserFireEvent = visualEvents.find((event) =>
+      event.type === 'WEAPON_FIRED' && event.projectileType === 'LASER');
+    expect(laserFireEvent?.laserName).toBe('TestLaserBeam');
+
+    const particleEvents = Array.from(new Set(visualEvents
       .filter((event) => event.type === 'NAMED_PARTICLE_SYSTEM')
       .map((event) => event.effectName)
       .sort()));

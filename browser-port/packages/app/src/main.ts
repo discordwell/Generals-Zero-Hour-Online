@@ -44,6 +44,7 @@ import {
   TerrainRoadRenderer,
   TerrainBridgeRenderer,
   type TerrainBridgeDefinition,
+  type LaserBeamConfig,
 } from '@generals/renderer';
 import type { MapDataJSON } from '@generals/renderer';
 import { ShroudRenderer } from '@generals/renderer';
@@ -83,6 +84,7 @@ import {
   isObjectTargetRelationshipAllowed,
 } from './control-bar-targeting.js';
 import { planCombatVisualEffects } from './combat-visual-effects.js';
+import { resolveW3DLaserDrawBeamConfig } from './laser-beam-config.js';
 import { VoiceAudioBridge } from './voice-audio-bridge.js';
 import { MusicManager } from './music-manager.js';
 import { collectShortcutSpecialPowerReadyFrames } from './shortcut-special-power-sources.js';
@@ -3580,6 +3582,21 @@ async function startGame(
   const musicManager = new MusicManager(audioManager);
   musicManager.setAmbientMusic();
 
+  const laserBeamConfigCache = new Map<string, LaserBeamConfig | null>();
+  const resolveLaserBeamConfig = (laserName: string | undefined): LaserBeamConfig | undefined => {
+    const normalizedLaserName = (laserName ?? '').trim();
+    if (!normalizedLaserName) {
+      return undefined;
+    }
+    const cached = laserBeamConfigCache.get(normalizedLaserName);
+    if (cached !== undefined) {
+      return cached ?? undefined;
+    }
+    const config = resolveW3DLaserDrawBeamConfig(iniDataRegistry.getObject(normalizedLaserName));
+    laserBeamConfigCache.set(normalizedLaserName, config ?? null);
+    return config;
+  };
+
   const processVisualEvents = (): void => {
     const events = gameLogic.drainVisualEvents();
     for (const event of events) {
@@ -3626,6 +3643,7 @@ async function startGame(
           laserBeamRenderer.addBeam(
             pos.x, pos.y, pos.z,
             event.targetX, event.targetY, event.targetZ,
+            resolveLaserBeamConfig(event.laserName),
           );
         } else if (event.projectileType === 'BULLET') {
           tracerRenderer.addTracer(
