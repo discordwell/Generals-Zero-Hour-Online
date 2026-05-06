@@ -56639,7 +56639,10 @@ export class GameLogicSubsystem implements Subsystem {
         this.executeAttackNugget(nugget, sourceEntity, targetX, targetZ);
       } else if (nuggetType === 'DELIVERPAYLOAD') {
         // Source parity: DeliverPayloadNugget::create — spawn transport(s) with payload.
-        this.executeDeliverPayloadNugget(nugget, sourceEntity, targetX, targetZ);
+        const createdId = this.executeDeliverPayloadNugget(nugget, sourceEntity, targetX, targetZ);
+        if (firstCreatedEntityId === null && createdId !== null) {
+          firstCreatedEntityId = createdId;
+        }
       }
       // ApplyRandomForce is omitted for now.
     }
@@ -56987,13 +56990,13 @@ export class GameLogicSubsystem implements Subsystem {
     sourceEntity: MapEntity,
     targetX?: number,
     targetZ?: number,
-  ): void {
+  ): number | null {
     const registry = this.iniDataRegistry;
-    if (!registry) return;
+    if (!registry) return null;
 
     // ── Parse DeliverPayloadNugget-specific fields ──
     const transportName = readStringField(nugget.fields, ['Transport']);
-    if (!transportName) return;
+    if (!transportName) return null;
 
     const startAtPreferredHeight = readBooleanField(nugget.fields, ['StartAtPreferredHeight']) ?? true;
     const startAtMaxSpeed = readBooleanField(nugget.fields, ['StartAtMaxSpeed']) ?? false;
@@ -57213,7 +57216,7 @@ export class GameLogicSubsystem implements Subsystem {
     void fireWeapon;
     void inheritTransportVelocity;
     void parachuteDirectly;
-    void firstTransport;
+    return firstTransport?.id ?? null;
   }
 
   /**

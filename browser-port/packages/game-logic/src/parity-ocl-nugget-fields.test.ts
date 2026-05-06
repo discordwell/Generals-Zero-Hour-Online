@@ -221,13 +221,16 @@ describe('parity: DeliverPayload nugget', () => {
 
     // Execute OCL via a death OCL (simplest trigger).
     const launcher = getEntitiesByTemplate(logic, 'Launcher')[0]!;
-    (logic as unknown as { executeOCL: (name: string, entity: unknown) => void })
+    const createdId = (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
       .executeOCL('OCL_DeliverPayload', launcher);
 
     const transports = getEntitiesByTemplate(logic, 'TestTransport');
     const payloads = getEntitiesByTemplate(logic, 'TestPayload');
 
     expect(transports.length).toBe(1);
+    // Source parity: DeliverPayloadNugget::create returns the first transport.
+    // ObjectCreationList::createInternal forwards the first created nugget object.
+    expect(createdId).toBe(transports[0]!.id);
     expect(payloads.length).toBe(1);
     // Payload should be contained in transport.
     expect(payloads[0]!.transportContainerId).toBe(transports[0]!.id);
