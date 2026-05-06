@@ -56998,7 +56998,13 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Source parity: check upgrade gate (C++ line 188-193).
     if (profile.upgradeRequired) {
-      if (!entity.side || !this.hasSideUpgradeCompleted(entity.side, profile.upgradeRequired)) {
+      // BunkerBusterBehavior::onObjectCreated resolves UpgradeRequired to an
+      // Upgrade pointer. If the upgrade name is unknown, the pointer remains
+      // null and bustTheBunker does not gate the effect.
+      const upgradeDef = this.iniDataRegistry
+        ? findUpgradeDefByName(this.iniDataRegistry, profile.upgradeRequired)
+        : undefined;
+      if (upgradeDef && (!entity.side || !this.hasSideUpgradeCompleted(entity.side, profile.upgradeRequired))) {
         return;
       }
     }

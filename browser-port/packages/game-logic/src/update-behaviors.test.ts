@@ -10312,6 +10312,70 @@ describe('BunkerBusterBehavior', () => {
     expect(soldier.health).toBe(100);
   });
 
+  it('treats unresolved UpgradeRequired as no gate, matching source pointer resolution', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('BunkerBusterBomb', 'America', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+          makeBlock('Behavior', 'BunkerBusterBehavior ModuleTag_BB', {
+            UpgradeRequired: 'Upgrade_DoesNotExist',
+          }),
+          makeBlock('Behavior', 'MissileAIUpdate ModuleTag_AI', {}),
+        ]),
+        makeObjectDef('CivilianBuilding', 'China', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_GC', {
+            MaxOccupants: 10,
+          }),
+        ], { GeometryMajorRadius: 10, GeometryMinorRadius: 10, GeometryHeight: 10 }),
+        makeObjectDef('Soldier', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], {
+          TransportSlotCount: 1,
+        }),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('BunkerBusterBomb', 50, 50),
+        makeMapObject('CivilianBuilding', 60, 50),
+        makeMapObject('Soldier', 60, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 3, targetBuildingId: 2 });
+    logic.update(1 / 30);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        id: number;
+        destroyed: boolean;
+        health: number;
+        garrisonContainerId: number | null;
+        attackTargetEntityId: number | null;
+      }>;
+      applyWeaponDamageAmount(a: number | null, t: unknown, amount: number, dt: string): void;
+    };
+
+    const bomb = priv.spawnedEntities.get(1)!;
+    const soldier = priv.spawnedEntities.get(3)!;
+    expect(soldier.garrisonContainerId).toBe(2);
+
+    bomb.attackTargetEntityId = 2;
+    logic.update(1 / 30);
+
+    priv.applyWeaponDamageAmount(null, bomb, 1000, 'UNRESISTABLE');
+    logic.update(1 / 30);
+
+    expect(soldier.destroyed).toBe(true);
+  });
+
   it('does not affect transport passengers (not bustable)', () => {
     const bundle = makeBundle({
       objects: [
