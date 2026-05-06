@@ -1599,6 +1599,62 @@ export function extractWeaponNamesFromTokens(self: GL, tokens: string[]): string
   return weapons;
 }
 
+const DEFAULT_COMMAND_SOURCE_MASK = 0xffffffff;
+const COMMAND_SOURCE_MASK_BY_NAME = new Map<string, number>([
+  ['FROM_PLAYER', 1 << 0],
+  ['FROM_SCRIPT', 1 << 1],
+  ['FROM_AI', 1 << 2],
+  ['FROM_DOZER', 1 << 3],
+  ['DEFAULT_SWITCH_WEAPON', 1 << 4],
+]);
+
+function parseWeaponSetSlotToken(token: string | undefined): 0 | 1 | 2 | null {
+  const normalized = token?.trim().toUpperCase() ?? '';
+  if (normalized === 'PRIMARY' || normalized === 'PRIMARY_WEAPON') return 0;
+  if (normalized === 'SECONDARY' || normalized === 'SECONDARY_WEAPON') return 1;
+  if (normalized === 'TERTIARY' || normalized === 'TERTIARY_WEAPON') return 2;
+  return null;
+}
+
+function extractAutoChooseSourceMasks(self: GL, fields: Record<string, IniValue>): [number, number, number] {
+  const masks: [number, number, number] = [
+    DEFAULT_COMMAND_SOURCE_MASK,
+    DEFAULT_COMMAND_SOURCE_MASK,
+    DEFAULT_COMMAND_SOURCE_MASK,
+  ];
+  for (const tokens of extractIniValueTokens(self, fields['AutoChooseSources'])) {
+    const slot = parseWeaponSetSlotToken(tokens[0]);
+    if (slot === null) continue;
+    let mask = 0;
+    for (let i = 1; i < tokens.length; i++) {
+      const token = tokens[i]!.trim().toUpperCase();
+      if (token === 'NONE') {
+        mask = 0;
+        continue;
+      }
+      const bit = COMMAND_SOURCE_MASK_BY_NAME.get(token);
+      if (bit !== undefined) {
+        mask |= bit;
+      }
+    }
+    masks[slot] = mask;
+  }
+  return masks;
+}
+
+function extractPreferredAgainstBySlot(self: GL, fields: Record<string, IniValue>): [string[], string[], string[]] {
+  const preferred: [string[], string[], string[]] = [[], [], []];
+  for (const tokens of extractIniValueTokens(self, fields['PreferredAgainst'])) {
+    const slot = parseWeaponSetSlotToken(tokens[0]);
+    if (slot === null) continue;
+    preferred[slot] = tokens
+      .slice(1)
+      .map((token) => token.trim().toUpperCase())
+      .filter((token) => token.length > 0 && token !== 'NONE');
+  }
+  return preferred;
+}
+
 export function extractWeaponTemplateSets(self: GL, objectDef: ObjectDef | undefined): WeaponTemplateSetProfile[] {
   if (!objectDef) {
     return [];
@@ -1613,6 +1669,13 @@ export function extractWeaponTemplateSets(self: GL, objectDef: ObjectDef | undef
           WEAPON_SET_FLAG_MASK_BY_NAME,
         ),
         weaponNamesBySlot: extractWeaponNamesBySlot(self, block.fields),
+        // Source parity: WeaponTemplateSet::clear defaults m_autoChooseMask
+        // to all command sources, then AutoChooseSources overrides per slot.
+        autoChooseSourceMasks: extractAutoChooseSourceMasks(self, block.fields),
+        // Source parity: WeaponTemplateSet::m_preferredAgainst per slot.
+        preferredAgainstBySlot: extractPreferredAgainstBySlot(self, block.fields),
+        shareReloadTime: readBooleanField(block.fields, ['ShareWeaponReloadTime']) === true,
+        weaponLockSharedAcrossSets: readBooleanField(block.fields, ['WeaponLockSharedAcrossSets']) === true,
       });
     }
     for (const child of block.blocks) {
@@ -1638,7 +1701,18 @@ export function extractWeaponTemplateSets(self: GL, objectDef: ObjectDef | undef
     fallback[1] ?? null,
     fallback[2] ?? null,
   ];
-  return [{ conditionsMask: 0, weaponNamesBySlot: fallbackBySlot }];
+  return [{
+    conditionsMask: 0,
+    weaponNamesBySlot: fallbackBySlot,
+    autoChooseSourceMasks: [
+      DEFAULT_COMMAND_SOURCE_MASK,
+      DEFAULT_COMMAND_SOURCE_MASK,
+      DEFAULT_COMMAND_SOURCE_MASK,
+    ],
+    preferredAgainstBySlot: [[], [], []],
+    shareReloadTime: false,
+    weaponLockSharedAcrossSets: false,
+  }];
 }
 
 export function extractArmorTemplateSets(self: GL, objectDef: ObjectDef | undefined): ArmorTemplateSetProfile[] {

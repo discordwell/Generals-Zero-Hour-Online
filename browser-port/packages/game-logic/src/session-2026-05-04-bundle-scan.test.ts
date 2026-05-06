@@ -37,6 +37,7 @@ import {
   extractTransitionDamageFXProfile,
   extractUpgradeModulesFromBlocks,
   extractWaveGuideProfile,
+  extractWeaponTemplateSets,
 } from './entity-factory.js';
 import { extractChinookAIProfile, extractJetSlowDeathProfiles } from './aircraft-ai.js';
 import { extractFlightDeckProfile } from './flight-deck.js';
@@ -1012,6 +1013,59 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       }
       expect(usageCount, `expected retail users for BoneFXUpdate.${testCase.fieldName}`).toBeGreaterThan(0);
     }
+  });
+
+  it('WeaponSet AutoChooseSources and PreferredAgainst decode for every retail user', () => {
+    const slotByName = new Map<string, 0 | 1 | 2>([
+      ['PRIMARY', 0],
+      ['SECONDARY', 1],
+      ['TERTIARY', 2],
+    ]);
+    const sourceBitByName = new Map<string, number>([
+      ['FROM_PLAYER', 1 << 0],
+      ['FROM_SCRIPT', 1 << 1],
+      ['FROM_AI', 1 << 2],
+      ['FROM_DOZER', 1 << 3],
+      ['DEFAULT_SWITCH_WEAPON', 1 << 4],
+    ]);
+    const maskFromTokens = (tokens: string[]): number => {
+      let mask = 0;
+      for (const token of tokens) {
+        const normalized = token.trim().toUpperCase();
+        if (normalized === 'NONE') return 0;
+        mask |= sourceBitByName.get(normalized) ?? 0;
+      }
+      return mask;
+    };
+
+    let autoChooseUsers = 0;
+    let preferredUsers = 0;
+    for (const obj of bundle.objects ?? []) {
+      const weaponSetBlocks = (obj.blocks ?? []).filter((block) => block.type === 'WeaponSet');
+      if (weaponSetBlocks.length === 0) continue;
+      const profiles = extractWeaponTemplateSets(makeSelfStub(), obj as never);
+      expect(profiles.length, `WeaponSet profile count mismatch for ${obj.name}`).toBe(weaponSetBlocks.length);
+
+      for (let blockIndex = 0; blockIndex < weaponSetBlocks.length; blockIndex++) {
+        const block = weaponSetBlocks[blockIndex]!;
+        const profile = profiles[blockIndex]!;
+        for (const tokens of extractIniValueTokens(makeSelfStub() as never, block.fields?.['AutoChooseSources'] as never)) {
+          const slot = slotByName.get(tokens[0]?.trim().toUpperCase() ?? '');
+          if (slot === undefined) continue;
+          autoChooseUsers++;
+          expect(profile.autoChooseSourceMasks?.[slot], `AutoChooseSources dropped on ${obj.name}`).toBe(maskFromTokens(tokens.slice(1)));
+        }
+        for (const tokens of extractIniValueTokens(makeSelfStub() as never, block.fields?.['PreferredAgainst'] as never)) {
+          const slot = slotByName.get(tokens[0]?.trim().toUpperCase() ?? '');
+          if (slot === undefined) continue;
+          preferredUsers++;
+          const expected = tokens.slice(1).map((token) => token.trim().toUpperCase()).filter(Boolean);
+          expect(profile.preferredAgainstBySlot?.[slot], `PreferredAgainst dropped on ${obj.name}`).toEqual(expected);
+        }
+      }
+    }
+    expect(autoChooseUsers, 'expected retail WeaponSet.AutoChooseSources users').toBeGreaterThan(200);
+    expect(preferredUsers, 'expected retail WeaponSet.PreferredAgainst users').toBeGreaterThan(80);
   });
 
   it('extractIniValueTokens decodes flat primitive arrays as a single multi-token entry', () => {

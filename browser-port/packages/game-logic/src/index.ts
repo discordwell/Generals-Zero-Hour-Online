@@ -2132,6 +2132,14 @@ interface AttackWeaponProfile {
 interface WeaponTemplateSetProfile {
   conditionsMask: number;
   weaponNamesBySlot: [string | null, string | null, string | null];
+  /** Source parity: WeaponTemplateSet::m_autoChooseMask per slot. */
+  autoChooseSourceMasks?: [number, number, number];
+  /** Source parity: WeaponTemplateSet::m_preferredAgainst per slot. */
+  preferredAgainstBySlot?: [string[], string[], string[]];
+  /** Source parity: WeaponTemplateSet::m_isReloadTimeShared. */
+  shareReloadTime?: boolean;
+  /** Source parity: WeaponTemplateSet::m_isWeaponLockSharedAcrossSets. */
+  weaponLockSharedAcrossSets?: boolean;
 }
 
 interface ArmorTemplateSetProfile {
