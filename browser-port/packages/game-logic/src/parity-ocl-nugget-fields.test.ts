@@ -24,6 +24,7 @@ import {
   makeBlock,
   makeObjectDef,
   makeBundle,
+  makeLocomotorDef,
   makeRegistry,
   makeHeightmap,
   makeMap,
@@ -128,6 +129,8 @@ describe('parity: DeliverPayload nugget', () => {
   } = {}) {
     const extraObjects = [
       makeObjectDef('TestTransport', 'America', ['VEHICLE', 'AIRCRAFT'], [
+        makeBlock('LocomotorSet', 'SET_NORMAL TestTransportLoco', {}),
+        makeBlock('Behavior', 'DeliverPayloadAIUpdate ModuleTag_DeliverPayload', {}),
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
       ]),
       makeObjectDef('TestPayload', 'America', ['INFANTRY'], [
@@ -148,6 +151,9 @@ describe('parity: DeliverPayload nugget', () => {
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
         ]),
         ...extraObjects,
+      ],
+      locomotors: [
+        makeLocomotorDef('TestTransportLoco', 80, { PreferredHeight: 275 }),
       ],
     });
 
@@ -256,13 +262,23 @@ describe('parity: DeliverPayload nugget', () => {
     const { logic } = makeDeliverPayloadSetup();
 
     const launcher = getEntitiesByTemplate(logic, 'Launcher')[0]!;
-    const launcherY = launcher.y;
     (logic as unknown as { executeOCL: (name: string, entity: unknown) => void })
       .executeOCL('OCL_DeliverPayload', launcher);
 
     const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
-    // Transport should be elevated above the launcher's ground level.
-    expect(transport.y).toBeGreaterThan(launcherY);
+    expect(transport.y).toBe(275);
+  });
+
+  it('leaves transport on terrain when StartAtPreferredHeight is No', () => {
+    // C++ parity: ObjectCreationList.cpp:443 — height adjustment is gated by m_startAtPreferredHeight.
+    const { logic } = makeDeliverPayloadSetup({ startAtPreferredHeight: 'No' });
+
+    const launcher = getEntitiesByTemplate(logic, 'Launcher')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => void })
+      .executeOCL('OCL_DeliverPayload', launcher);
+
+    const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
+    expect(transport.y).toBe(0);
   });
 
   it('sets lifetime on transport when SelfDestructObject is Yes', () => {

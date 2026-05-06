@@ -56807,9 +56807,9 @@ export class GameLogicSubsystem implements Subsystem {
         }
       }
 
-      // Source parity: startAtPreferredHeight — adjust Y for preferred flight altitude.
+      // Source parity: ObjectCreationList.cpp:443-447 — start at terrain + current locomotor preferred height.
       if (startAtPreferredHeight) {
-        transport.y = transport.y + 100; // Approximate preferred flight height
+        transport.y = this.resolveGroundHeight(startX, startZ) + this.resolveChinookPreferredHeight(transport);
       }
 
       // Source parity: startAtMaxSpeed — apply initial velocity.
