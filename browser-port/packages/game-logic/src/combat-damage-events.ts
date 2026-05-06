@@ -14,6 +14,7 @@ interface CombatDamageEntityLike {
   destroyed: boolean;
   canTakeDamage: boolean;
   templateName: string;
+  kindOf?: ReadonlySet<string>;
   controllingPlayerToken: string | null;
   attackTargetEntityId: number | null;
   attackOriginalVictimPosition: VectorXZLike | null;
@@ -382,8 +383,7 @@ export function applyWeaponDamageEvent<
       if (entity.destroyed) continue;
 
       // Source parity: Object.cpp:1832 — skip airborne and projectile entities.
-      // We approximate: skip entities that are significantly above terrain.
-      if (context.isEntitySignificantlyAboveTerrain(entity)) continue;
+      if (context.isEntitySignificantlyAboveTerrain(entity) || entity.kindOf?.has('PROJECTILE') === true) continue;
 
       // Source parity: damageDirection = victim.getPosition() - source.getPosition(),
       // used as shockWaveVector. Object positions are terrain-level, so subtract

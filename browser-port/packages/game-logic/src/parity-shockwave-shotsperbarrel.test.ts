@@ -37,6 +37,7 @@ describe('ShockWave knockback', () => {
     destroyed: boolean;
     canTakeDamage: boolean;
     templateName: string;
+    kindOf?: ReadonlySet<string>;
     controllingPlayerToken: string | null;
     attackTargetEntityId: number | null;
     attackOriginalVictimPosition: { x: number; z: number } | null;
@@ -351,6 +352,41 @@ describe('ShockWave knockback', () => {
     applyWeaponDamageEvent(ctx, event);
     // The entity was the primaryVictim so it still received damage,
     // but the shockwave should not have been applied because it's airborne
+    expect(impulses.length).toBe(0);
+  });
+
+  it('skips projectile entities for shockwave', () => {
+    const source = makeEntity(1, 0, 0);
+    const projectile = makeEntity(2, 30, 0, { kindOf: new Set(['PROJECTILE']) });
+    const impulses: { entityId: number; ix: number; iy: number; iz: number }[] = [];
+    const ctx = makeContext([source, projectile], impulses);
+    ctx.getTeamRelationship = () => 2;
+
+    const event: TestEvent = {
+      sourceEntityId: 1,
+      primaryVictimEntityId: 2,
+      impactX: 0,
+      impactY: 0,
+      impactZ: 0,
+      executeFrame: 0,
+      delivery: 'DIRECT',
+      weapon: {
+        primaryDamageRadius: 50,
+        secondaryDamageRadius: 0,
+        radiusDamageAngle: Math.PI,
+        radiusDamageAffectsMask: 4,
+        primaryDamage: 100,
+        secondaryDamage: 0,
+        damageType: 'EXPLOSION',
+        deathType: 'EXPLODED',
+        continueAttackRange: 0,
+        shockWaveAmount: 150,
+        shockWaveRadius: 100,
+        shockWaveTaperOff: 0.33,
+      },
+    };
+
+    applyWeaponDamageEvent(ctx, event);
     expect(impulses.length).toBe(0);
   });
 });
