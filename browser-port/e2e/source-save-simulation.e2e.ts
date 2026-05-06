@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { parseSaveGameInfo } from '@generals/engine';
 
 /**
  * Loads real source-save fixtures, then runs the simulation forward 300 frames
@@ -43,6 +45,57 @@ async function waitForE2EHook(
 interface SimulationFixture {
   fileName: string;
   title: string;
+}
+
+interface SourceSaveMapAssetReport {
+  requiredMaps?: Array<{
+    availableOutputPath?: string | null;
+    saveFiles?: string[];
+  }>;
+}
+
+function bufferToArrayBuffer(buffer: Buffer): ArrayBuffer {
+  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+}
+
+function loadAutoSimulationFixtures(): SimulationFixture[] {
+  const reportPath = resolve('source-save-map-asset-report.json');
+  const report = JSON.parse(readFileSync(reportPath, 'utf8')) as SourceSaveMapAssetReport;
+  const fixtures: SimulationFixture[] = [];
+  const seen = new Set<string>();
+
+  for (const map of report.requiredMaps ?? []) {
+    if (!map.availableOutputPath) {
+      continue;
+    }
+    for (const fileName of [...(map.saveFiles ?? [])].sort()) {
+      if (seen.has(fileName)) {
+        continue;
+      }
+      const saveBytes = readFileSync(resolve('fixtures/source-saves', fileName));
+      const saveInfo = parseSaveGameInfo(bufferToArrayBuffer(saveBytes));
+      fixtures.push({
+        fileName,
+        title: saveInfo.description,
+      });
+      seen.add(fileName);
+    }
+  }
+
+  for (const fileName of readdirSync(resolve('fixtures/source-saves')).filter((entry) => entry.endsWith('.sav')).sort()) {
+    if (seen.has(fileName)) {
+      continue;
+    }
+    const saveBytes = readFileSync(resolve('fixtures/source-saves', fileName));
+    const saveInfo = parseSaveGameInfo(bufferToArrayBuffer(saveBytes));
+    fixtures.push({
+      fileName,
+      title: saveInfo.description,
+    });
+    seen.add(fileName);
+  }
+
+  return fixtures.sort((left, right) => left.fileName.localeCompare(right.fileName));
 }
 
 const simulationFixtures: SimulationFixture[] = [
@@ -98,6 +151,14 @@ const crcRepeatFixtureNames = new Set([
 
 const crcRepeatFixtures = simulationFixtures.filter((fixture) =>
   crcRepeatFixtureNames.has(fixture.fileName));
+
+const exhaustiveSimulationFixtures: SimulationFixture[] = (() => {
+  if (process.env.SOURCE_SAVE_SIMULATION_EXHAUSTIVE !== '1') {
+    return [];
+  }
+  const curated = new Set(simulationFixtures.map((fixture) => fixture.fileName));
+  return loadAutoSimulationFixtures().filter((fixture) => !curated.has(fixture.fileName));
+})();
 
 interface SourceSaveSimulationSnapshot {
   frame: number;
@@ -237,6 +298,17 @@ function installPageDiagnostics(page: import('@playwright/test').Page): {
 
 for (const fixture of simulationFixtures) {
   test(`source save survives 300-frame simulation: ${fixture.fileName}`, async ({ page }) => {
+    test.setTimeout(180_000);
+    const { errors, diagnostics } = installPageDiagnostics(page);
+
+    await loadSourceSaveAndAdvance(page, fixture, diagnostics);
+
+    expect(errors).toEqual([]);
+  });
+}
+
+for (const fixture of exhaustiveSimulationFixtures) {
+  test(`exhaustive source save survives 300-frame simulation: ${fixture.fileName}`, async ({ page }) => {
     test.setTimeout(180_000);
     const { errors, diagnostics } = installPageDiagnostics(page);
 
