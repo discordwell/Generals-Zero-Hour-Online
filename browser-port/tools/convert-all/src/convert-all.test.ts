@@ -3202,6 +3202,76 @@ End
     });
   });
 
+  it('merges same-name object override bundles without dropping base locomotor sets', () => {
+    return withTempDir((dir) => {
+      const gameDir = resolve(dir, 'game');
+      const outputDir = resolve(dir, 'out');
+      const baseIniDir = resolve(gameDir, 'Data', 'INI', 'Object');
+      const patchIniDir = resolve(outputDir, '_extracted', 'PatchZH', 'Data', 'INI', 'Object');
+      mkdirSync(baseIniDir, { recursive: true });
+      mkdirSync(patchIniDir, { recursive: true });
+
+      writeFileSync(resolve(baseIniDir, 'BaseJet.ini'), `
+Object TestJet
+  KindOf = PRELOAD VEHICLE AIRCRAFT
+  BuildCost = 1400
+  Locomotor = SET_NORMAL TestJetLocomotor
+  Locomotor = SET_TAXIING BasicJetTaxiLocomotor
+  Behavior = JetAIUpdate ModuleTag_Jet
+    MinHeight = 5
+  End
+End
+
+Locomotor TestJetLocomotor
+  Surfaces = AIR
+  Speed = 175
+  PreferredHeight = 100
+End
+
+Locomotor BasicJetTaxiLocomotor
+  Surfaces = GROUND
+  Speed = 50
+End
+`);
+
+      writeFileSync(resolve(patchIniDir, 'PatchJet.ini'), `
+Object TestJet
+  BuildCost = 1100
+  Locomotor = SET_TAXIING BasicJetTaxiLocomotor
+  Behavior = CountermeasuresBehavior ModuleTag_Counter
+    TriggeredBy = Upgrade_TestCountermeasures
+  End
+End
+`);
+
+      const result = runConvertAll([
+        '--game-dir',
+        gameDir,
+        '--output',
+        outputDir,
+        '--only',
+        'ini',
+      ]);
+
+      expect(result.status).toBe(0);
+
+      const bundle = JSON.parse(
+        readFileSync(resolve(outputDir, 'data', 'ini-bundle.json'), 'utf8'),
+      ) as {
+        objects: Array<{ name: string; fields: Record<string, unknown>; blocks: Array<{ name: string }> }>;
+      };
+      const testJet = bundle.objects.find((object) => object.name === 'TestJet');
+      expect(testJet).toBeDefined();
+      expect(testJet!.fields.BuildCost).toBe(1100);
+      expect(testJet!.fields.Locomotor).toEqual([
+        ['SET_NORMAL', 'TestJetLocomotor'],
+        ['SET_TAXIING', 'BasicJetTaxiLocomotor'],
+      ]);
+      expect(testJet!.blocks.map((block) => block.name)).toContain('JetAIUpdate ModuleTag_Jet');
+      expect(testJet!.blocks.map((block) => block.name)).toContain('CountermeasuresBehavior ModuleTag_Counter');
+    });
+  });
+
   it('accepts EAR-wrapped retail map files during map conversion', () => {
     return withTempDir((dir) => {
       const gameDir = resolve(dir, 'game');

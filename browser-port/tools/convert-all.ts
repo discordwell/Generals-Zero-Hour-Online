@@ -30,7 +30,7 @@ import {
   type ManifestEntry,
 } from '@generals/core';
 import { RUNTIME_ASSET_BASE_URL, RUNTIME_MANIFEST_FILE } from '@generals/assets';
-import type { IniDataBundle, RegistryStats } from '@generals/ini-data';
+import type { IniDataBundle, ObjectDef, RegistryStats } from '@generals/ini-data';
 import { loadRuntimeIniFixtures } from './convert-all/src/runtime-ini-fixtures.js';
 import { RUNTIME_MAP_FIXTURE_CONVERTER, loadRuntimeMapFixtures } from './convert-all/src/runtime-map-fixtures.js';
 
@@ -687,15 +687,88 @@ function readBundle(pathToFile: string): IniDataBundle | null {
   return ensureBundle(parsed) ? parsed : null;
 }
 
-function mergeByName<T extends { name: string }>(left: T[], right: T[]): T[] {
+function mergeByName<T extends { name: string }>(
+  left: T[],
+  right: T[],
+  merge?: (left: T, right: T) => T,
+): T[] {
   const byName = new Map<string, T>();
   for (const item of left) {
     byName.set(item.name, item);
   }
   for (const item of right) {
-    byName.set(item.name, item);
+    const existing = byName.get(item.name);
+    byName.set(item.name, existing && merge ? merge(existing, item) : item);
   }
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function splitIniScalarTokens(value: unknown): string[] {
+  if (typeof value === 'string') {
+    return value.split(/[\s,;|]+/).map((token) => token.trim()).filter(Boolean);
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return [String(value)];
+  }
+  return [];
+}
+
+function extractLocomotorFieldEntries(value: unknown): string[][] {
+  if (value === undefined) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    if (value.some((entry) => Array.isArray(entry))) {
+      return value.flatMap((entry) => extractLocomotorFieldEntries(entry));
+    }
+    const tokens = value
+      .flatMap((entry) => splitIniScalarTokens(entry))
+      .filter((token) => token.length > 0);
+    return tokens.length > 0 ? [tokens] : [];
+  }
+  const tokens = splitIniScalarTokens(value);
+  return tokens.length > 0 ? [tokens] : [];
+}
+
+function mergeLocomotorFieldValues(left: unknown, right: unknown): unknown {
+  const bySetName = new Map<string, string[]>();
+  for (const entry of [...extractLocomotorFieldEntries(left), ...extractLocomotorFieldEntries(right)]) {
+    const setName = entry[0]?.trim().toUpperCase();
+    if (!setName) {
+      continue;
+    }
+    bySetName.set(setName, entry);
+  }
+  const entries = [...bySetName.values()];
+  if (entries.length === 0) {
+    return undefined;
+  }
+  return entries.length === 1 ? entries[0] : entries;
+}
+
+function mergeObjectDefinitionForOverride(base: ObjectDef, patch: ObjectDef): ObjectDef {
+  const fields = {
+    ...base.fields,
+    ...patch.fields,
+  };
+  if (base.fields.Locomotor !== undefined || patch.fields.Locomotor !== undefined) {
+    const mergedLocomotor = mergeLocomotorFieldValues(base.fields.Locomotor, patch.fields.Locomotor);
+    if (mergedLocomotor !== undefined) {
+      fields.Locomotor = mergedLocomotor as ObjectDef['fields'][string];
+    }
+  }
+
+  return {
+    ...base,
+    ...patch,
+    side: patch.side ?? base.side,
+    parent: patch.parent ?? base.parent,
+    kindOf: patch.kindOf ?? base.kindOf,
+    fields,
+    blocks: [...(base.blocks ?? []), ...(patch.blocks ?? [])],
+    resolved: patch.resolved || base.resolved,
+    hasUnresolvedParent: patch.hasUnresolvedParent || base.hasUnresolvedParent,
+  };
 }
 
 function combineLists(left: string[], right: string[]): string[] {
@@ -748,7 +821,7 @@ function mergeStats(bundle: IniDataBundle): RegistryStats {
 function mergeBundles(baseBundle: IniDataBundle, patchBundle: IniDataBundle): IniDataBundle {
   const mergedAi = mergeAiConfig(baseBundle.ai, patchBundle.ai);
   const merged: IniDataBundle = {
-    objects: mergeByName(baseBundle.objects, patchBundle.objects),
+    objects: mergeByName(baseBundle.objects, patchBundle.objects, mergeObjectDefinitionForOverride),
     weapons: mergeByName(baseBundle.weapons, patchBundle.weapons),
     armors: mergeByName(baseBundle.armors, patchBundle.armors),
     upgrades: mergeByName(baseBundle.upgrades, patchBundle.upgrades),
