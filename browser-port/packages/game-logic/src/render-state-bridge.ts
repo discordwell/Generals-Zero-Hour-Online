@@ -612,7 +612,31 @@ export function resolveEntityAmbientSoundState(self: GL, entity: MapEntity): {
     };
 }
 
+function resolveForcedSubObjectVisibility(self: GL, entity: MapEntity): {
+  forcedHiddenSubObjects?: string[];
+  forcedShownSubObjects?: string[];
+} {
+  const hidden = new Set<string>(Array.from(entity.forcedHiddenSubObjects.values()));
+  const shown = new Set<string>(Array.from(entity.forcedShownSubObjects.values()));
+  const projectileFeedback = self.resolveProjectileBoneFeedbackSubObjectVisibility(entity);
+  if (projectileFeedback) {
+    for (const subObjectName of projectileFeedback.hideSubObjects) {
+      shown.delete(subObjectName);
+      hidden.add(subObjectName);
+    }
+    for (const subObjectName of projectileFeedback.showSubObjects) {
+      hidden.delete(subObjectName);
+      shown.add(subObjectName);
+    }
+  }
+  return {
+    forcedHiddenSubObjects: hidden.size > 0 ? Array.from(hidden.values()).sort() : undefined,
+    forcedShownSubObjects: shown.size > 0 ? Array.from(shown.values()).sort() : undefined,
+  };
+}
+
 export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide?: string | null): RenderableEntityState {
+    const forcedSubObjectVisibility = resolveForcedSubObjectVisibility(self, entity);
     return {
       id: entity.id,
       templateName: entity.templateName,
@@ -690,12 +714,8 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
             visible: d.visible,
           }))
         : undefined,
-      forcedHiddenSubObjects: entity.forcedHiddenSubObjects.size > 0
-        ? Array.from(entity.forcedHiddenSubObjects.values()).sort()
-        : undefined,
-      forcedShownSubObjects: entity.forcedShownSubObjects.size > 0
-        ? Array.from(entity.forcedShownSubObjects.values()).sort()
-        : undefined,
+      forcedHiddenSubObjects: forcedSubObjectVisibility.forcedHiddenSubObjects,
+      forcedShownSubObjects: forcedSubObjectVisibility.forcedShownSubObjects,
       boneFXEvents: entity.boneFXState?.pendingVisualEvents.length
         ? entity.boneFXState.pendingVisualEvents.slice()
         : undefined,

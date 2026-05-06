@@ -3811,6 +3811,8 @@ export interface MapEntity {
   renderAnimationStateClips?: RenderAnimationStateClipCandidates;
   modelConditionInfos?: ModelConditionInfo[];
   transitionInfos?: TransitionInfo[];
+  /** Source parity: W3DModelDrawModuleData::m_projectileBoneFeedbackEnabledSlots. */
+  projectileBoneFeedbackEnabledSlotMask?: number;
   x: number;
   y: number;
   z: number;
@@ -38438,6 +38440,7 @@ export class GameLogicSubsystem implements Subsystem {
     renderAnimationStateClips: RenderAnimationStateClipCandidates;
     modelConditionInfos: ModelConditionInfo[];
     transitionInfos: TransitionInfo[];
+    projectileBoneFeedbackEnabledSlotMask: number;
   } {
     return resolveRenderAssetProfileImpl(objectDef);
   }
@@ -49689,6 +49692,72 @@ export class GameLogicSubsystem implements Subsystem {
     const matchedInfo = findBestConditionMatchImpl(attacker.modelConditionInfos, activeFlags);
     const boneName = matchedInfo?.weaponBones?.[weaponSlotIndex]?.fireFXBoneName?.trim();
     return boneName ? boneName : undefined;
+  }
+
+  /* @internal */ resolveProjectileBoneFeedbackSubObjectVisibility(entity: MapEntity): {
+    hideSubObjects: string[];
+    showSubObjects: string[];
+  } | null {
+    const slotMask = entity.projectileBoneFeedbackEnabledSlotMask ?? 0;
+    if (slotMask === 0 || !entity.attackWeapon || entity.attackWeapon.clipSize <= 0) {
+      return null;
+    }
+    if (!entity.modelConditionInfos || entity.modelConditionInfos.length === 0) {
+      return null;
+    }
+
+    const weaponSlotIndex = Math.max(0, Math.min(SOURCE_OBJECT_WEAPON_SLOT_COUNT - 1, entity.attackWeaponSlotIndex));
+    if ((slotMask & (1 << weaponSlotIndex)) === 0) {
+      return null;
+    }
+
+    const activeFlags = new Set(entity.modelConditionFlags);
+    this.applyTransientWeaponConditionFlags(activeFlags, entity, weaponSlotIndex);
+    const matchedInfo = findBestConditionMatchImpl(entity.modelConditionInfos, activeFlags);
+    const weaponBones = matchedInfo?.weaponBones?.[weaponSlotIndex];
+    if (!weaponBones) {
+      return null;
+    }
+
+    const maxCount = Math.max(0, Math.trunc(entity.attackWeapon.clipSize));
+    const showCount = Math.max(0, Math.min(maxCount, Math.trunc(entity.attackAmmoInClip)));
+    const hideCount = maxCount - showCount;
+    if (maxCount <= 0) {
+      return null;
+    }
+
+    const hideSubObjects: string[] = [];
+    const showSubObjects: string[] = [];
+    const hideShowBoneName = weaponBones.hideShowBoneName?.trim();
+    if (hideShowBoneName) {
+      const subObjectName = this.normalizeProjectileFeedbackSubObjectName(hideShowBoneName);
+      if (hideCount > 0) {
+        hideSubObjects.push(subObjectName);
+      } else {
+        showSubObjects.push(subObjectName);
+      }
+      return { hideSubObjects, showSubObjects };
+    }
+
+    const launchBoneName = weaponBones.launchBoneName?.trim();
+    if (!launchBoneName) {
+      return null;
+    }
+
+    const normalizedLaunchBoneName = this.normalizeProjectileFeedbackSubObjectName(launchBoneName);
+    for (let projectileIndex = 1; projectileIndex <= maxCount; projectileIndex++) {
+      const subObjectName = `${normalizedLaunchBoneName}${String(projectileIndex).padStart(2, '0')}`;
+      if (projectileIndex <= hideCount) {
+        hideSubObjects.push(subObjectName);
+      } else {
+        showSubObjects.push(subObjectName);
+      }
+    }
+    return { hideSubObjects, showSubObjects };
+  }
+
+  private normalizeProjectileFeedbackSubObjectName(name: string): string {
+    return name.trim().toUpperCase();
   }
 
   private applyTransientWeaponConditionFlags(

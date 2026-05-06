@@ -100,6 +100,83 @@ describe('SubObjectsUpgrade', () => {
   });
 });
 
+describe('ProjectileBoneFeedbackEnabledSlots', () => {
+  function makeProjectileFeedbackBundle(useHideShowBone: boolean) {
+    return makeBundle({
+      objects: [
+        makeObjectDef('MissileCarrier', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'MissileWeapon'] }),
+          makeBlock('Draw', 'W3DModelDraw ModuleTag_Draw', {
+            ProjectileBoneFeedbackEnabledSlots: 'PRIMARY',
+          }, [
+            makeBlock('DefaultConditionState', '', {
+              Model: 'CarrierModel',
+              WeaponLaunchBone: ['PRIMARY', 'WeaponA'],
+              ...(useHideShowBone ? { WeaponHideShowBone: ['PRIMARY', 'Missile'] } : {}),
+            }),
+          ]),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('MissileWeapon', {
+          PrimaryDamage: 10,
+          DamageType: 'EXPLOSION',
+          DeathType: 'EXPLODED',
+          WeaponSpeed: 999,
+          AttackRange: 200,
+          DelayBetweenShots: 500,
+          ClipSize: 3,
+          ClipReloadTime: 3000,
+        }),
+      ],
+    });
+  }
+
+  it('uses WeaponHideShowBone as one clip-backed projectile sub-object', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('MissileCarrier', 50, 50)]),
+      makeRegistry(makeProjectileFeedbackBundle(true)),
+      makeHeightmap(),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { attackAmmoInClip: number }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+
+    entity.attackAmmoInClip = 3;
+    let state = logic.getRenderableEntityStates()[0]!;
+    expect(state.forcedShownSubObjects).toEqual(['MISSILE']);
+    expect(state.forcedHiddenSubObjects).toBeUndefined();
+
+    entity.attackAmmoInClip = 2;
+    state = logic.getRenderableEntityStates()[0]!;
+    expect(state.forcedHiddenSubObjects).toEqual(['MISSILE']);
+    expect(state.forcedShownSubObjects).toBeUndefined();
+  });
+
+  it('falls back to numbered WeaponLaunchBone sub-objects when no hide/show bone is supplied', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('MissileCarrier', 50, 50)]),
+      makeRegistry(makeProjectileFeedbackBundle(false)),
+      makeHeightmap(),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { attackAmmoInClip: number }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+    entity.attackAmmoInClip = 1;
+
+    const state = logic.getRenderableEntityStates()[0]!;
+    expect(state.forcedHiddenSubObjects).toEqual(['WEAPONA01', 'WEAPONA02']);
+    expect(state.forcedShownSubObjects).toEqual(['WEAPONA03']);
+  });
+});
+
 describe('ModelConditionFlags sync', () => {
   it('sets DAMAGED / REALLYDAMAGED from body damage state', () => {
     const bundle = makeBundle({

@@ -1,7 +1,7 @@
 import type { IniBlock, IniValue } from '@generals/core';
 import type { ObjectDef } from '@generals/ini-data';
 
-import { readNumericField } from './ini-readers.js';
+import { readNumericField, readStringListValue } from './ini-readers.js';
 import type { RenderAnimationState, RenderAnimationStateClipCandidates } from './types.js';
 
 /**
@@ -138,6 +138,8 @@ export interface ResolvedRenderAssetProfile {
    * blocks (e.g. W3DModelDraw) rather than individual ModelConditionState blocks.
    */
   ignoreConditionStates: string[];
+  /** Source parity: W3DModelDrawModuleData::m_projectileBoneFeedbackEnabledSlots. */
+  projectileBoneFeedbackEnabledSlotMask: number;
 }
 
 function isModelConditionStateBlockType(blockType: string): boolean {
@@ -160,6 +162,7 @@ export function resolveRenderAssetProfile(
     modelConditionInfos: collectModelConditionInfos(objectDef),
     transitionInfos: collectTransitionInfos(objectDef),
     ignoreConditionStates: collectIgnoreConditionStates(objectDef),
+    projectileBoneFeedbackEnabledSlotMask: collectProjectileBoneFeedbackEnabledSlotMask(objectDef),
   };
 }
 
@@ -588,6 +591,7 @@ function hasTurretInfo(info: ModelConditionTurretInfo): boolean {
 }
 
 const WEAPON_SLOT_NAMES = ['PRIMARY', 'SECONDARY', 'TERTIARY'] as const satisfies readonly ModelConditionWeaponSlotName[];
+const WEAPON_SLOT_BITS = new Map<string, number>(WEAPON_SLOT_NAMES.map((slotName, index) => [slotName, 1 << index]));
 
 const WEAPON_BONE_FIELD_SETS = [
   { fieldName: 'WeaponFireFXBone', property: 'fireFXBoneName' },
@@ -1000,6 +1004,29 @@ function inferRenderAnimationStateFromConditionStateName(conditionStateName: str
     return 'IDLE';
   }
   return null;
+}
+
+function collectProjectileBoneFeedbackEnabledSlotMask(objectDef: ObjectDef | undefined): number {
+  if (!objectDef) {
+    return 0;
+  }
+  let mask = 0;
+  const visitBlock = (block: IniBlock): void => {
+    const value = readIniFieldValue(block.fields, 'ProjectileBoneFeedbackEnabledSlots');
+    for (const token of readStringListValue(value)) {
+      const bit = WEAPON_SLOT_BITS.get(token.trim().toUpperCase());
+      if (bit !== undefined) {
+        mask |= bit;
+      }
+    }
+    for (const childBlock of block.blocks) {
+      visitBlock(childBlock);
+    }
+  };
+  for (const block of objectDef.blocks) {
+    visitBlock(block);
+  }
+  return mask;
 }
 
 function extractIniValueTokens(value: IniValue | undefined): string[][] {

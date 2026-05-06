@@ -1584,6 +1584,55 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     expect(transitionUsers, 'expected retail Weapon*Bone transition users').toBeGreaterThan(50);
   });
 
+  it('ProjectileBoneFeedbackEnabledSlots parses source weapon-slot bitstrings for every retail user', () => {
+    const weaponSlotByName = new Map([
+      ['PRIMARY', 0],
+      ['SECONDARY', 1],
+      ['TERTIARY', 2],
+    ]);
+    const splitSlotTokens = (value: unknown): string[] =>
+      (Array.isArray(value) ? value : [value])
+        .filter((entry) => entry !== undefined && entry !== null)
+        .flatMap((entry) => String(entry).trim().split(/\s+/).filter(Boolean));
+
+    let userCount = 0;
+    let arrayShapeUsers = 0;
+    for (const obj of bundle.objects ?? []) {
+      let expectedMask = 0;
+      const visit = (block: BundleBlock): void => {
+        const value = (block.fields ?? {})['ProjectileBoneFeedbackEnabledSlots'];
+        if (value !== undefined) {
+          userCount++;
+          if (Array.isArray(value)) {
+            arrayShapeUsers++;
+          }
+          for (const token of splitSlotTokens(value)) {
+            const bitIndex = weaponSlotByName.get(token.trim().toUpperCase());
+            if (bitIndex !== undefined) {
+              expectedMask |= 1 << bitIndex;
+            }
+          }
+        }
+        for (const child of block.blocks ?? []) {
+          visit(child);
+        }
+      };
+      for (const block of obj.blocks ?? []) {
+        visit(block);
+      }
+      if (expectedMask === 0) continue;
+
+      const profile = resolveRenderAssetProfile(obj as never);
+      expect(
+        profile.projectileBoneFeedbackEnabledSlotMask,
+        `ProjectileBoneFeedbackEnabledSlots mask mismatch on ${obj.name}`,
+      ).toBe(expectedMask);
+    }
+
+    expect(userCount, 'expected retail ProjectileBoneFeedbackEnabledSlots users').toBeGreaterThan(20);
+    expect(arrayShapeUsers, 'expected retail multi-slot projectile feedback users').toBeGreaterThan(0);
+  });
+
   it('ShowSubObject/HideSubObject conflicts resolve to one source visibility action', () => {
     let sourceConflictCount = 0;
     const splitNames = (value: unknown): string[] =>
