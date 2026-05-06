@@ -212,7 +212,8 @@ export function collectModelConditionInfos(objectDef: ObjectDef | undefined): Mo
   const rawInfos: ModelConditionInfo[] = [];
 
   const visitBlock = (block: IniBlock): void => {
-    if (block.type.toUpperCase() === 'MODELCONDITIONSTATE') {
+    const blockType = block.type.toUpperCase();
+    if (blockType === 'MODELCONDITIONSTATE' || blockType === 'DEFAULTCONDITIONSTATE') {
       rawInfos.push(parseModelConditionStateBlock(block));
     }
 
@@ -423,16 +424,8 @@ function collectIdleAnimationVariants(fields: Record<string, IniValue>): IdleAni
 
   const variants: IdleAnimationVariant[] = [];
 
-  // If it's an array, each entry is a separate IdleAnimation line
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      const variant = parseIdleAnimationEntry(entry as IniValue);
-      if (variant) {
-        variants.push(variant);
-      }
-    }
-  } else {
-    const variant = parseIdleAnimationEntry(value);
+  for (const tokens of extractIniValueTokens(value)) {
+    const variant = parseIdleAnimationTokens(tokens);
     if (variant) {
       variants.push(variant);
     }
@@ -441,21 +434,17 @@ function collectIdleAnimationVariants(fields: Record<string, IniValue>): IdleAni
   return variants;
 }
 
-function parseIdleAnimationEntry(value: IniValue): IdleAnimationVariant | null {
-  if (typeof value === 'string') {
-    const parts = value.trim().split(/\s+/);
-    const animName = parts[0]?.trim();
-    if (!animName || animName.length === 0) {
-      return null;
-    }
-    // Third token is the repeat/weight value (source: timesToRepeat parameter)
-    const weight = parts.length >= 3 ? parseInt(parts[2]!, 10) : 1;
-    return {
-      animationName: animName,
-      randomWeight: Number.isFinite(weight) && weight > 0 ? weight : 1,
-    };
+function parseIdleAnimationTokens(parts: readonly string[]): IdleAnimationVariant | null {
+  const animName = parts[0]?.trim();
+  if (!animName || animName.length === 0) {
+    return null;
   }
-  return null;
+  // Third token is the repeat/weight value (source: timesToRepeat parameter).
+  const weight = parts.length >= 3 ? parseInt(parts[2]!, 10) : 1;
+  return {
+    animationName: animName,
+    randomWeight: Number.isFinite(weight) && weight > 0 ? weight : 1,
+  };
 }
 
 /**
@@ -677,13 +666,36 @@ function extractIniValueTokens(value: IniValue | undefined): string[][] {
     return [];
   }
   if (typeof value === 'string') {
-    return [value.split(/[\s,;|]+/).map((token) => token.trim()).filter(Boolean)];
+    const tokens = value.split(/[\s,;|]+/).map((token) => token.trim()).filter(Boolean);
+    return tokens.length > 0 ? [tokens] : [];
   }
   if (typeof value === 'number' || typeof value === 'boolean') {
     return [[String(value)]];
   }
   if (Array.isArray(value)) {
-    return value.flatMap((entry) => extractIniValueTokens(entry as IniValue));
+    if (value.some((entry) => Array.isArray(entry))) {
+      return value.flatMap((entry) => extractIniValueTokens(entry as IniValue));
+    }
+    const stringElems: string[] = [];
+    for (const entry of value) {
+      if (typeof entry === 'string') {
+        stringElems.push(entry);
+      }
+    }
+    const anyMultiTokenString = stringElems.some((entry) => /\s/.test(entry));
+    if (anyMultiTokenString) {
+      return value.flatMap((entry) => extractIniValueTokens(entry as IniValue));
+    }
+    const inlineTokens: string[] = [];
+    for (const entry of value) {
+      if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
+        const token = String(entry).trim();
+        if (token.length > 0) {
+          inlineTokens.push(token);
+        }
+      }
+    }
+    return inlineTokens.length > 0 ? [inlineTokens] : [];
   }
   return [];
 }

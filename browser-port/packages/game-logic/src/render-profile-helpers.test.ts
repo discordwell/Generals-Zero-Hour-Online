@@ -41,6 +41,22 @@ describe('collectModelConditionInfos', () => {
     expect(infos[0].conditionFlags).toEqual([]);
   });
 
+  it('collects DefaultConditionState blocks as the empty default state', () => {
+    const block: IniBlock = {
+      ...makeModelConditionStateBlock('', {
+        IdleAnimation: ['IdleA', '0', '3'],
+      }),
+      type: 'DefaultConditionState',
+    };
+    const infos = collectModelConditionInfos(makeObjectDef([block]));
+    expect(infos).toHaveLength(1);
+    expect(infos[0].conditionFlags).toEqual([]);
+    expect(infos[0].idleAnimations).toEqual([{
+      animationName: 'IdleA',
+      randomWeight: 3,
+    }]);
+  });
+
   it('produces conditionFlags: ["MOVING"] from "MOVING" condition state', () => {
     const block = makeModelConditionStateBlock('MOVING', {});
     const infos = collectModelConditionInfos(makeObjectDef([block]));
@@ -360,6 +376,18 @@ describe('IdleAnimation variant parsing', () => {
     expect(infos[0].idleAnimations[0]!.randomWeight).toBe(1);
     expect(infos[0].idleAnimations[1]!.animationName).toBe('IdleB');
     expect(infos[0].idleAnimations[1]!.randomWeight).toBe(3);
+  });
+
+  it('treats flat-token IdleAnimation arrays as one weighted retail entry', () => {
+    const block = makeModelConditionStateBlock('', {
+      IdleAnimation: ['IdleA', '0', '3'],
+    });
+    const infos = collectModelConditionInfos(makeObjectDef([block]));
+    expect(infos[0].idleAnimationName).toBe('IdleA');
+    expect(infos[0].idleAnimations).toEqual([{
+      animationName: 'IdleA',
+      randomWeight: 3,
+    }]);
   });
 
   it('returns empty array when no IdleAnimation field present', () => {

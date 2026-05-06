@@ -41,6 +41,7 @@ import {
 } from './entity-factory.js';
 import { extractChinookAIProfile, extractJetSlowDeathProfiles } from './aircraft-ai.js';
 import { extractFlightDeckProfile } from './flight-deck.js';
+import { collectModelConditionInfos } from './render-profile-helpers.js';
 import { extractSlavedUpdateProfile } from './spawner-behavior.js';
 import { extractFireWhenDamagedProfiles } from './status-effects.js';
 import { LOGIC_FRAME_RATE } from './index.js';
@@ -1066,6 +1067,53 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     }
     expect(autoChooseUsers, 'expected retail WeaponSet.AutoChooseSources users').toBeGreaterThan(200);
     expect(preferredUsers, 'expected retail WeaponSet.PreferredAgainst users').toBeGreaterThan(80);
+  });
+
+  it('IdleAnimation flat-token arrays decode as one weighted retail animation', () => {
+    let userCount = 0;
+    for (const obj of bundle.objects ?? []) {
+      const expectedByName = new Map<string, number>();
+      const visit = (block: BundleBlock): void => {
+        const blockType = (block.type ?? '').toUpperCase();
+        if (blockType === 'DEFAULTCONDITIONSTATE' || blockType === 'MODELCONDITIONSTATE') {
+          const value = block.fields?.['IdleAnimation'];
+          if (
+            Array.isArray(value)
+            && value.length >= 3
+            && value.every((entry) => typeof entry === 'string' && !/\s/.test(entry))
+          ) {
+            const animationName = (value[0] as string).trim();
+            const weight = parseInt(value[2] as string, 10);
+            if (animationName.length > 0 && Number.isFinite(weight) && weight > 0) {
+              expectedByName.set(animationName, weight);
+            }
+          }
+        }
+        for (const child of block.blocks ?? []) {
+          visit(child);
+        }
+      };
+      for (const block of obj.blocks ?? []) {
+        visit(block);
+      }
+      if (expectedByName.size === 0) continue;
+
+      userCount += expectedByName.size;
+      const infos = collectModelConditionInfos(obj as never);
+      const parsed = new Map<string, number>();
+      for (const info of infos) {
+        for (const variant of info.idleAnimations) {
+          parsed.set(variant.animationName, variant.randomWeight);
+        }
+      }
+      for (const [animationName, weight] of expectedByName) {
+        expect(
+          parsed.get(animationName),
+          `IdleAnimation flat-token array lost weight on ${obj.name} animation ${animationName}`,
+        ).toBe(weight);
+      }
+    }
+    expect(userCount, 'expected retail IdleAnimation flat-token array users').toBeGreaterThan(0);
   });
 
   it('extractIniValueTokens decodes flat primitive arrays as a single multi-token entry', () => {
