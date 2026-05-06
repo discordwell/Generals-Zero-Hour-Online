@@ -1436,6 +1436,66 @@ describe('ToppleUpdate', () => {
     expect(tree.w3dTreeBufferMatrix3D[7]).toBeCloseTo(205);
   });
 
+  it('uses box minor radius for W3DTreeBuffer unitMoved tree collision checks', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('WideDozer', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL DozerLocomotor', {}),
+        ], {
+          CrusherLevel: 2,
+          Geometry: 'BOX',
+          GeometryMajorRadius: 20,
+          GeometryMinorRadius: 2,
+        }),
+        makeObjectDef('OptimizedTree', 'Neutral', ['SHRUBBERY', 'IMMOBILE', 'OPTIMIZED_TREE'], [
+          makeBlock('Draw', 'W3DTreeDraw ModuleTag_Draw', {
+            ModelName: 'PTreeOak',
+            TextureName: 'PTreeOak.tga',
+            DoTopple: true,
+            InitialVelocityPercent: 20,
+            InitialAccelPercent: 1,
+            BounceVelocityPercent: 30,
+            MinimumToppleSpeed: 0.5,
+            KillWhenFinishedToppling: true,
+            SinkTime: 5000,
+            SinkDistance: 10,
+          }),
+        ], { GeometryMajorRadius: 3, GeometryMinorRadius: 3 }),
+      ],
+      locomotors: [
+        makeLocomotorDef('DozerLocomotor', 180),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('WideDozer', 205, 205),
+        makeMapObject('OptimizedTree', 225, 205),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const entities = (logic as unknown as {
+      spawnedEntities: Map<number, {
+        templateName: string;
+        w3dTreeBufferToppleState: string;
+      }>;
+    }).spawnedEntities;
+    const tree = [...entities.values()].find((entity) => entity.templateName === 'OptimizedTree')!;
+
+    // Source W3DTreeBuffer::unitMoved uses min(major, minor) for GEOMETRY_BOX movers,
+    // so the collision radius is 2 + 7, not 20 + 7. Moving away should never topple.
+    logic.submitCommand({ type: 'moveTo', entityId: 1, targetX: 155, targetZ: 205 });
+    for (let i = 0; i < 10; i++) {
+      logic.update(1 / 30);
+    }
+
+    expect(tree.w3dTreeBufferToppleState).toBe('UPRIGHT');
+  });
+
   it('imports source TerrainVisual W3DTreeBuffer state through source GameLogic restore', () => {
     const bundle = makeBundle({
       objects: [

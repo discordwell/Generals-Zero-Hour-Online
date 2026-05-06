@@ -46,6 +46,7 @@ const SOURCE_LOCOMOTOR_FLAG_CLOSE_ENOUGH_DIST_3D = 1 << 10;
 const SOURCE_LOCOMOTOR_FLAG_OFFSET_INCREASING = 1 << 11;
 // Source parity: Locomotor donut delay is 2.5 seconds at LOGICFRAMES_PER_SECOND (30).
 const SOURCE_LOCOMOTOR_DONUT_DELAY_FRAMES = 75;
+// Source parity: W3DTreeBuffer.cpp unitMoved uses TREE_RADIUS_APPROX = 7.0f.
 const SOURCE_W3D_TREE_RADIUS_APPROX = 7.0;
 
 // ---- Entity movement implementations ----
@@ -1502,8 +1503,23 @@ export function updateUnitCollisionSeparation(self: GL): void {
   }
 }
 
+function sourceW3DTreeMoverRadius(mover: MapEntity, fallbackRadius: number): number {
+  const geometry = mover.obstacleGeometry;
+  if (!geometry) {
+    return Math.max(0, fallbackRadius);
+  }
+  let radius = Math.max(0, geometry.majorRadius);
+  if (geometry.shape === 'box' && radius > geometry.minorRadius) {
+    radius = Math.max(0, geometry.minorRadius);
+  }
+  return radius;
+}
+
 function updateW3DTreeBufferUnitMoved(self: GL, mover: MapEntity, moverRadius: number): void {
-  const radius = moverRadius + SOURCE_W3D_TREE_RADIUS_APPROX;
+  if (mover.kindOf.has('IMMOBILE')) {
+    return;
+  }
+  const radius = sourceW3DTreeMoverRadius(mover, moverRadius) + SOURCE_W3D_TREE_RADIUS_APPROX;
   const radiusSqr = radius * radius;
   for (const target of self.spawnedEntities.values()) {
     if (target.id === mover.id || target.destroyed || target.w3dTreeBufferDeleted) {
@@ -1514,7 +1530,8 @@ function updateW3DTreeBufferUnitMoved(self: GL, mover: MapEntity, moverRadius: n
     }
     const dx = target.x - mover.x;
     const dz = target.z - mover.z;
-    if ((dx * dx) + (dz * dz) > radiusSqr) {
+    const dy = target.y - mover.y;
+    if ((dx * dx) + (dz * dz) + (dy * dy) > radiusSqr) {
       continue;
     }
     self.applyW3DTreeBufferTopplingForce(target, dx, dz, 0, 0);
