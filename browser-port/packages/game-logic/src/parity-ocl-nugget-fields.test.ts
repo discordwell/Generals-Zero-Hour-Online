@@ -899,6 +899,37 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(spawned[0]!.modelConditionFlags.has('FADING_IN')).toBe(true);
   });
 
+  it('plays FadeSound from the source for every faded spawned object', () => {
+    // C++ parity: ObjectCreationList.cpp:1411-1424 — fade audio is anchored
+    // to sourceObj and emitted from each created object's fade path.
+    const { logic } = makeCreateObjectSetup({
+      Count: 2,
+      FadeIn: 'Yes',
+      FadeTime: 3000,
+      FadeSound: 'TerrorCellActivated',
+    });
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    logic.drainScriptAudioPlaybackRequests();
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => void })
+      .executeOCL('OCL_TestCreate', source);
+
+    const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
+    expect(spawned.length).toBe(2);
+    const requests = logic.drainScriptAudioPlaybackRequests();
+    expect(requests).toHaveLength(2);
+    for (const request of requests) {
+      expect(request).toEqual(expect.objectContaining({
+        audioName: 'TerrorCellActivated',
+        playbackType: 'SOUND_EFFECT',
+        sourceEntityId: source.id,
+        x: source.x,
+        y: source.y,
+        z: source.z,
+      }));
+    }
+  });
+
   it('skips creation when RequiresLivePlayer is Yes and owning side is defeated', () => {
     // C++ parity: ObjectCreationList.cpp:876 — m_requiresLivePlayer.
     const { logic } = makeCreateObjectSetup({ RequiresLivePlayer: 'Yes' });

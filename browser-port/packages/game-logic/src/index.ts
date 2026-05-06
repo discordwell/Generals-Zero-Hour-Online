@@ -56890,6 +56890,7 @@ export class GameLogicSubsystem implements Subsystem {
     const fadeOut = readBooleanField(nugget.fields, ['FadeOut']) ?? false;
     const fadeTimeMs = readNumericField(nugget.fields, ['FadeTime']) ?? 0;
     const fadeFrames = fadeTimeMs > 0 ? this.msToLogicFrames(fadeTimeMs) : 0;
+    const fadeSoundName = this.extractDynamicAudioEventName(nugget.fields, 'FadeSound')?.trim() ?? '';
 
     // Source parity: DiesOnBadLand — ZH-only: kill unit if spawned on water/impassable/cliff/off-map.
     // C++ ObjectCreationList.cpp:1267-1300 — if m_diesOnBadLand, check isUnderwater, isOffMap, impassable.
@@ -57204,6 +57205,11 @@ export class GameLogicSubsystem implements Subsystem {
         // Source parity: FadeIn / FadeOut — store fade state for rendering.
         if (fadeIn || fadeOut) {
           spawned.modelConditionFlags.add(fadeIn ? 'FADING_IN' : 'FADING_OUT');
+          // Source parity: ObjectCreationList.cpp:1411-1424 plays FadeSound
+          // on the source object for every spawned object that fades.
+          if (fadeSoundName) {
+            this.requestRuntimeSoundPlayFromNamed(fadeSoundName, sourceEntity.id);
+          }
           if (fadeFrames > 0) {
             spawned.lifetimeDieFrame = spawned.lifetimeDieFrame ?? (this.frameCounter + fadeFrames);
           }
