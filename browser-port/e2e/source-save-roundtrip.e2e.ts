@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { resolve } from 'node:path';
 import { parseSaveGameInfo } from '@generals/engine';
@@ -86,6 +86,19 @@ function loadAutoRoundtripFixtures(): RoundtripFixture[] {
       });
       seen.add(fileName);
     }
+  }
+
+  for (const fileName of readdirSync(resolve('fixtures/source-saves')).filter((entry) => entry.endsWith('.sav')).sort()) {
+    if (seen.has(fileName)) {
+      continue;
+    }
+    const saveBytes = readFileSync(resolve('fixtures/source-saves', fileName));
+    const saveInfo = parseSaveGameInfo(bufferToArrayBuffer(saveBytes));
+    fixtures.push({
+      fileName,
+      title: saveInfo.description,
+    });
+    seen.add(fileName);
   }
 
   return fixtures.sort((left, right) => left.fileName.localeCompare(right.fileName));
