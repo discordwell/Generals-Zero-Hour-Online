@@ -15,6 +15,7 @@ import {
   BEZIER_TERRAIN_SAMPLE_COUNT,
   estimateHighestTerrainAlongLine,
   LOCOMOTORSET_SUPERSONIC,
+  PATHFIND_CELL_SIZE,
   RELATIONSHIP_ALLIES,
   RELATIONSHIP_ENEMIES,
   RELATIONSHIP_NEUTRAL,
@@ -217,7 +218,8 @@ export function canAttackerTargetEntity(self: GL,
 
   // Source parity: WeaponTemplate pitch limits — reject targets outside vertical arc.
   const weapon = attacker.attackWeapon;
-  if (weapon && (weapon.minTargetPitch > -Math.PI / 2 || weapon.maxTargetPitch < Math.PI / 2)) {
+  const isContactWeapon = weapon && Math.max(0, weapon.attackRange ?? 0) < PATHFIND_CELL_SIZE;
+  if (weapon && !isContactWeapon && (weapon.minTargetPitch > -Math.PI / 2 || weapon.maxTargetPitch < Math.PI / 2)) {
     const dx = target.x - attacker.x;
     const dz = target.z - attacker.z;
     const horizontalDist = Math.hypot(dx, dz);

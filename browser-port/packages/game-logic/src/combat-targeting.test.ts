@@ -38,6 +38,7 @@ function makeEntity(overrides: Record<string, unknown> = {}) {
 
 function makePitchLimitedWeapon(overrides: Record<string, unknown> = {}) {
   return {
+    attackRange: 100,
     minTargetPitch: 45 * Math.PI / 180,
     maxTargetPitch: 80 * Math.PI / 180,
     allowAttackGarrisonedBldgs: true,
@@ -54,6 +55,19 @@ describe('canAttackerTargetEntity pitch limits', () => {
     const target = makeEntity({
       id: 2,
       y: 5,
+    });
+
+    expect(canAttackerTargetEntity(makeSelfStub(), attacker, target, 'PLAYER')).toBe(true);
+  });
+
+  it('skips pitch limits for contact weapons', () => {
+    const attacker = makeEntity({
+      id: 1,
+      attackWeapon: makePitchLimitedWeapon({ attackRange: 5 }),
+    });
+    const target = makeEntity({
+      id: 2,
+      y: 20,
     });
 
     expect(canAttackerTargetEntity(makeSelfStub(), attacker, target, 'PLAYER')).toBe(true);
