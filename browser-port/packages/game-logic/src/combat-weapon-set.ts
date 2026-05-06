@@ -570,7 +570,7 @@ export interface ChooseBestWeaponContext {
  *
  * Key behaviors from C++:
  * - Respects weapon lock (if locked, returns current weapon immediately)
- * - Filters by range, anti-mask, ammo, autoChooseSourceMask
+ * - Filters by anti-mask, ammo, autoChooseSourceMask
  * - Preferred-against weapons always win
  * - Ready weapons beat reloading weapons (unless no ready weapon found)
  * - Tie-breaking: PRIMARY preferred (iteration goes backwards so ties favor lower index)
@@ -610,11 +610,8 @@ export function chooseBestWeaponForTarget(
       continue;
     }
 
-    // Source parity: range check.
-    const attackRangeSqr = profile.attackRange * profile.attackRange;
-    if (ctx.distanceSqrToVictim > attackRangeSqr) {
-      continue;
-    }
+    // Source parity: WeaponSet.cpp explicitly does not eliminate out-of-range
+    // weapons here. Movement/range gating happens in attack execution.
 
     // Source parity: ammo check.
     // Weapons that auto-reload their clip should still be considered when

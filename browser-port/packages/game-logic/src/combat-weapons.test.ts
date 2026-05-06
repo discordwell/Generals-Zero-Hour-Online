@@ -626,7 +626,7 @@ describe('Best weapon selection', () => {
     expect(result).toBe(WEAPON_SLOT_PRIMARY);
   });
 
-  it('skips weapons out of range', () => {
+  it('does not eliminate out-of-range weapons during best-weapon choice', () => {
     const state = createMultiWeaponEntityState();
     state.weaponSlotProfiles[0] = makeWeaponProfile({
       name: 'ShortRange',
@@ -644,9 +644,10 @@ describe('Best weapon selection', () => {
       resetWeaponSlotState(state.weaponSlots[i], state.weaponSlotProfiles[i]!);
     }
 
-    // Target is 100 units away — short range weapon can't reach
+    // Source parity: WeaponSet.cpp comments out this range filter. Attack
+    // movement/firing code handles whether the chosen weapon can fire yet.
     const result = chooseBestWeaponForTarget(state, makeChooseContext(), 'PREFER_MOST_DAMAGE');
-    expect(result).toBe(WEAPON_SLOT_SECONDARY);
+    expect(result).toBe(WEAPON_SLOT_PRIMARY);
   });
 
   it('skips weapons with wrong anti-mask', () => {
