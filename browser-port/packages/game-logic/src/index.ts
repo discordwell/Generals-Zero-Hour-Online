@@ -40689,6 +40689,8 @@ export class GameLogicSubsystem implements Subsystem {
     let targetCommandSetName = module.commandSetName;
     if (
       module.commandSetAltTriggerUpgrade
+      && this.iniDataRegistry
+      && findUpgradeDefByName(this.iniDataRegistry, module.commandSetAltTriggerUpgrade)
       && this.entityHasUpgrade(entity, module.commandSetAltTriggerUpgrade)
     ) {
       targetCommandSetName = module.commandSetAltName;

@@ -5088,6 +5088,47 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     expect(withAlt.maxHealth).toEqual([100, 100, 100, 100, 100, 180, 180, 180]);
   });
 
+  it('ignores CommandSetUpgrade TriggerAlt when the upgrade name is unresolved', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('UpgradeHub', 'America', ['STRUCTURE'], [
+          makeBlock('Behavior', 'CommandSetUpgrade ModuleTag_CommandSet', {
+            TriggeredBy: 'Upgrade_A',
+            CommandSet: 'CommandSet_Hub_AfterA',
+            CommandSetAlt: 'CommandSet_Hub_AfterA_Alt',
+            TriggerAlt: 'Upgrade_UnknownAlt',
+          }),
+        ], {
+          CommandSet: 'CommandSet_Hub_Base',
+        }),
+      ],
+      upgrades: [
+        makeUpgradeDef('Upgrade_A', { Type: 'OBJECT' }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('UpgradeHub', 8, 8)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, { completedUpgrades: Set<string>; commandSetStringOverride: string | null }>;
+    };
+    privateApi.spawnedEntities.get(1)!.completedUpgrades.add('UPGRADE_UNKNOWNALT');
+
+    logic.submitCommand({ type: 'applyUpgrade', entityId: 1, upgradeName: 'Upgrade_A' });
+    logic.update(1 / 30);
+
+    // Source parity: CommandSetUpgrade::upgradeImplementation first resolves
+    // TriggerAlt through TheUpgradeCenter. If the pointer is null, it never
+    // tests object/player masks and falls back to CommandSet.
+    expect(privateApi.spawnedEntities.get(1)!.commandSetStringOverride).toBe('COMMANDSET_HUB_AFTERA');
+    expect(privateApi.spawnedEntities.get(1)!.commandSetStringOverride).not.toBe('COMMANDSET_HUB_AFTERA_ALT');
+  });
+
   it('keeps CommandSetUpgrade queue gating deterministic across repeated runs', () => {
     const first = {
       noAlt: runCommandSetUpgradeTimeline(false),
