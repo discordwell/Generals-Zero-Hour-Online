@@ -213,6 +213,69 @@ describe('collectModelConditionInfos', () => {
     }]);
   });
 
+  it('parses source turret bone names and art angles from condition states', () => {
+    const block = makeModelConditionStateBlock('', {
+      Turret: 'TURRET01',
+      TurretPitch: 'TURRETEL',
+      TurretArtAngle: 180,
+      AltTurret: 'Turret02',
+      AltTurretPitch: 'TurretEL02',
+    });
+    const infos = collectModelConditionInfos(makeObjectDef([block]));
+    expect(infos[0].turrets).toEqual([
+      {
+        turretBoneName: 'turret01',
+        turretPitchBoneName: 'turretel',
+        turretArtAngle: Math.PI,
+        turretArtPitch: 0,
+      },
+      {
+        turretBoneName: 'turret02',
+        turretPitchBoneName: 'turretel02',
+        turretArtAngle: 0,
+        turretArtPitch: 0,
+      },
+    ]);
+  });
+
+  it('lets TransitionState inherit default turret bindings', () => {
+    const drawModule: IniBlock = {
+      type: 'Draw',
+      name: 'W3DModelDraw',
+      fields: {},
+      blocks: [
+        {
+          ...makeModelConditionStateBlock('', {
+            Turret: 'TURRET01',
+            TurretPitch: 'TURRETEL',
+            TurretArtPitch: 15,
+            TransitionKey: 'TRANS_A',
+          }),
+          type: 'DefaultConditionState',
+        },
+        makeModelConditionStateBlock('DAMAGED', {
+          TransitionKey: 'TRANS_B',
+        }),
+        {
+          type: 'TransitionState',
+          name: 'TRANS_A TRANS_B',
+          fields: {
+            Animation: 'TransAB',
+          },
+          blocks: [],
+        },
+      ],
+    };
+    const infos = collectTransitionInfos(makeObjectDef([drawModule]));
+    expect(infos).toHaveLength(1);
+    expect(infos[0].turrets).toEqual([{
+      turretBoneName: 'turret01',
+      turretPitchBoneName: 'turretel',
+      turretArtAngle: 0,
+      turretArtPitch: Math.PI / 12,
+    }]);
+  });
+
   it('keeps particle-system bones in the visual merge key', () => {
     const infos = collectModelConditionInfos(makeObjectDef([
       makeModelConditionStateBlock('DAMAGED', {
@@ -227,6 +290,22 @@ describe('collectModelConditionInfos', () => {
     expect(infos).toHaveLength(2);
     expect(infos[0].particleSysBones[0]?.particleSystemName).toBe('glitter2');
     expect(infos[1].particleSysBones[0]?.particleSystemName).toBe('fire1');
+  });
+
+  it('keeps source turret bindings in the visual merge key', () => {
+    const infos = collectModelConditionInfos(makeObjectDef([
+      makeModelConditionStateBlock('DAMAGED', {
+        Model: 'SharedModel',
+        Turret: 'TURRET01',
+      }),
+      makeModelConditionStateBlock('REALLYDAMAGED', {
+        Model: 'SharedModel',
+        Turret: 'TURRET02',
+      }),
+    ]));
+    expect(infos).toHaveLength(2);
+    expect(infos[0].turrets?.[0]?.turretBoneName).toBe('turret01');
+    expect(infos[1].turrets?.[0]?.turretBoneName).toBe('turret02');
   });
 
   it('lets TransitionState inherit default ParticleSysBone entries', () => {

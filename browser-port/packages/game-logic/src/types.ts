@@ -13,7 +13,13 @@ export interface MapObjectPlacementSummary {
 export type RenderAnimationState = 'IDLE' | 'MOVE' | 'ATTACK' | 'DIE' | 'PRONE';
 export type RenderAnimationStateClipCandidates = Partial<Record<RenderAnimationState, string[]>>;
 
-export type { ModelConditionInfo, TransitionInfo, IdleAnimationVariant, ParticleSysBoneInfo } from './render-profile-helpers.js';
+export type {
+  ModelConditionInfo,
+  TransitionInfo,
+  IdleAnimationVariant,
+  ParticleSysBoneInfo,
+  ModelConditionTurretInfo,
+} from './render-profile-helpers.js';
 
 export type RenderableObjectCategory = 'air' | 'building' | 'ground' | 'infantry' | 'vehicle' | 'unknown';
 
@@ -75,6 +81,8 @@ export interface RenderableEntityState {
   toppleDirZ: number;
   /** Source parity: TurretAI — turret rotation angles in radians (relative to body), one per turret. */
   turretAngles: number[];
+  /** Source parity: TurretAI — turret pitch angles in radians, one per turret. */
+  turretPitches: number[];
   /** Active status effects for overlay icons (poisoned, burning, EMP'd, etc.). */
   statusEffects?: readonly string[];
   /** Source parity: Geometry MajorRadius — used for selection circle sizing. */

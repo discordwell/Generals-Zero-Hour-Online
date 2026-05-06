@@ -826,6 +826,61 @@ describe('ObjectVisualManager', () => {
     expect(turretBone!.quaternion.w).toBeCloseTo(1, 5);
   });
 
+  it('uses source condition-state turret and pitch bone names before fallback patterns', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithTurretBones(['TURRET01', 'SOURCEYAW', 'SOURCEPITCH']),
+    });
+    const yaw = Math.PI / 5;
+    const pitch = Math.PI / 7;
+    const yawArt = Math.PI / 2;
+    const pitchArt = Math.PI / 12;
+    const conditionInfos = [{
+      conditionFlags: [] as string[],
+      conditionKey: '',
+      modelName: null,
+      animationName: 'Idle',
+      idleAnimationName: null,
+      hideSubObjects: [] as string[],
+      showSubObjects: [] as string[],
+      animationMode: 'LOOP' as const,
+      transitionKey: null,
+      animSpeedFactorMin: 1,
+      animSpeedFactorMax: 1,
+      idleAnimations: [],
+      turrets: [{
+        turretBoneName: 'sourceyaw',
+        turretPitchBoneName: 'sourcepitch',
+        turretArtAngle: yawArt,
+        turretArtPitch: pitchArt,
+      }],
+    }];
+
+    const state = makeMeshState({
+      id: 94,
+      modelConditionInfos: conditionInfos,
+      modelConditionFlags: [],
+      turretAngles: [yaw],
+      turretPitches: [pitch],
+    });
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([state], 1 / 30);
+
+    const root = manager.getVisualRoot(94)!;
+    const fallbackBone = root.getObjectByName('TURRET01')!;
+    const yawBone = root.getObjectByName('SOURCEYAW')!;
+    const pitchBone = root.getObjectByName('SOURCEPITCH')!;
+    const expectedYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), yaw + yawArt);
+    const expectedPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -(pitch + pitchArt));
+
+    expect(fallbackBone.quaternion.w).toBeCloseTo(1, 5);
+    expect(yawBone.quaternion.z).toBeCloseTo(expectedYaw.z, 5);
+    expect(yawBone.quaternion.w).toBeCloseTo(expectedYaw.w, 5);
+    expect(pitchBone.quaternion.y).toBeCloseTo(expectedPitch.y, 5);
+    expect(pitchBone.quaternion.w).toBeCloseTo(expectedPitch.w, 5);
+  });
+
   it('shows status effect icons when statusEffects are present', () => {
     const scene = new THREE.Scene();
     const manager = new ObjectVisualManager(scene, null, {

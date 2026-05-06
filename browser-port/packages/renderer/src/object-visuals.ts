@@ -15,6 +15,7 @@ import {
 import type {
   IdleAnimationVariant,
   ModelConditionInfo,
+  ModelConditionTurretInfo,
   ParticleSysBoneInfo,
   TransitionInfo,
 } from '@generals/game-logic';
@@ -28,7 +29,13 @@ import {
 // Re-export types and computeConditionKey so existing consumers of
 // @generals/renderer that import these from object-visuals keep working.
 export { computeConditionKey };
-export type { IdleAnimationVariant, ModelConditionInfo, ParticleSysBoneInfo, TransitionInfo };
+export type {
+  IdleAnimationVariant,
+  ModelConditionInfo,
+  ModelConditionTurretInfo,
+  ParticleSysBoneInfo,
+  TransitionInfo,
+};
 
 export type RenderableAnimationState = 'IDLE' | 'MOVE' | 'ATTACK' | 'DIE' | 'PRONE';
 
@@ -76,6 +83,7 @@ export interface RenderableEntityState {
   toppleDirX?: number;
   toppleDirZ?: number;
   turretAngles?: readonly number[];
+  turretPitches?: readonly number[];
   shadowType?: string;
   shadowSizeX?: number;
   shadowSizeY?: number;
@@ -157,7 +165,11 @@ interface VisualAssetState {
    * Index 0 = main turret (INI "Turret" field), index 1 = alt turret ("AltTurret").
    * Source parity: W3DModelDraw::handleClientTurretRotation.
    */
-  turretBones: THREE.Object3D[];
+  turretBones: Array<THREE.Object3D | null>;
+  turretPitchBones: Array<THREE.Object3D | null>;
+  turretArtAngles: number[];
+  turretArtPitches: number[];
+  turretBindingSignature: string | null;
   /** Status effect icon group (poisoned, burning, EMP'd). */
   statusEffectGroup: THREE.Group | null;
   /** Tracks which effects are currently shown (for diffing). */
@@ -453,8 +465,8 @@ export class ObjectVisualManager {
       this.syncVeterancyBadge(visual, state);
       this.syncStatusEffects(visual, state);
       this.syncStealthOpacity(visual, state);
-      this.syncTurretBones(visual, state);
       this.syncConditionAnimation(visual, state, dt);
+      this.syncTurretBones(visual, state);
       this.syncManualAnimationFrame(visual, state);
       this.syncForcedSubObjectVisibility(visual, state);
       // Only use legacy 5-state system if condition system isn't managing animation.
@@ -635,6 +647,10 @@ export class ObjectVisualManager {
       shadowTextureKey: null,
       shadowTextureLoadToken: 0,
       turretBones: [],
+      turretPitchBones: [],
+      turretArtAngles: [],
+      turretArtPitches: [],
+      turretBindingSignature: null,
       statusEffectGroup: null,
       activeStatusEffects: [],
       activeConditionKey: null,
@@ -844,7 +860,7 @@ export class ObjectVisualManager {
           currentVisual.currentModel = clone;
           currentVisual.mixer = mixer;
           currentVisual.actions = actions;
-          currentVisual.turretBones = this.findTurretBones(clone);
+          this.resetTurretBindingsToFallback(currentVisual, clone);
           currentVisual.sourceAnimations = source.animations;
           // Detect tread sub-meshes for UV scrolling (C++ pattern: mesh name contains "TREAD").
           const treadMeshes: THREE.Mesh[] = [];
@@ -1211,6 +1227,10 @@ export class ObjectVisualManager {
     visual.actions.clear();
     visual.activeState = null;
     visual.turretBones = [];
+    visual.turretPitchBones = [];
+    visual.turretArtAngles = [];
+    visual.turretArtPitches = [];
+    visual.turretBindingSignature = null;
     visual.conditionAction = null;
     visual.conditionClipActions.clear();
     visual.activeConditionKey = null;
@@ -2372,8 +2392,8 @@ export class ObjectVisualManager {
    * conventions.  Returns an array where index 0 = main turret bone and
    * index 1 = alt turret bone (either may be undefined if not found).
    */
-  private findTurretBones(model: THREE.Object3D): THREE.Object3D[] {
-    const bones: THREE.Object3D[] = [];
+  private findTurretBones(model: THREE.Object3D): Array<THREE.Object3D | null> {
+    const bones: Array<THREE.Object3D | null> = [];
     for (let slot = 0; slot < ObjectVisualManager.TURRET_BONE_PATTERNS.length; slot++) {
       const patterns = ObjectVisualManager.TURRET_BONE_PATTERNS[slot]!;
       let found: THREE.Object3D | null = null;
@@ -2386,9 +2406,56 @@ export class ObjectVisualManager {
         });
         if (found) break;
       }
-      bones[slot] = found!;
+      bones[slot] = found;
     }
     return bones;
+  }
+
+  private resetTurretBindingsToFallback(visual: VisualAssetState, model: THREE.Object3D): void {
+    visual.turretBones = this.findTurretBones(model);
+    visual.turretPitchBones = [];
+    visual.turretArtAngles = [];
+    visual.turretArtPitches = [];
+    visual.turretBindingSignature = 'fallback';
+  }
+
+  private syncConditionTurretBindings(
+    visual: VisualAssetState,
+    info: { turrets?: readonly ModelConditionTurretInfo[] },
+  ): void {
+    const turrets = info.turrets ?? [];
+    const signature = turrets.length > 0
+      ? `source:${turrets.map((entry) => [
+        entry.turretBoneName ?? '',
+        entry.turretPitchBoneName ?? '',
+        String(entry.turretArtAngle),
+        String(entry.turretArtPitch),
+      ].join(':')).join('|')}`
+      : 'source:none';
+    if (visual.turretBindingSignature === signature) {
+      return;
+    }
+
+    visual.turretBindingSignature = signature;
+    visual.turretBones = [];
+    visual.turretPitchBones = [];
+    visual.turretArtAngles = [];
+    visual.turretArtPitches = [];
+    if (!visual.currentModel || turrets.length === 0) {
+      return;
+    }
+
+    for (let slot = 0; slot < turrets.length; slot++) {
+      const turret = turrets[slot]!;
+      visual.turretBones[slot] = turret.turretBoneName
+        ? this.findObjectByNameCaseInsensitive(visual.currentModel, turret.turretBoneName)
+        : null;
+      visual.turretPitchBones[slot] = turret.turretPitchBoneName
+        ? this.findObjectByNameCaseInsensitive(visual.currentModel, turret.turretPitchBoneName)
+        : null;
+      visual.turretArtAngles[slot] = turret.turretArtAngle;
+      visual.turretArtPitches[slot] = turret.turretArtPitch;
+    }
   }
 
   /** Quaternion re-used each frame to avoid allocations. */
@@ -2402,21 +2469,41 @@ export class ObjectVisualManager {
    */
   private syncTurretBones(visual: VisualAssetState, state: RenderableEntityState): void {
     const angles = state.turretAngles;
-    if (!angles || angles.length === 0 || visual.turretBones.length === 0) {
+    const pitches = state.turretPitches ?? [];
+    const slotCount = Math.max(visual.turretBones.length, visual.turretPitchBones.length);
+    if ((!angles || angles.length === 0) && pitches.length === 0) {
       return;
     }
-    for (let i = 0; i < angles.length && i < visual.turretBones.length; i++) {
+    if (slotCount === 0) {
+      return;
+    }
+    for (let i = 0; i < slotCount; i++) {
       const bone = visual.turretBones[i];
-      if (!bone) continue;
-      const angle = angles[i]!;
-      if (!Number.isFinite(angle)) continue;
-      // W3D Rotate_Z: rotation around Z axis (yaw in Z-up model space).
-      this.tempTurretQuaternion.setFromAxisAngle(ObjectVisualManager.Z_AXIS, angle);
-      bone.quaternion.copy(this.tempTurretQuaternion);
+      const angle = angles?.[i];
+      if (bone && Number.isFinite(angle)) {
+        // W3D Rotate_Z: rotation around Z axis (yaw in Z-up model space).
+        this.tempTurretQuaternion.setFromAxisAngle(
+          ObjectVisualManager.Z_AXIS,
+          angle! + (visual.turretArtAngles[i] ?? 0),
+        );
+        bone.quaternion.copy(this.tempTurretQuaternion);
+      }
+
+      const pitchBone = visual.turretPitchBones[i];
+      const pitch = pitches[i];
+      if (pitchBone && Number.isFinite(pitch)) {
+        // W3D Rotate_Y(-pitch): pitch bone uses negative Y rotation.
+        this.tempTurretQuaternion.setFromAxisAngle(
+          ObjectVisualManager.Y_AXIS,
+          -(pitch! + (visual.turretArtPitches[i] ?? 0)),
+        );
+        pitchBone.quaternion.copy(this.tempTurretQuaternion);
+      }
     }
   }
 
   private static readonly Z_AXIS = new THREE.Vector3(0, 0, 1);
+  private static readonly Y_AXIS = new THREE.Vector3(0, 1, 0);
 
   // ==========================================================================
   // Condition-based animation & sub-object visibility (Task 4)
@@ -2515,6 +2602,7 @@ export class ObjectVisualManager {
     }
 
     if (conditionKey === visual.activeConditionKey) {
+      this.syncConditionTurretBindings(visual, match);
       this.syncConditionParticleSystems(visual, match, conditionKey);
       return;
     }
@@ -2542,6 +2630,7 @@ export class ObjectVisualManager {
 
           // Apply transition sub-object visibility if specified
           this.applySubObjectVisibility(visual, transInfo);
+          this.syncConditionTurretBindings(visual, transInfo);
           this.syncConditionParticleSystems(visual, transInfo, visual.activeConditionKey);
 
           this.playConditionClip(visual, transInfo.animationName, 'ONCE');
@@ -2570,6 +2659,7 @@ export class ObjectVisualManager {
 
     // --- Sub-object visibility ---
     this.applySubObjectVisibility(visual, match);
+    this.syncConditionTurretBindings(visual, match);
     this.syncConditionParticleSystems(visual, match, conditionKey);
 
     // --- Per-condition model swapping ---
@@ -2981,7 +3071,7 @@ export class ObjectVisualManager {
     visual.conditionAction = null;
     visual.activeState = null;
     visual.sourceAnimations = sourceAnimations;
-    visual.turretBones = this.findTurretBones(clone);
+    this.resetTurretBindingsToFallback(visual, clone);
 
     // Detect tread sub-meshes.
     const treadMeshes: THREE.Mesh[] = [];

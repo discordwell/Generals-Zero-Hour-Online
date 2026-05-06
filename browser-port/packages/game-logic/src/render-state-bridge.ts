@@ -672,6 +672,8 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
       toppleDirZ: entity.toppleDirZ,
       /** Turret rotation angles (one per turret module), in radians relative to body. */
       turretAngles: entity.turretStates.map(ts => ts.currentAngle),
+      /** Turret pitch angles (one per turret module), in radians. */
+      turretPitches: entity.turretStates.map(ts => ts.currentPitch),
       statusEffects: self.resolveEntityStatusEffects(entity),
       selectionCircleRadius: entity.geometryMajorRadius > 0 ? entity.geometryMajorRadius : undefined,
       isOwnedByLocalPlayer: entity.side ? self.normalizeSide(entity.side) === (localSide ?? self.resolveLocalPlayerSide()) : undefined,

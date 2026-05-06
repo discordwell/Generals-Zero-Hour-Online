@@ -20,6 +20,17 @@ export interface ParticleSysBoneInfo {
   particleSystemName: string;
 }
 
+export interface ModelConditionTurretInfo {
+  /** Source parity: ModelConditionInfo::TurretInfo::m_turretAngleNameKey. */
+  turretBoneName: string | null;
+  /** Source parity: ModelConditionInfo::TurretInfo::m_turretPitchNameKey. */
+  turretPitchBoneName: string | null;
+  /** Source parity: TurretArtAngle, parsed by INI::parseAngleReal (radians). */
+  turretArtAngle: number;
+  /** Source parity: TurretArtPitch, parsed by INI::parseAngleReal (radians). */
+  turretArtPitch: number;
+}
+
 export interface ModelConditionInfo {
   conditionFlags: string[];
   /** Pre-computed sorted key for O(1) comparison in hot paths. */
@@ -56,6 +67,8 @@ export interface ModelConditionInfo {
   idleAnimations: IdleAnimationVariant[];
   /** Source parity: ModelConditionInfo::m_particleSysBones. */
   particleSysBones?: ParticleSysBoneInfo[];
+  /** Source parity: ModelConditionInfo::m_turrets[0..1]. */
+  turrets?: ModelConditionTurretInfo[];
 }
 
 interface SubObjectVisibilityInfo {
@@ -84,6 +97,8 @@ export interface TransitionInfo {
   showSubObjects: string[];
   /** Source parity: TransitionState copies default ModelConditionInfo particle bones. */
   particleSysBones?: ParticleSysBoneInfo[];
+  /** Source parity: TransitionState copies default ModelConditionInfo turret info. */
+  turrets?: ModelConditionTurretInfo[];
 }
 
 export interface ResolvedRenderAssetProfile {
@@ -279,6 +294,12 @@ function buildVisualKey(info: ModelConditionInfo): string {
     String(info.animSpeedFactorMax),
     info.idleAnimations.map(v => `${v.animationName}:${v.randomWeight}`).join(','),
     (info.particleSysBones ?? []).map(v => `${v.boneName}:${v.particleSystemName}`).join(','),
+    (info.turrets ?? []).map(v => [
+      v.turretBoneName ?? '',
+      v.turretPitchBoneName ?? '',
+      String(v.turretArtAngle),
+      String(v.turretArtPitch),
+    ].join(':')).join(','),
   ].join('\0');
 }
 
@@ -365,6 +386,7 @@ function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
   // We collect all IdleAnimation values as idle animation variants.
   const idleAnimations = collectIdleAnimationVariants(block.fields);
   const particleSysBones = collectParticleSysBones(block.fields);
+  const turrets = collectTurretInfos(block.fields);
 
   return {
     conditionFlags,
@@ -380,6 +402,7 @@ function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
     animSpeedFactorMax,
     idleAnimations,
     particleSysBones,
+    turrets: turrets.length > 0 ? turrets : undefined,
   };
 }
 
@@ -488,6 +511,82 @@ function collectParticleSysBones(
     });
   }
   return result;
+}
+
+const TURRET_FIELD_SETS = [
+  {
+    turret: 'Turret',
+    turretPitch: 'TurretPitch',
+    turretArtAngle: 'TurretArtAngle',
+    turretArtPitch: 'TurretArtPitch',
+  },
+  {
+    turret: 'AltTurret',
+    turretPitch: 'AltTurretPitch',
+    turretArtAngle: 'AltTurretArtAngle',
+    turretArtPitch: 'AltTurretArtPitch',
+  },
+] as const;
+
+function collectTurretInfos(
+  fields: Record<string, IniValue>,
+  base?: readonly ModelConditionTurretInfo[] | null,
+): ModelConditionTurretInfo[] {
+  const result: ModelConditionTurretInfo[] = TURRET_FIELD_SETS.map((fieldSet, index) => {
+    const baseInfo = base?.[index];
+    const turretBoneName = readBoneNameField(fields, fieldSet.turret);
+    const turretPitchBoneName = readBoneNameField(fields, fieldSet.turretPitch);
+    return {
+      turretBoneName: turretBoneName !== undefined ? turretBoneName : baseInfo?.turretBoneName ?? null,
+      turretPitchBoneName: turretPitchBoneName !== undefined ? turretPitchBoneName : baseInfo?.turretPitchBoneName ?? null,
+      turretArtAngle: readAngleRadiansField(fields, fieldSet.turretArtAngle) ?? baseInfo?.turretArtAngle ?? 0,
+      turretArtPitch: readAngleRadiansField(fields, fieldSet.turretArtPitch) ?? baseInfo?.turretArtPitch ?? 0,
+    };
+  });
+
+  while (result.length > 0 && !hasTurretInfo(result[result.length - 1]!)) {
+    result.pop();
+  }
+  return result;
+}
+
+function hasTurretInfo(info: ModelConditionTurretInfo): boolean {
+  return info.turretBoneName !== null
+    || info.turretPitchBoneName !== null
+    || info.turretArtAngle !== 0
+    || info.turretArtPitch !== 0;
+}
+
+function readBoneNameField(fields: Record<string, IniValue>, fieldName: string): string | null | undefined {
+  const value = readIniFieldValue(fields, fieldName);
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  for (const group of extractIniValueTokens(value)) {
+    for (const token of group) {
+      const trimmed = token.trim();
+      if (trimmed.length === 0) continue;
+      const normalized = trimmed.toLowerCase();
+      return normalized === 'none' ? null : normalized;
+    }
+  }
+  return null;
+}
+
+function readAngleRadiansField(fields: Record<string, IniValue>, fieldName: string): number | null {
+  const value = readIniFieldValue(fields, fieldName);
+  if (value === undefined || value === null) {
+    return null;
+  }
+  for (const group of extractIniValueTokens(value)) {
+    for (const token of group) {
+      const parsed = Number(token);
+      if (Number.isFinite(parsed)) {
+        return parsed * Math.PI / 180;
+      }
+    }
+  }
+  return null;
 }
 
 /**
@@ -613,6 +712,7 @@ function parseTransitionStateBlock(block: IniBlock, defaultInfo: ModelConditionI
   const animationName = readFirstStringToken(block.fields, 'Animation');
   const subObjectVisibility = collectSubObjectVisibility(block.fields, defaultInfo);
   const particleSysBones = collectParticleSysBones(block.fields, defaultInfo?.particleSysBones ?? null);
+  const turrets = collectTurretInfos(block.fields, defaultInfo?.turrets ?? null);
 
   return {
     fromKey,
@@ -623,6 +723,7 @@ function parseTransitionStateBlock(block: IniBlock, defaultInfo: ModelConditionI
     hideSubObjects: subObjectVisibility.hideSubObjects,
     showSubObjects: subObjectVisibility.showSubObjects,
     particleSysBones,
+    turrets: turrets.length > 0 ? turrets : undefined,
   };
 }
 

@@ -1402,6 +1402,85 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     expect(transitionUsers, 'expected retail transition ParticleSysBone users').toBeGreaterThan(100);
   });
 
+  it('Turret/TurretPitch source draw fields flow into model condition profiles for every retail user', () => {
+    const tokensOf = (value: unknown): string[] => {
+      if (typeof value === 'number' || typeof value === 'boolean') return [String(value)];
+      return splitTokens(value);
+    };
+    const expectedBoneFields = [
+      { field: 'Turret', slot: 0, property: 'turretBoneName' },
+      { field: 'TurretPitch', slot: 0, property: 'turretPitchBoneName' },
+      { field: 'AltTurret', slot: 1, property: 'turretBoneName' },
+      { field: 'AltTurretPitch', slot: 1, property: 'turretPitchBoneName' },
+    ] as const;
+    const expectedAngleFields = [
+      { field: 'TurretArtAngle', slot: 0, property: 'turretArtAngle' },
+      { field: 'TurretArtPitch', slot: 0, property: 'turretArtPitch' },
+      { field: 'AltTurretArtAngle', slot: 1, property: 'turretArtAngle' },
+      { field: 'AltTurretArtPitch', slot: 1, property: 'turretArtPitch' },
+    ] as const;
+
+    let boneFieldUsers = 0;
+    let artAngleUsers = 0;
+    for (const obj of bundle.objects ?? []) {
+      const expectedBones: Array<{ field: string; slot: number; property: 'turretBoneName' | 'turretPitchBoneName'; value: string }> = [];
+      const expectedAngles: Array<{ field: string; slot: number; property: 'turretArtAngle' | 'turretArtPitch'; value: number }> = [];
+      const visit = (block: BundleBlock): void => {
+        const blockType = (block.type ?? '').toUpperCase();
+        if (
+          blockType === 'CONDITIONSTATE'
+          || blockType === 'MODELCONDITIONSTATE'
+          || blockType === 'DEFAULTCONDITIONSTATE'
+        ) {
+          const fields = block.fields ?? {};
+          for (const spec of expectedBoneFields) {
+            const first = tokensOf(fields[spec.field])?.[0];
+            if (!first || first.toUpperCase() === 'NONE') continue;
+            expectedBones.push({
+              field: spec.field,
+              slot: spec.slot,
+              property: spec.property,
+              value: first.toLowerCase(),
+            });
+          }
+          for (const spec of expectedAngleFields) {
+            const raw = tokensOf(fields[spec.field])?.[0];
+            if (!raw) continue;
+            const degrees = Number(raw);
+            if (!Number.isFinite(degrees)) continue;
+            expectedAngles.push({
+              field: spec.field,
+              slot: spec.slot,
+              property: spec.property,
+              value: degrees * Math.PI / 180,
+            });
+          }
+        }
+        for (const child of block.blocks ?? []) visit(child);
+      };
+      for (const block of obj.blocks ?? []) visit(block);
+      if (expectedBones.length === 0 && expectedAngles.length === 0) continue;
+
+      const infos = collectModelConditionInfos(obj as never);
+      for (const expected of expectedBones) {
+        boneFieldUsers++;
+        expect(
+          infos.some((info) => info.turrets?.[expected.slot]?.[expected.property] === expected.value),
+          `${expected.field} missing on ${obj.name}: ${expected.value}`,
+        ).toBe(true);
+      }
+      for (const expected of expectedAngles) {
+        artAngleUsers++;
+        expect(
+          infos.some((info) => Math.abs((info.turrets?.[expected.slot]?.[expected.property] ?? Number.NaN) - expected.value) < 1e-8),
+          `${expected.field} missing on ${obj.name}: ${expected.value}`,
+        ).toBe(true);
+      }
+    }
+    expect(boneFieldUsers, 'expected retail Turret/TurretPitch draw users').toBeGreaterThan(800);
+    expect(artAngleUsers, 'expected retail TurretArtAngle draw users').toBeGreaterThan(30);
+  });
+
   it('ShowSubObject/HideSubObject conflicts resolve to one source visibility action', () => {
     let sourceConflictCount = 0;
     const splitNames = (value: unknown): string[] =>
