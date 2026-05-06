@@ -252,6 +252,8 @@ export interface VisualEvent {
   lifetimeFrames?: number;
   /** Optional source drawable bone requested by a source module. */
   sourceBoneName?: string;
+  /** Source parity: ParticleSystem::attachToObject for systems that follow a source object. */
+  attachToSource?: boolean;
   /** Source parity: CrateCollide ExecuteAnimationZRise. */
   zRisePerSecond?: number;
   /** Source parity: CrateCollide ExecuteAnimationFades. */

@@ -56861,6 +56861,7 @@ export class GameLogicSubsystem implements Subsystem {
     const sendItUp = dispositionTokens.includes('SEND_IT_UP');
     const randomForceDisposition = dispositionTokens.includes('RANDOM_FORCE');
     const orientInForceDirection = readBooleanField(nugget.fields, ['OrientInForceDirection']) ?? false;
+    const particleSystemName = readStringField(nugget.fields, ['ParticleSystem'])?.trim() ?? '';
     const dispositionIntensity = readNumericField(nugget.fields, ['DispositionIntensity']) ?? 0;
     const extraBounciness = readNumericField(nugget.fields, ['ExtraBounciness']) ?? 0;
     const extraFriction = (readNumericField(nugget.fields, ['ExtraFriction']) ?? 0) / LOGIC_FRAME_RATE;
@@ -56948,6 +56949,22 @@ export class GameLogicSubsystem implements Subsystem {
           // Source parity: debris Mass overrides GenericDebris PhysicsBehavior
           // before applyForce in SEND_IT_* / RANDOM_FORCE branches.
           spawned.physicsBehaviorProfile.mass = Math.max(1e-9, debrisMass);
+        }
+
+        if (particleSystemName) {
+          // Source parity: GenericObjectCreationNugget::doStuffToObj creates
+          // the named ParticleSystem and calls attachToObject on the spawned obj.
+          this.visualEventBuffer.push({
+            type: 'NAMED_PARTICLE_SYSTEM',
+            x: spawned.x,
+            y: spawned.y,
+            z: spawned.z,
+            radius: 0,
+            sourceEntityId: spawned.id,
+            projectileType: 'BULLET',
+            effectName: particleSystemName,
+            attachToSource: true,
+          });
         }
 
         // Source parity (ZH): track first created entity for return value.

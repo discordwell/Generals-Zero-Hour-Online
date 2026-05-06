@@ -3623,7 +3623,13 @@ async function startGame(
 
       if (event.type === 'NAMED_PARTICLE_SYSTEM') {
         if (event.effectName) {
-          particleSystemManager.createSystem(event.effectName, pos, orientation);
+          const systemId = particleSystemManager.createSystem(event.effectName, pos, orientation);
+          if (systemId !== null && event.attachToSource === true && event.sourceEntityId !== null) {
+            attachedNamedParticleSystems.set(systemId, {
+              sourceEntityId: event.sourceEntityId,
+              sourceBoneName: event.sourceBoneName ?? null,
+            });
+          }
         }
         continue;
       }
@@ -3689,6 +3695,49 @@ async function startGame(
             fxHandled = true;
           }
         }
+      }
+    }
+  };
+
+  const attachedNamedParticleSystems = new Map<number, {
+    sourceEntityId: number;
+    sourceBoneName: string | null;
+  }>();
+  const attachedParticlePosition = new THREE.Vector3();
+  const attachedParticleOrientation = new THREE.Quaternion();
+
+  const updateAttachedNamedParticleSystems = (): void => {
+    if (attachedNamedParticleSystems.size === 0) return;
+    const renderStatesById = new Map(getCachedRenderStates().map((state) => [state.id, state]));
+    for (const [systemId, attachment] of attachedNamedParticleSystems) {
+      const state = renderStatesById.get(attachment.sourceEntityId);
+      if (!state) {
+        particleSystemManager.destroySystem(systemId);
+        attachedNamedParticleSystems.delete(systemId);
+        continue;
+      }
+
+      let resolvedTransform = false;
+      if (attachment.sourceBoneName) {
+        resolvedTransform = objectVisualManager.resolveEntityBoneWorldTransform(
+          attachment.sourceEntityId,
+          attachment.sourceBoneName,
+          attachedParticlePosition,
+          attachedParticleOrientation,
+        );
+      }
+      if (!resolvedTransform) {
+        attachedParticlePosition.set(state.x, state.y, state.z);
+        const yaw = Number.isFinite(state.rotationY) ? state.rotationY : 0;
+        attachedParticleOrientation.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
+      }
+
+      if (!particleSystemManager.setSystemTransform(
+        systemId,
+        attachedParticlePosition,
+        attachedParticleOrientation,
+      )) {
+        attachedNamedParticleSystems.delete(systemId);
       }
     }
   };
@@ -4814,6 +4863,7 @@ async function startGame(
 
       // Process visual events (explosions, muzzle flashes, etc.) and update particles.
       processVisualEvents();
+      updateAttachedNamedParticleSystems();
       gameLODManager.update(dt);
       particleSystemManager.update(dt);
       laserBeamRenderer.update();

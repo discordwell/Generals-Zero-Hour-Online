@@ -1153,4 +1153,27 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(debris[0]!.y).toBeCloseTo(source.y + 30, 5);
     expect(debris[0]!.physicsBehaviorState?.accelY).toBeCloseTo(15);
   });
+
+  it('emits attached ParticleSystem visual events for OCL-created debris', () => {
+    // C++ parity: ObjectCreationList.cpp:986-992 creates the named particle
+    // system and calls ParticleSystem::attachToObject on the spawned object.
+    const { logic } = makeCreateDebrisSetup({
+      ParticleSystem: 'JetExplosionTrailDebris',
+    });
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestDebris', source);
+
+    const debris = getEntitiesByTemplate(logic, 'GenericDebris');
+    expect(debris.length).toBe(1);
+    const events = logic.drainVisualEvents().filter((event) => event.type === 'NAMED_PARTICLE_SYSTEM');
+    expect(events.length).toBe(1);
+    expect(events[0]!.effectName).toBe('JetExplosionTrailDebris');
+    expect(events[0]!.sourceEntityId).toBe(debris[0]!.id);
+    expect(events[0]!.attachToSource).toBe(true);
+    expect(events[0]!.x).toBeCloseTo(debris[0]!.x);
+    expect(events[0]!.y).toBeCloseTo(debris[0]!.y);
+    expect(events[0]!.z).toBeCloseTo(debris[0]!.z);
+  });
 });
