@@ -705,6 +705,15 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
       streamPoints: entity.projectileStreamState
         ? self.getStreamPoints(entity.id)
         : undefined,
+      projectileStreamDraw: entity.projectileStreamState && entity.projectileStreamProfile
+        ? {
+            textureName: entity.projectileStreamProfile.textureName,
+            width: entity.projectileStreamProfile.width,
+            tileFactor: entity.projectileStreamProfile.tileFactor,
+            scrollRate: entity.projectileStreamProfile.scrollRate,
+            maxSegments: entity.projectileStreamProfile.maxSegments,
+          }
+        : undefined,
       radiusDecals: entity.radiusDecalStates.length > 0
         ? entity.radiusDecalStates.map(d => ({
             positionX: d.positionX,

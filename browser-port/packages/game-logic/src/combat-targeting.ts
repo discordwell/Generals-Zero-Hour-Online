@@ -1448,6 +1448,8 @@ export function queueWeaponDamageEvent(
       sourceX,
       attacker.y,
       sourceZ,
+      primaryVictimEntityId,
+      { x: impactX, y: impactY, z: impactZ },
     );
   }
 

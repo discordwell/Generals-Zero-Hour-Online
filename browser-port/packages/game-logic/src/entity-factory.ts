@@ -5287,14 +5287,30 @@ export function extractHeightDieProfile(self: GL, objectDef: ObjectDef | undefin
 
 export function extractProjectileStreamProfile(self: GL, objectDef: ObjectDef | undefined): ProjectileStreamProfile | null {
   if (!objectDef?.blocks) return null;
+  let hasProjectileStreamUpdate = false;
+  let textureName: string | null = null;
+  let width = 0;
+  let tileFactor = 0;
+  let scrollRate = 0;
+  let maxSegments = 0;
   for (const block of objectDef.blocks) {
     const blockType = block.type.toUpperCase();
     if ((blockType === 'BEHAVIOR' || blockType === 'CLIENTUPDATE')
         && block.name.toUpperCase().includes('PROJECTILESTREAMUPDATE')) {
-      return { enabled: true };
+      hasProjectileStreamUpdate = true;
+    }
+    if (blockType === 'DRAW' && block.name.toUpperCase().includes('W3DPROJECTILESTREAMDRAW')) {
+      const textureRaw = readStringField(block.fields, ['Texture'])?.trim() ?? '';
+      textureName = textureRaw.length > 0 && textureRaw.toUpperCase() !== 'NONE' ? textureRaw : null;
+      width = Math.max(0, readNumericField(block.fields, ['Width']) ?? 0);
+      tileFactor = Math.max(0, readNumericField(block.fields, ['TileFactor']) ?? 0);
+      scrollRate = readNumericField(block.fields, ['ScrollRate']) ?? 0;
+      maxSegments = Math.max(0, Math.trunc(readNumericField(block.fields, ['MaxSegments']) ?? 0));
     }
   }
-  return null;
+  return hasProjectileStreamUpdate
+    ? { enabled: true, textureName, width, tileFactor, scrollRate, maxSegments }
+    : null;
 }
 
 const BONE_FX_FIELD_GROUPS: Array<{

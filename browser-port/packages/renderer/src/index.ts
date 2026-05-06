@@ -63,6 +63,17 @@ export type {
 } from './object-visuals.js';
 export { LaserBeamRenderer } from './laser-beam-renderer.js';
 export type { LaserBeamConfig } from './laser-beam-renderer.js';
+export {
+  computeProjectileStreamSegments,
+  syncProjectileStreamGroup,
+  syncProjectileStreamSegmentsGroup,
+  disposeProjectileStreamGroup,
+} from './projectile-stream-renderer.js';
+export type {
+  ProjectileStreamPoint,
+  ProjectileStreamRenderConfig,
+  ProjectileStreamSegment,
+} from './projectile-stream-renderer.js';
 export { DynamicLightManager } from './dynamic-lights.js';
 export type { DynamicLightConfig } from './dynamic-lights.js';
 export { TracerRenderer } from './tracer-renderer.js';

@@ -25,6 +25,13 @@ import {
   shouldCreateShadowDecal,
   createShadowDecalMesh,
 } from './shadow-decal.js';
+import {
+  computeProjectileStreamSegments,
+  disposeProjectileStreamGroup,
+  syncProjectileStreamSegmentsGroup,
+  type ProjectileStreamRenderConfig,
+  type ProjectileStreamPoint,
+} from './projectile-stream-renderer.js';
 
 // Re-export types and computeConditionKey so existing consumers of
 // @generals/renderer that import these from object-visuals keep working.
@@ -101,6 +108,10 @@ export interface RenderableEntityState {
   /** Source parity: SubObjectsUpgrade Drawable::showSubObject overrides. */
   forcedHiddenSubObjects?: readonly string[];
   forcedShownSubObjects?: readonly string[];
+  /** Source parity: ProjectileStreamUpdate::getAllPoints output. */
+  streamPoints?: readonly ProjectileStreamPoint[];
+  /** Source parity: W3DProjectileStreamDraw render parameters. */
+  projectileStreamDraw?: ProjectileStreamRenderConfig;
   /** Tunnel enter/exit transition opacity override (0..1). Undefined = no transition active. */
   tunnelTransitionOpacity?: number;
 }
@@ -186,6 +197,8 @@ interface VisualAssetState {
   treadMeshes: THREE.Mesh[];
   /** Accumulated tread UV offset. */
   treadUVOffset: number;
+  /** W3DProjectileStreamDraw segmented line group. */
+  projectileStreamGroup: THREE.Group | null;
   /** Cached active flags Set (avoids per-frame allocation). */
   cachedActiveFlags: Set<string>;
   /** Serialised key of cached flags (for change detection). */
@@ -445,6 +458,7 @@ export class ObjectVisualManager {
       // wait until an entity is inside the full-sync radius before requesting
       // its asset. Expensive per-frame visual updates still stay throttled.
       this.syncVisualAsset(visual, state);
+      this.syncProjectileStream(visual, state);
 
       // Skip expensive sync for entities far from camera.
       // Position + shroud are already updated above; full visual sync
@@ -686,6 +700,7 @@ export class ObjectVisualManager {
       sourceAnimations: [],
       treadMeshes: [],
       treadUVOffset: 0,
+      projectileStreamGroup: null,
       cachedActiveFlags: new Set(),
       cachedActiveFlagsKey: '',
       cachedFilteredFlags: new Set(),
@@ -1231,6 +1246,11 @@ export class ObjectVisualManager {
     if (visual.shadowDecal) {
       this.disposeObject3D(visual.shadowDecal);
       visual.shadowDecal = null;
+    }
+    if (visual.projectileStreamGroup) {
+      disposeProjectileStreamGroup(visual.projectileStreamGroup);
+      visual.root.remove(visual.projectileStreamGroup);
+      visual.projectileStreamGroup = null;
     }
     visual.shadowType = null;
     this.scene.remove(visual.root);
@@ -3160,6 +3180,42 @@ export class ObjectVisualManager {
         material.map.offset.x = visual.treadUVOffset;
       }
     }
+  }
+
+  private syncProjectileStream(visual: VisualAssetState, state: RenderableEntityState): void {
+    const points = state.streamPoints ?? [];
+    const draw = state.projectileStreamDraw;
+    if (!draw || points.length < 2) {
+      if (visual.projectileStreamGroup) {
+        disposeProjectileStreamGroup(visual.projectileStreamGroup);
+        visual.root.remove(visual.projectileStreamGroup);
+        visual.projectileStreamGroup = null;
+      }
+      return;
+    }
+
+    if (!visual.projectileStreamGroup) {
+      visual.projectileStreamGroup = new THREE.Group();
+      visual.projectileStreamGroup.name = 'projectile-stream';
+      visual.root.add(visual.projectileStreamGroup);
+    }
+
+    visual.root.updateMatrixWorld(true);
+    const localSegments = computeProjectileStreamSegments(points, draw.maxSegments)
+      .map((segment) => {
+        const start = segment.start.clone();
+        const end = segment.end.clone();
+        visual.root.worldToLocal(start);
+        visual.root.worldToLocal(end);
+        return { start, end };
+      });
+
+    syncProjectileStreamSegmentsGroup(
+      visual.projectileStreamGroup,
+      localSegments,
+      draw,
+      this.accumulatedTime,
+    );
   }
 
   private disposeObject3D(object3D: THREE.Object3D): void {

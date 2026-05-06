@@ -95,6 +95,14 @@ export interface RenderableEntityState {
   isGuarding?: boolean;
   /** Source parity: ProjectileStreamUpdate — positions of active projectiles in stream. */
   streamPoints?: { x: number; y: number; z: number }[];
+  /** Source parity: W3DProjectileStreamDraw render parameters for streamPoints. */
+  projectileStreamDraw?: {
+    textureName: string | null;
+    width: number;
+    tileFactor: number;
+    scrollRate: number;
+    maxSegments: number;
+  };
   /** Source parity: RadiusDecalUpdate — ground radius decal states for targeting visualization. */
   radiusDecals?: RenderableRadiusDecal[];
   /** Source parity: SubObjectsUpgrade Drawable::showSubObject overrides. */

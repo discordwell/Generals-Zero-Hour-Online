@@ -144,6 +144,52 @@ describe('ObjectVisualManager', () => {
     expect(placeholder?.visible).toBe(false);
   });
 
+  it('renders ProjectileStreamUpdate points with W3DProjectileStreamDraw metadata', () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithAnimationClips(['Idle']),
+    });
+
+    manager.sync([makeMeshState({
+      id: 71,
+      x: 10,
+      y: 0,
+      z: 20,
+      rotationY: Math.PI / 2,
+      streamPoints: [
+        { x: 10, y: 0, z: 20 },
+        { x: 14, y: 0, z: 20 },
+        { x: 0, y: 0, z: 0 },
+        { x: 18, y: 0, z: 20 },
+      ],
+      projectileStreamDraw: {
+        textureName: 'EXToxinStream.tga',
+        width: 1.5,
+        tileFactor: 2,
+        scrollRate: 6,
+        maxSegments: 0,
+      },
+    })], 0.25);
+
+    const root = manager.getVisualRoot(71);
+    const group = root?.getObjectByName('projectile-stream') as THREE.Group | undefined;
+    expect(group).toBeTruthy();
+    expect(group!.children).toHaveLength(1);
+
+    const segment = group!.children[0] as THREE.Mesh;
+    const worldPosition = new THREE.Vector3();
+    segment.getWorldPosition(worldPosition);
+    expect(worldPosition.x).toBeCloseTo(12);
+    expect(worldPosition.y).toBeCloseTo(0);
+    expect(worldPosition.z).toBeCloseTo(20);
+    expect((segment.material as THREE.MeshBasicMaterial).userData).toMatchObject({
+      textureName: 'EXToxinStream.tga',
+      tileFactor: 2,
+      scrollRate: 6,
+      uvOffset: 1.5,
+    });
+  });
+
   it('resolves source bone world transforms case-insensitively for visual events', async () => {
     const scene = new THREE.Scene();
     const manager = new ObjectVisualManager(scene, null, {

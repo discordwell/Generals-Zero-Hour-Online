@@ -199,6 +199,13 @@ describe('ProjectileStreamUpdate buffer management', () => {
         makeObjectDef('ToxinTruck', 'GLA', ['VEHICLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
           makeBlock('ClientUpdate', 'ProjectileStreamUpdate ModuleTag_Stream', {}),
+          makeBlock('Draw', 'W3DProjectileStreamDraw ModuleTag_StreamDraw', {
+            Texture: 'EXToxinStream.tga',
+            Width: 1.5,
+            TileFactor: 2,
+            ScrollRate: 6,
+            MaxSegments: 14,
+          }),
         ]),
         makeObjectDef('Projectile', 'GLA', ['PROJECTILE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
@@ -221,7 +228,14 @@ describe('ProjectileStreamUpdate buffer management', () => {
     );
     const priv = logic as unknown as {
       spawnedEntities: Map<number, {
-        projectileStreamProfile: { enabled: boolean } | null;
+        projectileStreamProfile: {
+          enabled: boolean;
+          textureName: string | null;
+          width: number;
+          tileFactor: number;
+          scrollRate: number;
+          maxSegments: number;
+        } | null;
         projectileStreamState: {
           projectileIds: number[];
           nextIndex: number;
@@ -235,6 +249,13 @@ describe('ProjectileStreamUpdate buffer management', () => {
     const entity = priv.spawnedEntities.get(1)!;
     expect(entity.projectileStreamProfile).not.toBeNull();
     expect(entity.projectileStreamProfile!.enabled).toBe(true);
+    expect(entity.projectileStreamProfile).toMatchObject({
+      textureName: 'EXToxinStream.tga',
+      width: 1.5,
+      tileFactor: 2,
+      scrollRate: 6,
+      maxSegments: 14,
+    });
     // State is lazy-initialized on first addProjectile call.
     expect(entity.projectileStreamState).toBeNull();
 
@@ -252,6 +273,124 @@ describe('ProjectileStreamUpdate buffer management', () => {
     // Source parity: C++ getAllPoints writes projectile->getPosition() for valid entries.
     const points = logic.getStreamPoints(1);
     expect(points.length).toBe(2);
+  });
+
+  it('inserts a stream hole when target object or target position changes (C++ addProjectile)', () => {
+    const bundle = makeStreamBundle();
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('ToxinTruck', 5, 5),
+        makeMapObject('Projectile', 10, 10),
+        makeMapObject('Projectile', 15, 15),
+        makeMapObject('Projectile', 20, 20),
+        makeMapObject('Projectile', 25, 25),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        projectileStreamState: {
+          projectileIds: number[];
+          targetObjectId?: number;
+          targetPosition?: { x: number; y: number; z: number };
+          sourceWeaponName?: string | null;
+        } | null;
+      }>;
+      addProjectileToStream(
+        streamEntityId: number,
+        projectileId: number,
+        ownerEntityId?: number,
+        targetObjectId?: number,
+        targetPosition?: { x: number; y: number; z: number },
+        sourceWeaponName?: string | null,
+      ): void;
+    };
+
+    priv.addProjectileToStream(1, 2, 99, 44, { x: 100, y: 0, z: 100 }, 'ToxinTruckGun');
+    // Source object-target shots ignore target position; moving the same target should not break the stream.
+    priv.addProjectileToStream(1, 3, 99, 44, { x: 120, y: 0, z: 100 }, 'ToxinTruckGun');
+    priv.addProjectileToStream(1, 4, 99, 45, { x: 140, y: 0, z: 100 }, 'ToxinTruckGun');
+    priv.addProjectileToStream(1, 5, 99, 0, { x: 160, y: 0, z: 100 }, 'ToxinTruckGun');
+
+    const state = priv.spawnedEntities.get(1)!.projectileStreamState!;
+    expect(state.projectileIds).toEqual([2, 3, 0, 4, 0, 5]);
+    expect(state.targetObjectId).toBe(0);
+    expect(state.targetPosition).toEqual({ x: 160, y: 0, z: 100 });
+    expect(state.sourceWeaponName).toBe('ToxinTruckGun');
+    expect(logic.getStreamPoints(1)[2]).toEqual({ x: 0, y: 0, z: 0 });
+    expect(logic.getStreamPoints(1)[4]).toEqual({ x: 0, y: 0, z: 0 });
+  });
+
+  it('creates and feeds the weapon-owned stream object when a projectile weapon fires', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('ToxinTruck', 'GLA', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+        makeObjectDef('ToxinTruckProjectileStream', 'GLA', ['INERT'], [
+          makeBlock('ClientUpdate', 'ProjectileStreamUpdate ModuleTag_Stream', {}),
+          makeBlock('Draw', 'W3DProjectileStreamDraw ModuleTag_Draw', {
+            Texture: 'EXToxinStream.tga',
+            Width: 1.5,
+            TileFactor: 2,
+            ScrollRate: 6,
+            MaxSegments: 14,
+          }),
+        ]),
+        makeObjectDef('ToxinStreamProjectile', 'GLA', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('ToxinTruck', 50, 50)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        id: number;
+        templateName: string;
+        projectileStreamState: { projectileIds: number[]; ownerEntityId: number; sourceWeaponName?: string | null } | null;
+      }>;
+      registerActiveWeaponProjectileState(
+        projectileVisualId: number,
+        attacker: unknown,
+        weapon: unknown,
+        sourceX: number,
+        sourceY: number,
+        sourceZ: number,
+        targetObjectId?: number | null,
+        targetPosition?: { x: number; y: number; z: number } | null,
+      ): void;
+    };
+    const attacker = priv.spawnedEntities.get(1)!;
+
+    priv.registerActiveWeaponProjectileState(
+      77,
+      attacker,
+      {
+        name: 'ToxinTruckGun',
+        projectileObjectName: 'ToxinStreamProjectile',
+        projectileStreamName: 'ToxinTruckProjectileStream',
+      },
+      50,
+      0,
+      50,
+      12,
+      { x: 90, y: 0, z: 50 },
+    );
+
+    const stream = [...priv.spawnedEntities.values()]
+      .find((entity) => entity.templateName === 'ToxinTruckProjectileStream')!;
+    expect(stream).toBeDefined();
+    expect(stream.projectileStreamState?.ownerEntityId).toBe(1);
+    expect(stream.projectileStreamState?.sourceWeaponName).toBe('ToxinTruckGun');
+    expect(stream.projectileStreamState?.projectileIds).toEqual([77]);
+    expect(logic.getStreamPoints(stream.id)).toHaveLength(1);
   });
 
   it('culls dead projectiles from front of buffer (C++ cullFrontOfList, lines 94-101)', () => {

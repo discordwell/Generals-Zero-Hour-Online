@@ -6356,6 +6356,16 @@ interface FloatUpdateProfile {
 interface ProjectileStreamProfile {
   /** Whether this entity has projectile stream tracking. */
   enabled: boolean;
+  /** Source parity: W3DProjectileStreamDraw::m_textureName. */
+  textureName: string | null;
+  /** Source parity: W3DProjectileStreamDraw::m_width. */
+  width: number;
+  /** Source parity: W3DProjectileStreamDraw::m_tileFactor. */
+  tileFactor: number;
+  /** Source parity: W3DProjectileStreamDraw::m_scrollRate. */
+  scrollRate: number;
+  /** Source parity: W3DProjectileStreamDraw::m_maxSegments. */
+  maxSegments: number;
 }
 
 interface ProjectileStreamRuntimeState {
@@ -6369,6 +6379,8 @@ interface ProjectileStreamRuntimeState {
   targetObjectId?: number;
   /** Source parity: ProjectileStreamUpdate::m_targetPosition. */
   targetPosition?: { x: number; y: number; z: number };
+  /** Source parity bridge: weapon instance that owns the spawned stream object. */
+  sourceWeaponName?: string | null;
 }
 
 /**
@@ -9476,6 +9488,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'pendingWeaponDamageEvents',
   'historicDamageLog',
   'activeWeaponProjectileStateByVisualId',
+  'projectileStreamObjectIdBySourceWeaponKey',
   'disabledHackedStatusByEntityId',
   'disabledEmpStatusByEntityId',
   'shortcutSpecialPowerSourceByName',
@@ -11770,6 +11783,8 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly historicDamageLog = new Map<string, Array<{ frame: number; x: number; z: number }>>();
   /** Source parity bridge: lightweight runtime projectile objects for weapon-delivered projectiles. */
   private readonly activeWeaponProjectileStateByVisualId = new Map<number, ActiveWeaponProjectileState>();
+  /** Source parity: Weapon::m_projectileStreamID, keyed by source object and weapon template. */
+  private readonly projectileStreamObjectIdBySourceWeaponKey = new Map<string, number>();
   private readonly missileAIProfileByProjectileTemplate = new Map<string, MissileAIProfile | null>();
   private readonly laserUpdateProfileByTemplate = new Map<string, LaserUpdateProfile | null>();
   private readonly visualEventBuffer: import('./types.js').VisualEvent[] = [];
@@ -33532,7 +33547,16 @@ export class GameLogicSubsystem implements Subsystem {
     };
 
     this.emitWeaponFiredVisualEvent(attacker, weapon, { x: impactX, y: impactY, z: impactZ });
-    this.registerActiveWeaponProjectileState(projectileVisualId, attacker, weapon, sourceX, sourceY, sourceZ);
+    this.registerActiveWeaponProjectileState(
+      projectileVisualId,
+      attacker,
+      weapon,
+      sourceX,
+      sourceY,
+      sourceZ,
+      primaryVictim?.id ?? null,
+      { x: impactX, y: impactY, z: impactZ },
+    );
     this.pendingWeaponDamageEvents.push(event);
   }
 
@@ -49932,6 +49956,8 @@ export class GameLogicSubsystem implements Subsystem {
     sourceX: number,
     sourceY: number,
     sourceZ: number,
+    targetObjectId: number | null = null,
+    targetPosition: { x: number; y: number; z: number } | null = null,
   ): void {
     const templateName = weapon.projectileObjectName?.trim();
     if (!templateName) {
@@ -49948,6 +49974,98 @@ export class GameLogicSubsystem implements Subsystem {
       z: sourceZ,
       launchFrame: this.frameCounter,
     });
+    this.registerProjectileWithWeaponStream(
+      attacker,
+      weapon,
+      projectileVisualId,
+      targetObjectId,
+      targetPosition,
+    );
+  }
+
+  private projectileStreamWeaponKey(sourceEntityId: number, weaponName: string, streamTemplateName: string): string {
+    return `${sourceEntityId}:${weaponName.toUpperCase()}:${streamTemplateName.toUpperCase()}`;
+  }
+
+  private resolveWeaponProjectileStreamEntity(
+    attacker: MapEntity,
+    weapon: AttackWeaponProfile,
+  ): MapEntity | null {
+    const streamTemplateName = weapon.projectileStreamName?.trim();
+    if (!streamTemplateName) {
+      return null;
+    }
+
+    const key = this.projectileStreamWeaponKey(attacker.id, weapon.name, streamTemplateName);
+    const cachedStreamId = this.projectileStreamObjectIdBySourceWeaponKey.get(key);
+    const cachedStream = cachedStreamId !== undefined ? this.spawnedEntities.get(cachedStreamId) : undefined;
+    if (
+      cachedStream
+      && !cachedStream.destroyed
+      && cachedStream.projectileStreamProfile
+      && cachedStream.templateName.toUpperCase() === streamTemplateName.toUpperCase()
+    ) {
+      return cachedStream;
+    }
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed || !entity.projectileStreamProfile) continue;
+      if (entity.templateName.toUpperCase() !== streamTemplateName.toUpperCase()) continue;
+      const state = entity.projectileStreamState;
+      if (!state) continue;
+      if (state.ownerEntityId !== attacker.id) continue;
+      if (state.sourceWeaponName && state.sourceWeaponName.toUpperCase() !== weapon.name.toUpperCase()) continue;
+      this.projectileStreamObjectIdBySourceWeaponKey.set(key, entity.id);
+      return entity;
+    }
+
+    const stream = this.spawnEntityFromTemplate(
+      streamTemplateName,
+      attacker.x,
+      attacker.z,
+      attacker.rotationY,
+      attacker.side,
+    );
+    if (!stream?.projectileStreamProfile) {
+      return null;
+    }
+    stream.x = attacker.x;
+    stream.y = attacker.y;
+    stream.z = attacker.z;
+    stream.rotationY = attacker.rotationY;
+    stream.producerEntityId = attacker.id;
+    stream.controllingPlayerToken = attacker.controllingPlayerToken;
+    stream.sourceTeamNameUpper = attacker.sourceTeamNameUpper;
+    this.projectileStreamObjectIdBySourceWeaponKey.set(key, stream.id);
+    return stream;
+  }
+
+  private registerProjectileWithWeaponStream(
+    attacker: MapEntity,
+    weapon: AttackWeaponProfile,
+    projectileVisualId: number,
+    targetObjectId: number | null,
+    targetPosition: { x: number; y: number; z: number } | null,
+  ): void {
+    const stream = this.resolveWeaponProjectileStreamEntity(attacker, weapon);
+    if (!stream) {
+      return;
+    }
+    // Source parity: Weapon::newProjectileFired calls update->setPosition(sourceObj->getPosition()).
+    stream.x = attacker.x;
+    stream.y = attacker.y;
+    stream.z = attacker.z;
+    stream.rotationY = attacker.rotationY;
+    this.updatePathfindPosCell(stream);
+
+    this.addProjectileToStream(
+      stream.id,
+      projectileVisualId,
+      attacker.id,
+      targetObjectId ?? 0,
+      targetPosition ?? { x: 0, y: 0, z: 0 },
+      weapon.name,
+    );
   }
 
   private setEntityAttackStatus(entity: MapEntity, isAttacking: boolean): void {
@@ -55896,9 +56014,14 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: ProjectileStreamUpdate::addProjectile — add projectile to stream's circular buffer.
    * C++ ref: ProjectileStreamUpdate.cpp — buffer size 20.
    */
-  // @ts-expect-error — Infrastructure method; will be called when projectile creation wires into stream tracking.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private addProjectileToStream(streamEntityId: number, projectileId: number): void {
+  private addProjectileToStream(
+    streamEntityId: number,
+    projectileId: number,
+    ownerEntityId: number = streamEntityId,
+    targetObjectId: number = 0,
+    targetPosition: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 },
+    sourceWeaponName: string | null = null,
+  ): void {
     const entity = this.spawnedEntities.get(streamEntityId);
     if (!entity || !entity.projectileStreamProfile) return;
 
@@ -55906,13 +56029,46 @@ export class GameLogicSubsystem implements Subsystem {
       entity.projectileStreamState = {
         projectileIds: [],
         nextIndex: 0,
-        ownerEntityId: streamEntityId,
-        targetObjectId: 0,
-        targetPosition: { x: 0, y: 0, z: 0 },
+        ownerEntityId,
+        targetObjectId: Math.max(0, Math.trunc(targetObjectId)),
+        targetPosition: { ...targetPosition },
+        sourceWeaponName,
       };
     }
 
     const state = entity.projectileStreamState;
+    const normalizedTargetObjectId = Math.max(0, Math.trunc(targetObjectId));
+    const isObjectTarget = normalizedTargetObjectId !== 0;
+    const normalizedTargetPosition = isObjectTarget
+      ? { x: 0, y: 0, z: 0 }
+      : {
+          x: Number.isFinite(targetPosition.x) ? targetPosition.x : 0,
+          y: Number.isFinite(targetPosition.y) ? targetPosition.y : 0,
+          z: Number.isFinite(targetPosition.z) ? targetPosition.z : 0,
+        };
+    const hadProjectiles = state.projectileIds.length > 0;
+    const previousTargetPosition = state.targetPosition ?? { x: 0, y: 0, z: 0 };
+    const targetObjectChanged = hadProjectiles
+      && isObjectTarget
+      && Math.max(0, Math.trunc(state.targetObjectId ?? 0)) !== normalizedTargetObjectId;
+    const targetPositionChanged = hadProjectiles
+      && !isObjectTarget
+      && (previousTargetPosition.x !== normalizedTargetPosition.x
+        || previousTargetPosition.y !== normalizedTargetPosition.y
+        || previousTargetPosition.z !== normalizedTargetPosition.z);
+
+    state.ownerEntityId = ownerEntityId;
+    state.targetObjectId = normalizedTargetObjectId;
+    state.targetPosition = normalizedTargetPosition;
+    state.sourceWeaponName = sourceWeaponName;
+
+    if (targetObjectChanged || targetPositionChanged) {
+      this.appendProjectileStreamId(state, 0);
+    }
+    this.appendProjectileStreamId(state, projectileId);
+  }
+
+  private appendProjectileStreamId(state: ProjectileStreamRuntimeState, projectileId: number): void {
     const BUFFER_SIZE = 20;
     if (state.projectileIds.length < BUFFER_SIZE) {
       state.projectileIds.push(projectileId);
@@ -55935,8 +56091,7 @@ export class GameLogicSubsystem implements Subsystem {
       // stream chain (C++ ProjectileStreamUpdate.cpp:138).
       while (state.projectileIds.length > 0) {
         const frontId = state.projectileIds[0]!;
-        const frontProj = this.spawnedEntities.get(frontId);
-        if (frontProj && !frontProj.destroyed) break;
+        if (this.isProjectileStreamProjectileLive(frontId)) break;
         state.projectileIds.shift();
       }
 
@@ -55956,9 +56111,9 @@ export class GameLogicSubsystem implements Subsystem {
     if (!entity?.projectileStreamState) return [];
     const points: { x: number; y: number; z: number }[] = [];
     for (const projId of entity.projectileStreamState.projectileIds) {
-      const proj = this.spawnedEntities.get(projId);
-      if (proj && !proj.destroyed) {
-        points.push({ x: proj.x, y: proj.y, z: proj.z });
+      const point = this.resolveProjectileStreamPoint(projId, entity.projectileStreamState.ownerEntityId);
+      if (point) {
+        points.push(point);
       } else {
         // Source parity: C++ getAllPoints writes (0,0,0) for dead/invalid entries.
         // Dead entries in the middle signal visual stream breaks to the renderer.
@@ -55966,6 +56121,52 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     return points;
+  }
+
+  private isProjectileStreamProjectileLive(projectileId: number): boolean {
+    if (projectileId <= 0) {
+      return false;
+    }
+    const projectileEntity = this.spawnedEntities.get(projectileId);
+    if (projectileEntity && !projectileEntity.destroyed) {
+      return true;
+    }
+    return this.activeWeaponProjectileStateByVisualId.has(projectileId);
+  }
+
+  private resolveProjectileStreamPoint(
+    projectileId: number,
+    ownerEntityId: number,
+  ): { x: number; y: number; z: number } | null {
+    if (projectileId <= 0) {
+      return null;
+    }
+    const projectileEntity = this.spawnedEntities.get(projectileId);
+    const activeProjectile = this.activeWeaponProjectileStateByVisualId.get(projectileId);
+    const rawPoint = projectileEntity && !projectileEntity.destroyed
+      ? { x: projectileEntity.x, y: projectileEntity.y, z: projectileEntity.z }
+      : activeProjectile
+        ? { x: activeProjectile.x, y: activeProjectile.y, z: activeProjectile.z }
+        : null;
+    if (!rawPoint) {
+      return null;
+    }
+
+    const owner = this.spawnedEntities.get(ownerEntityId);
+    if (owner && !owner.destroyed && owner.kindOf.has('VEHICLE')) {
+      const dx = rawPoint.x - owner.x;
+      const dz = rawPoint.z - owner.z;
+      const nearOwnerDistance = Math.max(0, owner.geometryMajorRadius) * 1.5;
+      if (nearOwnerDistance > 0 && dx * dx + dz * dz <= nearOwnerDistance * nearOwnerDistance) {
+        return {
+          x: rawPoint.x,
+          y: Math.max(rawPoint.y, owner.y + this.resolveBoundingSphereRadius(owner)),
+          z: rawPoint.z,
+        };
+      }
+    }
+
+    return rawPoint;
   }
 
   /**
