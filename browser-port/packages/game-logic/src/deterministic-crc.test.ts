@@ -455,11 +455,14 @@ describe('GameLogic deterministic CRC ownership', () => {
         pendingScriptReinforcementTransportArrivalByEntityId: Map<number, {
           targetX: number;
           targetZ: number;
+          deliverPayloadMoveToX: number;
+          deliverPayloadMoveToZ: number;
           originX: number;
           originZ: number;
           deliveryDistance: number;
           deliverPayloadPreOpenDistance: number;
           deliverPayloadPreviousDistanceSqr: number;
+          deliverPayloadFireWeapon: boolean;
           deliverPayloadSelfDestructObject: boolean;
           deliverPayloadMode: boolean;
           deliverPayloadDoorDelayFrames: number;
@@ -481,11 +484,14 @@ describe('GameLogic deterministic CRC ownership', () => {
       privateApi.pendingScriptReinforcementTransportArrivalByEntityId.set(1, {
         targetX: 10,
         targetZ: 20,
+        deliverPayloadMoveToX: 30,
+        deliverPayloadMoveToZ: 40,
         originX: 5,
         originZ: 6,
         deliveryDistance: 7,
         deliverPayloadPreOpenDistance: 0,
         deliverPayloadPreviousDistanceSqr: 0,
+        deliverPayloadFireWeapon: false,
         deliverPayloadSelfDestructObject: false,
         deliverPayloadMode: true,
         deliverPayloadDoorDelayFrames: 8,

@@ -8183,6 +8183,8 @@ interface ScriptHuntState {
 interface ScriptReinforcementTransportArrivalState {
   targetX: number;
   targetZ: number;
+  deliverPayloadMoveToX: number;
+  deliverPayloadMoveToZ: number;
   originX: number;
   originZ: number;
   deliveryDistance: number;
@@ -34198,7 +34200,15 @@ export class GameLogicSubsystem implements Subsystem {
     this.updatePathfindPosCell(passenger);
 
     if (passenger.canMove) {
-      this.issueMoveTo(passenger.id, pending.targetX, pending.targetZ, NO_ATTACK_DISTANCE, true);
+      // Source parity: DeliveringState::update orders non-FireWeapon payloads
+      // toward m_moveToPos, while FireWeapon uses m_targetPos.
+      this.issueMoveTo(
+        passenger.id,
+        pending.deliverPayloadMoveToX,
+        pending.deliverPayloadMoveToZ,
+        NO_ATTACK_DISTANCE,
+        true,
+      );
     }
   }
 
@@ -57166,6 +57176,8 @@ export class GameLogicSubsystem implements Subsystem {
         this.pendingScriptReinforcementTransportArrivalByEntityId.set(transport.id, {
           targetX: finalTargetX,
           targetZ: finalTargetZ,
+          deliverPayloadMoveToX: moveToX,
+          deliverPayloadMoveToZ: moveToZ,
           originX: startX,
           originZ: startZ,
           deliveryDistance: Math.max(0, deliveryDistance),
@@ -57228,7 +57240,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     // Preserve references to parsed data for not-yet-implemented DeliverPayloadData branches.
-    void preOpenDistance;
     void inheritTransportVelocity;
     void parachuteDirectly;
     return firstTransport?.id ?? null;

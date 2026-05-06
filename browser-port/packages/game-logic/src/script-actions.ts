@@ -9989,6 +9989,8 @@ export function materializeScriptReinforcementMembers(self: GL,
         self.pendingScriptReinforcementTransportArrivalByEntityId.set(member.id, {
           targetX: destination.x,
           targetZ: destination.z,
+          deliverPayloadMoveToX: destination.x,
+          deliverPayloadMoveToZ: destination.z,
           originX: member.x,
           originZ: member.z,
           deliveryDistance: transportDeliverPayloadProfile?.deliveryDistance ?? 0,

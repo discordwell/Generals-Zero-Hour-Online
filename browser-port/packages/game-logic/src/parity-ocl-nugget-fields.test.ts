@@ -71,6 +71,8 @@ interface PrivateLogic {
   pendingScriptReinforcementTransportArrivalByEntityId: Map<number, {
     targetX: number;
     targetZ: number;
+    deliverPayloadMoveToX: number;
+    deliverPayloadMoveToZ: number;
     deliveryDistance: number;
     deliverPayloadPreOpenDistance: number;
     deliverPayloadPreviousDistanceSqr: number;
@@ -105,6 +107,7 @@ interface PrivateEntity {
   parkingSpaceProducerId: number | null;
   baseHeight: number;
   moving: boolean;
+  moveTarget: { x: number; z: number } | null;
   attackTargetPosition: { x: number; z: number } | null;
 }
 
@@ -434,6 +437,64 @@ describe('parity: DeliverPayload nugget', () => {
       x: launcher.x + 7,
       z: launcher.z + 9,
     });
+  });
+
+  it('orders non-weapon payloads toward moveToPos, not converged targetPos', () => {
+    // C++ parity: DeliveringState::update non-FireWeapon branch calls
+    // itemAI->aiMoveToPosition(ai->getMoveToPos()), while FireWeapon uses
+    // ai->getTargetPos(). With WeaponConvergenceFactor=1, a formation member's
+    // targetPos converges to the requested target, but moveToPos keeps the
+    // formation offset.
+    const { logic } = makeDeliverPayloadSetup({
+      formationSize: 2,
+      formationSpacing: 20,
+      convergenceFactor: 1,
+      deliveryDistance: 0,
+      dropDelay: 0,
+      doorDelay: 0,
+    });
+
+    const launcher = getEntitiesByTemplate(logic, 'Launcher')[0]!;
+    const targetX = 205;
+    const targetZ = 205;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown, frames: undefined, tx: number, tz: number) => void })
+      .executeOCL('OCL_DeliverPayload', launcher, undefined, targetX, targetZ);
+
+    const transports = getEntitiesByTemplate(logic, 'TestTransport');
+    expect(transports).toHaveLength(2);
+    const secondTransport = transports[1]!;
+    const secondPayload = getEntitiesByTemplate(logic, 'TestPayload')
+      .find((payload) => payload.transportContainerId === secondTransport.id)!;
+    expect(secondPayload).toBeDefined();
+
+    const pending = priv(logic).pendingScriptReinforcementTransportArrivalByEntityId.get(secondTransport.id);
+    expect(pending).toBeDefined();
+    expect(pending!.targetX).toBeCloseTo(targetX, 5);
+    expect(pending!.targetZ).toBeCloseTo(targetZ, 5);
+
+    const offsetX = secondTransport.x - launcher.x;
+    const offsetZ = secondTransport.z - launcher.z;
+    const expectedMoveToX = targetX + offsetX;
+    const expectedMoveToZ = targetZ + offsetZ;
+    expect(pending!.deliverPayloadMoveToX).toBeCloseTo(expectedMoveToX, 5);
+    expect(pending!.deliverPayloadMoveToZ).toBeCloseTo(expectedMoveToZ, 5);
+
+    (logic as unknown as {
+      dropScriptReinforcementDeliverPayloadPassenger: (
+        passengerId: number,
+        transport: PrivateEntity,
+        pending: NonNullable<ReturnType<PrivateLogic['pendingScriptReinforcementTransportArrivalByEntityId']['get']>>,
+      ) => void;
+    }).dropScriptReinforcementDeliverPayloadPassenger(secondPayload.id, secondTransport, pending!);
+
+    expect(secondPayload.transportContainerId).toBeNull();
+    expect(secondPayload.moveTarget).not.toBeNull();
+    expect(secondPayload.moveTarget!.x).toBeCloseTo(expectedMoveToX, 5);
+    expect(secondPayload.moveTarget!.z).toBeCloseTo(expectedMoveToZ, 5);
+    expect(Math.hypot(
+      secondPayload.moveTarget!.x - targetX,
+      secondPayload.moveTarget!.z - targetZ,
+    )).toBeGreaterThan(1);
   });
 
   it('backs OCL delivery transports away by DeliveryDistance slop before approach', () => {

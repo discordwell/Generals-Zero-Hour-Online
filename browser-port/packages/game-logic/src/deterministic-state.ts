@@ -165,6 +165,8 @@ interface ScriptTeamRecordLike {
 interface ScriptReinforcementTransportArrivalStateLike {
   targetX: number;
   targetZ: number;
+  deliverPayloadMoveToX: number;
+  deliverPayloadMoveToZ: number;
   originX: number;
   originZ: number;
   deliveryDistance: number;
@@ -955,6 +957,8 @@ function writePendingScriptReinforcementTransportArrivalCrc(
     addSignedIntCrc(context, crc, entityId);
     addFloat32Crc(context, crc, pending.targetX);
     addFloat32Crc(context, crc, pending.targetZ);
+    addFloat32Crc(context, crc, pending.deliverPayloadMoveToX);
+    addFloat32Crc(context, crc, pending.deliverPayloadMoveToZ);
     addFloat32Crc(context, crc, pending.originX);
     addFloat32Crc(context, crc, pending.originZ);
     addFloat32Crc(context, crc, pending.deliveryDistance);
