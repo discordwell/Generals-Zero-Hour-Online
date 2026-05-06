@@ -5701,44 +5701,7 @@ export function extractSlowDeathProfiles(self: GL, objectDef: ObjectDef | undefi
         const phaseWeapons: [string[], string[], string[]] = [[], [], []];
 
         const parsePhaseEntries = (fieldName: string, target: [string[], string[], string[]]): void => {
-          const raw = block.fields[fieldName];
-          // Each entry is "phaseName name" tokens. The bundle may emit one entry
-          // as a flat array of tokens (["INITIAL", "OCL_X"]), several entries
-          // as a 2D token-array, or several entries as a string array
-          // (["INITIAL OCL_X", "FINAL OCL_Y"]). Disambiguate by inspecting the
-          // first token: if it's a known phase name, the entire flat array is
-          // a single entry; otherwise treat each string as its own entry.
-          const entriesAsTokens: string[][] = [];
-          if (typeof raw === 'string') {
-            entriesAsTokens.push(raw.trim().split(/\s+/).filter((s) => s.length > 0));
-          } else if (Array.isArray(raw)) {
-            const allStrings = raw.every((entry) => typeof entry === 'string');
-            if (allStrings && raw.length > 0) {
-              const firstToken = String(raw[0]).trim().toUpperCase();
-              const isSingleEntry = phaseNames.includes(firstToken as typeof phaseNames[number]);
-              if (isSingleEntry) {
-                entriesAsTokens.push(raw.map((s) => String(s).trim()).filter((s) => s.length > 0));
-              } else {
-                for (const entry of raw) {
-                  const tokens = String(entry).trim().split(/\s+/).filter((s) => s.length > 0);
-                  if (tokens.length > 0) entriesAsTokens.push(tokens);
-                }
-              }
-            } else {
-              for (const entry of raw) {
-                if (Array.isArray(entry)) {
-                  const tokens = entry
-                    .filter((token): token is string => typeof token === 'string')
-                    .map((token) => token.trim())
-                    .filter((token) => token.length > 0);
-                  if (tokens.length > 0) entriesAsTokens.push(tokens);
-                } else if (typeof entry === 'string') {
-                  const tokens = entry.trim().split(/\s+/).filter((s) => s.length > 0);
-                  if (tokens.length > 0) entriesAsTokens.push(tokens);
-                }
-              }
-            }
-          }
+          const entriesAsTokens = extractIniValueTokens(self, block.fields[fieldName]);
           for (const tokens of entriesAsTokens) {
             if (tokens.length >= 2) {
               const phaseIdx = phaseNames.indexOf(tokens[0]!.toUpperCase() as typeof phaseNames[number]);
