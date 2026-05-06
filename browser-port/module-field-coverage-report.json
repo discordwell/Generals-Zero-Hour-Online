@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-06T07:08:27.087Z",
+  "generatedAt": "2026-05-06T11:18:30.343Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -12606,6 +12606,7 @@
       "testReferenceFiles": [
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
@@ -12659,6 +12660,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P1"
@@ -14163,6 +14165,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
@@ -14878,7 +14881,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-factory-defaults.test.ts"
+        "packages/game-logic/src/entity-factory-defaults.test.ts",
+        "packages/game-logic/src/entity-lifecycle.test.ts"
       ],
       "priority": "P1"
     },
@@ -15119,6 +15123,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P1"
@@ -18720,6 +18725,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P2"
@@ -18770,6 +18776,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P2"
@@ -19137,6 +19144,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P2"
@@ -19189,6 +19197,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
@@ -19243,6 +19252,7 @@
       "testReferenceFiles": [
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
@@ -19294,6 +19304,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P2"
@@ -19448,6 +19459,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P2"
@@ -19550,6 +19562,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P2"
@@ -19601,6 +19614,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P2"
@@ -19653,6 +19667,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P2"
@@ -21831,7 +21846,8 @@
       "testReferenceFiles": [
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-factory-defaults.test.ts",
-        "packages/game-logic/src/zh-behavior-runtime-fixes.test.ts"
+        "packages/game-logic/src/zh-behavior-runtime-fixes.test.ts",
+        "packages/game-logic/src/zh-field-additions.test.ts"
       ],
       "priority": "P2"
     },
@@ -22012,7 +22028,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-factory-defaults.test.ts"
+        "packages/game-logic/src/entity-factory-defaults.test.ts",
+        "packages/game-logic/src/zh-field-additions.test.ts"
       ],
       "priority": "P2"
     },
@@ -22567,12 +22584,14 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/child-object-runtime.test.ts",
+        "packages/game-logic/src/combat-targeting.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-autoheal.test.ts",
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-profile-fields.test.ts",
+        "packages/game-logic/src/parity-shockwave-shotsperbarrel.test.ts",
         "packages/game-logic/src/parity-thingtpl-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
@@ -22853,6 +22872,7 @@
         "packages/game-logic/src/auto-attack.test.ts",
         "packages/game-logic/src/bridge-mechanics.test.ts",
         "packages/game-logic/src/combat-parity-fixes.test.ts",
+        "packages/game-logic/src/combat-targeting.test.ts",
         "packages/game-logic/src/combat-weapons.test.ts",
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
@@ -22919,6 +22939,7 @@
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/weapon-runtime-save-state.test.ts",
+        "packages/game-logic/src/weapon-set-slot-metadata.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts",
         "packages/game-logic/src/zh-ai-guard-damage-fixes.test.ts",
         "packages/game-logic/src/zh-ai-guard-state-fixes.test.ts",
@@ -26466,7 +26487,8 @@
         "packages/game-logic/src/wet-test-retail-stress.test.ts",
         "packages/game-logic/src/zh-container-transport-fixes.test.ts",
         "packages/game-logic/src/zh-player-gamelogic-runtime.test.ts",
-        "packages/game-logic/src/zh-production-upgrade-fixes.test.ts"
+        "packages/game-logic/src/zh-production-upgrade-fixes.test.ts",
+        "tools/convert-all/src/convert-all.test.ts"
       ],
       "priority": "P2"
     },
@@ -26960,12 +26982,14 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/child-object-runtime.test.ts",
+        "packages/game-logic/src/combat-targeting.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-autoheal.test.ts",
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-profile-fields.test.ts",
+        "packages/game-logic/src/parity-shockwave-shotsperbarrel.test.ts",
         "packages/game-logic/src/parity-thingtpl-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
@@ -27155,6 +27179,7 @@
         "packages/game-logic/src/ai-updates.test.ts",
         "packages/game-logic/src/aircraft-ai.test.ts",
         "packages/game-logic/src/child-object-runtime.test.ts",
+        "packages/game-logic/src/combat-targeting.test.ts",
         "packages/game-logic/src/containment-save-state.test.ts",
         "packages/game-logic/src/defector-undetected-runtime.test.ts",
         "packages/game-logic/src/deterministic-crc.test.ts",
@@ -27238,6 +27263,7 @@
         "packages/game-logic/src/ai-update-fields.test.ts",
         "packages/game-logic/src/aircraft-ai.test.ts",
         "packages/game-logic/src/auto-attack.test.ts",
+        "packages/game-logic/src/combat-targeting.test.ts",
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/guard-retaliate.test.ts",
         "packages/game-logic/src/index.test.ts",
@@ -27549,12 +27575,14 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/child-object-runtime.test.ts",
+        "packages/game-logic/src/combat-targeting.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-autoheal.test.ts",
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-profile-fields.test.ts",
+        "packages/game-logic/src/parity-shockwave-shotsperbarrel.test.ts",
         "packages/game-logic/src/parity-thingtpl-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
@@ -31074,6 +31102,7 @@
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/weapon-runtime-save-state.test.ts",
+        "packages/game-logic/src/weapon-set-slot-metadata.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts",
         "packages/game-logic/src/zh-ai-niche-fixes.test.ts",
         "packages/game-logic/src/zh-ai-state-machine-fixes.test.ts",
@@ -36569,6 +36598,7 @@
       "testReferenceFiles": [
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts",
         "packages/game-logic/src/session-2026-05-04-verification.test.ts"
       ],
@@ -36665,7 +36695,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/entity-factory-defaults.test.ts"
+        "packages/game-logic/src/entity-factory-defaults.test.ts",
+        "packages/game-logic/src/entity-lifecycle.test.ts"
       ],
       "priority": "P2"
     },
@@ -36714,6 +36745,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-heli-slowdeath-fields.test.ts"
       ],
       "priority": "P2"
@@ -37333,6 +37365,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/aircraft-ai.test.ts",
         "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
@@ -39716,6 +39749,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
+        "packages/game-logic/src/parity-disguise-shroud.test.ts",
         "packages/game-logic/src/stealth-update-fields.test.ts"
       ],
       "priority": "P2"
@@ -39762,6 +39796,7 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
+        "packages/game-logic/src/parity-disguise-shroud.test.ts",
         "packages/game-logic/src/stealth-update-fields.test.ts"
       ],
       "priority": "P2"
@@ -41801,7 +41836,8 @@
         "packages/game-logic/src/zh-ai-niche-fixes.test.ts",
         "packages/game-logic/src/zh-container-transport-fixes.test.ts",
         "packages/game-logic/src/zh-eva-specialpower-fixes.test.ts",
-        "packages/game-logic/src/zh-weapon-damage-fixes.test.ts"
+        "packages/game-logic/src/zh-weapon-damage-fixes.test.ts",
+        "tools/convert-all/src/convert-all.test.ts"
       ],
       "priority": "P2"
     },
@@ -57736,7 +57772,10 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
-        "packages/game-logic/src/index.test.ts"
+        "packages/game-logic/src/aircraft-ai.test.ts",
+        "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/parity-locomotor-fields.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts"
       ],
       "priority": "P2"
     },
@@ -60465,12 +60504,14 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/child-object-runtime.test.ts",
+        "packages/game-logic/src/combat-targeting.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-autoheal.test.ts",
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-profile-fields.test.ts",
+        "packages/game-logic/src/parity-shockwave-shotsperbarrel.test.ts",
         "packages/game-logic/src/parity-thingtpl-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
