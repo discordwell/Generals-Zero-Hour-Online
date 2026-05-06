@@ -57,6 +57,33 @@ describe('collectModelConditionInfos', () => {
     }]);
   });
 
+  it('aliases the previous visual state for AliasConditionState blocks', () => {
+    const drawModule: IniBlock = {
+      type: 'Draw',
+      name: 'W3DModelDraw ModuleTag_01',
+      fields: {},
+      blocks: [
+        makeModelConditionStateBlock('DOCKING CARRYING', {
+          Model: 'ChinookDocked',
+          Animation: 'DockedAnim',
+        }),
+        {
+          type: 'AliasConditionState',
+          name: 'DOCKING CARRYING RUBBLE',
+          fields: {},
+          blocks: [],
+        },
+      ],
+    };
+    const infos = collectModelConditionInfos(makeObjectDef([drawModule]));
+    expect(infos).toHaveLength(1);
+    expect(infos[0].modelName).toBe('ChinookDocked');
+    expect(infos[0].conditionFlagSets).toEqual([
+      ['DOCKING', 'CARRYING'],
+      ['DOCKING', 'CARRYING', 'RUBBLE'],
+    ]);
+  });
+
   it('produces conditionFlags: ["MOVING"] from "MOVING" condition state', () => {
     const block = makeModelConditionStateBlock('MOVING', {});
     const infos = collectModelConditionInfos(makeObjectDef([block]));

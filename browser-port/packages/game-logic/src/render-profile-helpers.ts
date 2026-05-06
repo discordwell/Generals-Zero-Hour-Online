@@ -215,6 +215,15 @@ export function collectModelConditionInfos(objectDef: ObjectDef | undefined): Mo
     const blockType = block.type.toUpperCase();
     if (blockType === 'MODELCONDITIONSTATE' || blockType === 'DEFAULTCONDITIONSTATE') {
       rawInfos.push(parseModelConditionStateBlock(block));
+    } else if (blockType === 'ALIASCONDITIONSTATE' && rawInfos.length > 0) {
+      const previous = rawInfos[rawInfos.length - 1]!;
+      const conditionFlags = parseConditionStateName(block.name);
+      rawInfos.push({
+        ...previous,
+        conditionFlags,
+        conditionKey: conditionFlags.slice().sort().join('|'),
+        conditionFlagSets: undefined,
+      });
     }
 
     for (const childBlock of block.blocks) {
@@ -296,9 +305,7 @@ function mergeConditionInfosByVisualKey(infos: ModelConditionInfo[]): ModelCondi
 }
 
 function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
-  const conditionFlags = block.name.trim().length > 0
-    ? block.name.trim().split(/\s+/)
-    : [];
+  const conditionFlags = parseConditionStateName(block.name);
 
   const modelName = readFirstStringToken(block.fields, 'Model')
     ?? readFirstStringToken(block.fields, 'ModelName');
@@ -351,6 +358,12 @@ function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
     animSpeedFactorMax,
     idleAnimations,
   };
+}
+
+function parseConditionStateName(name: string): string[] {
+  return name.trim().length > 0
+    ? name.trim().split(/\s+/)
+    : [];
 }
 
 function readFirstStringToken(fields: Record<string, IniValue>, fieldName: string): string | undefined {

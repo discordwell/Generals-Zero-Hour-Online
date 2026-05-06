@@ -1116,6 +1116,41 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     expect(userCount, 'expected retail IdleAnimation flat-token array users').toBeGreaterThan(0);
   });
 
+  it('AliasConditionState entries flow into conditionFlagSets for every retail user', () => {
+    let aliasCount = 0;
+    const arraysEqual = (left: readonly string[] | undefined, right: readonly string[]): boolean =>
+      left !== undefined
+      && left.length === right.length
+      && left.every((value, index) => value === right[index]);
+
+    for (const obj of bundle.objects ?? []) {
+      const expectedAliases: string[][] = [];
+      const visit = (block: BundleBlock): void => {
+        if ((block.type ?? '').toUpperCase() === 'ALIASCONDITIONSTATE') {
+          expectedAliases.push((block.name ?? '').trim().split(/\s+/).filter(Boolean));
+        }
+        for (const child of block.blocks ?? []) {
+          visit(child);
+        }
+      };
+      for (const block of obj.blocks ?? []) {
+        visit(block);
+      }
+      if (expectedAliases.length === 0) continue;
+
+      aliasCount += expectedAliases.length;
+      const infos = collectModelConditionInfos(obj as never);
+      const parsedFlagSets = infos.flatMap((info) => info.conditionFlagSets ?? [info.conditionFlags]);
+      for (const expected of expectedAliases) {
+        expect(
+          parsedFlagSets.some((flags) => arraysEqual(flags, expected)),
+          `AliasConditionState missing on ${obj.name}: ${expected.join(' ')}`,
+        ).toBe(true);
+      }
+    }
+    expect(aliasCount, 'expected retail AliasConditionState users').toBeGreaterThan(0);
+  });
+
   it('extractIniValueTokens decodes flat primitive arrays as a single multi-token entry', () => {
     // This regression bundle scan proves that EVERY shipped retail field
     // emitted as a flat-token array (e.g. ['HEROIC', 'WeaponFX_X']) parses
