@@ -16,6 +16,8 @@
  * - Damage.h
  */
 
+import { MAP_XY_FACTOR } from '@generals/terrain';
+
 // ---------------------------------------------------------------------------
 // Constants — source parity with WeaponSetType.h / Damage.h / Weapon.h
 // ---------------------------------------------------------------------------
@@ -30,6 +32,9 @@ export const WEAPON_SLOT_TERTIARY = 2;
 
 /** Source parity: CommandSourceMask CMD_DEFAULT_SWITCH_WEAPON. */
 const COMMAND_SOURCE_DEFAULT_SWITCH_WEAPON_MASK = 1 << 4;
+
+/** Source parity: Weapon.cpp Weapon::isWithinTargetPitch ACCCEPTABLE_DZ. */
+const ACCEPTABLE_TARGET_DZ = 10;
 
 /** Source parity: WeaponChoiceCriteria enum. */
 export type WeaponChoiceCriteria = 'PREFER_MOST_DAMAGE' | 'PREFER_LONGEST_RANGE';
@@ -131,6 +136,10 @@ export interface WeaponSlotProfile {
   autoChooseSourceMask: number;
   /** Source parity: PreferredAgainst KindOf mask for this slot. */
   preferredAgainstKindOf: ReadonlySet<string>;
+  /** Source parity: WeaponTemplate::m_minTargetPitch, radians. */
+  minTargetPitch?: number;
+  /** Source parity: WeaponTemplate::m_maxTargetPitch, radians. */
+  maxTargetPitch?: number;
   /** Source parity: Weapon auto-reloads its clip (e.g. after AutoReloadWhenIdle). */
   autoReloadsClip?: boolean;
   /** Source parity: WeaponTemplate::m_shotsPerBarrel — shots fired per barrel before cycling (default 1). */
@@ -561,6 +570,51 @@ export interface ChooseBestWeaponContext {
   frameCounter: number;
   /** Multiplicative damage bonus applied to all weapon damage estimates (default 1). */
   damageBonus?: number;
+  /** Source parity: Weapon::isWithinTargetPitch vertical source-to-victim delta. */
+  targetVerticalDelta?: number;
+  /** Source parity: minimum pitch from source geometry to victim geometry. */
+  targetMinPitch?: number;
+  /** Source parity: maximum pitch from source geometry to victim geometry. */
+  targetMaxPitch?: number;
+}
+
+function isWeaponWithinTargetPitchForChoice(
+  profile: WeaponSlotProfile,
+  ctx: ChooseBestWeaponContext,
+): boolean {
+  const minTargetPitch = profile.minTargetPitch ?? -Math.PI;
+  const maxTargetPitch = profile.maxTargetPitch ?? Math.PI;
+  const isPitchLimited = minTargetPitch > -Math.PI || maxTargetPitch < Math.PI;
+  const isContactWeapon = Math.max(0, profile.attackRange) < MAP_XY_FACTOR;
+
+  // Source parity: Weapon.cpp Weapon::isWithinTargetPitch exits early for
+  // contact weapons and weapons without a pitch limit.
+  if (isContactWeapon || !isPitchLimited) {
+    return true;
+  }
+
+  if (
+    ctx.targetVerticalDelta !== undefined
+    && Number.isFinite(ctx.targetVerticalDelta)
+    && Math.abs(ctx.targetVerticalDelta) < ACCEPTABLE_TARGET_DZ
+  ) {
+    return true;
+  }
+
+  const minPitch = ctx.targetMinPitch;
+  const maxPitch = ctx.targetMaxPitch ?? minPitch;
+  if (!Number.isFinite(minPitch) || !Number.isFinite(maxPitch)) {
+    return true;
+  }
+
+  const lowPitch = Math.min(minPitch!, maxPitch!);
+  const highPitch = Math.max(minPitch!, maxPitch!);
+
+  // Source parity: Weapon.cpp accepts any intersection between the victim
+  // pitch interval and the weapon's allowed pitch interval.
+  return (lowPitch >= minTargetPitch && lowPitch <= maxTargetPitch)
+    || (highPitch >= minTargetPitch && highPitch <= maxTargetPitch)
+    || (lowPitch <= minTargetPitch && highPitch >= maxTargetPitch);
 }
 
 /**
@@ -624,6 +678,10 @@ export function chooseBestWeaponForTarget(
 
     // Source parity: anti-mask check.
     if (!(profile.antiMask & ctx.victimAntiMask)) {
+      continue;
+    }
+
+    if (!isWeaponWithinTargetPitchForChoice(profile, ctx)) {
       continue;
     }
 

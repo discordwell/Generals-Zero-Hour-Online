@@ -674,6 +674,60 @@ describe('Best weapon selection', () => {
     expect(result).toBe(WEAPON_SLOT_SECONDARY);
   });
 
+  it('skips weapons outside their target pitch interval', () => {
+    const state = createMultiWeaponEntityState();
+    state.weaponSlotProfiles[0] = makeWeaponProfile({
+      name: 'HighArcOnly',
+      slotIndex: 0,
+      primaryDamage: 100,
+      minTargetPitch: 45 * Math.PI / 180,
+      maxTargetPitch: 80 * Math.PI / 180,
+    });
+    state.weaponSlotProfiles[1] = makeWeaponProfile({
+      name: 'FlatGun',
+      slotIndex: 1,
+      primaryDamage: 20,
+    });
+    for (let i = 0; i < 2; i++) {
+      resetWeaponSlotState(state.weaponSlots[i], state.weaponSlotProfiles[i]!);
+    }
+
+    const ctx = makeChooseContext({
+      targetVerticalDelta: 50,
+      targetMinPitch: 5 * Math.PI / 180,
+      targetMaxPitch: 10 * Math.PI / 180,
+    });
+    const result = chooseBestWeaponForTarget(state, ctx, 'PREFER_MOST_DAMAGE');
+    expect(result).toBe(WEAPON_SLOT_SECONDARY);
+  });
+
+  it('allows pitch-limited weapons when target dz is below source tolerance', () => {
+    const state = createMultiWeaponEntityState();
+    state.weaponSlotProfiles[0] = makeWeaponProfile({
+      name: 'FlatGun',
+      slotIndex: 0,
+      primaryDamage: 20,
+    });
+    state.weaponSlotProfiles[1] = makeWeaponProfile({
+      name: 'HighArcOnly',
+      slotIndex: 1,
+      primaryDamage: 100,
+      minTargetPitch: 45 * Math.PI / 180,
+      maxTargetPitch: 80 * Math.PI / 180,
+    });
+    for (let i = 0; i < 2; i++) {
+      resetWeaponSlotState(state.weaponSlots[i], state.weaponSlotProfiles[i]!);
+    }
+
+    const ctx = makeChooseContext({
+      targetVerticalDelta: 5,
+      targetMinPitch: 5 * Math.PI / 180,
+      targetMaxPitch: 10 * Math.PI / 180,
+    });
+    const result = chooseBestWeaponForTarget(state, ctx, 'PREFER_MOST_DAMAGE');
+    expect(result).toBe(WEAPON_SLOT_SECONDARY);
+  });
+
   it('allows DEFAULT_SWITCH_WEAPON when exact command source is absent', () => {
     const state = createMultiWeaponEntityState();
     state.weaponSlotProfiles[0] = makeWeaponProfile({
