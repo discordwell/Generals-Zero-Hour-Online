@@ -56993,13 +56993,15 @@ export class GameLogicSubsystem implements Subsystem {
     const formationSpacing = readNumericField(nugget.fields, ['FormationSpacing']) ?? 25.0;
     const convergenceFactor = readNumericField(nugget.fields, ['WeaponConvergenceFactor']) ?? 0.0;
     const errorRadius = readNumericField(nugget.fields, ['WeaponErrorRadius']) ?? 0.0;
-    const delayDeliveryMaxFrames = readNumericField(nugget.fields, ['DelayDeliveryMax']) ?? 0;
+    const delayDeliveryMaxMs = readNumericField(nugget.fields, ['DelayDeliveryMax']) ?? 0;
+    const delayDeliveryMaxFrames = delayDeliveryMaxMs > 0 ? this.msToLogicFrames(delayDeliveryMaxMs) : 0;
     const putInContainerName = readStringField(nugget.fields, ['PutInContainer']) ?? '';
 
     // ── Parse DeliverPayloadData fields ──
     const deliveryDistance = readNumericField(nugget.fields, ['DeliveryDistance']) ?? 0.0;
     const preOpenDistance = readNumericField(nugget.fields, ['PreOpenDistance']) ?? 0.0;
-    const dropDelay = readNumericField(nugget.fields, ['DropDelay']) ?? 0;
+    const dropDelayMs = readNumericField(nugget.fields, ['DropDelay']) ?? 0;
+    const dropDelayFrames = dropDelayMs > 0 ? this.msToLogicFrames(dropDelayMs) : 0;
     const dropOffset = readCoord3DField(nugget.fields, ['DropOffset']) ?? { x: 0, y: 0, z: 0 };
     const dropVariance = readCoord3DField(nugget.fields, ['DropVariance']) ?? { x: 0, y: 0, z: 0 };
     const fireWeapon = readBooleanField(nugget.fields, ['FireWeapon']) ?? false;
@@ -57063,8 +57065,10 @@ export class GameLogicSubsystem implements Subsystem {
         }
       }
 
-      const startX = srcX + offsetX;
-      const startZ = srcZ + offsetZ;
+      let startX = srcX + offsetX;
+      let startZ = srcZ + offsetZ;
+      const moveToX = tgtX + offsetX;
+      const moveToZ = tgtZ + offsetZ;
 
       // Source parity: target position converges based on convergenceFactor.
       const memberTargetX = tgtX + offsetX * (1.0 - convergenceFactor);
@@ -57079,11 +57083,14 @@ export class GameLogicSubsystem implements Subsystem {
         finalTargetX += randomRadius * Math.cos(randomAngle);
         finalTargetZ += randomRadius * Math.sin(randomAngle);
       }
-      void finalTargetX;
-      void finalTargetZ;
-
-      // Compute orientation from start toward target.
-      const orient = Math.atan2(startZ - tgtZ, startX - tgtX);
+      // Source parity: orient from startPos toward moveToPos, then start
+      // farther out by DeliveryDistance * 1.5 when configured.
+      const orient = Math.atan2(moveToZ - startZ, moveToX - startX);
+      if (deliveryDistance > 0) {
+        const slop = 1.5;
+        startX -= Math.cos(orient) * deliveryDistance * slop;
+        startZ -= Math.sin(orient) * deliveryDistance * slop;
+      }
 
       // Spawn transport entity.
       const transport = this.spawnEntityFromTemplate(
@@ -57120,6 +57127,38 @@ export class GameLogicSubsystem implements Subsystem {
 
       // Source parity: startAtMaxSpeed — apply initial velocity.
       // In the browser port, movement is handled by the AI system. We mark this as a hint.
+      // Source parity: ObjectCreationList.cpp:433-438 — DeliverPayloadNugget
+      // calls DeliverPayloadAIUpdate::deliverPayload(moveToPos, targetPos, data).
+      // Reuse the browser port's source-inspired delivery pending path so OCL
+      // transports actually approach, stage door/drop delays, unload, and exit.
+      const transportObjectDef = this.resolveObjectDefByTemplateName(transport.templateName);
+      const deliverPayloadProfile = this.resolveScriptReinforcementDeliverPayloadProfile(transportObjectDef);
+      // FireWeapon delivery destroys payload and fires the transport weapon in
+      // DeliveringState; the passenger-drop helper below is only the non-weapon path.
+      if (deliverPayloadProfile && !fireWeapon) {
+        this.issueMoveTo(transport.id, moveToX, moveToZ, NO_ATTACK_DISTANCE, true);
+        this.pendingScriptReinforcementTransportArrivalByEntityId.set(transport.id, {
+          targetX: finalTargetX,
+          targetZ: finalTargetZ,
+          originX: startX,
+          originZ: startZ,
+          deliveryDistance: Math.max(0, deliveryDistance),
+          deliverPayloadMode: true,
+          deliverPayloadDoorDelayFrames: deliverPayloadProfile.doorDelayFrames,
+          deliverPayloadDropDelayFrames: Math.max(0, dropDelayFrames),
+          deliverPayloadNextDropFrame: -1,
+          deliverPayloadDropOffsetX: dropOffset.x,
+          deliverPayloadDropOffsetZ: dropOffset.y,
+          deliverPayloadDropVarianceX: Math.max(0, dropVariance.x),
+          deliverPayloadDropVarianceZ: Math.max(0, dropVariance.y),
+          exitTargetX: Number.NaN,
+          exitTargetZ: Number.NaN,
+          transportsExit: true,
+          evacuationIssued: false,
+          exitMoveIssued: false,
+        });
+      }
+
       void startAtMaxSpeed;
 
       // Load payload into transport.
@@ -57159,12 +57198,8 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
-    // Preserve references to parsed data for potential future use.
-    void deliveryDistance;
+    // Preserve references to parsed data for not-yet-implemented DeliverPayloadData branches.
     void preOpenDistance;
-    void dropDelay;
-    void dropOffset;
-    void dropVariance;
     void fireWeapon;
     void inheritTransportVelocity;
     void parachuteDirectly;

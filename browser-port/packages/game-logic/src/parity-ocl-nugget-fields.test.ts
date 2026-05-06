@@ -66,6 +66,18 @@ interface PrivateLogic {
   spawnedEntities: Map<number, PrivateEntity>;
   frameCounter: number;
   defeatedSides: Set<string>;
+  pendingScriptReinforcementTransportArrivalByEntityId: Map<number, {
+    targetX: number;
+    targetZ: number;
+    deliveryDistance: number;
+    deliverPayloadMode: boolean;
+    deliverPayloadDoorDelayFrames: number;
+    deliverPayloadDropDelayFrames: number;
+    deliverPayloadDropOffsetX: number;
+    deliverPayloadDropOffsetZ: number;
+    deliverPayloadDropVarianceX: number;
+    deliverPayloadDropVarianceZ: number;
+  }>;
 }
 
 interface PrivateEntity {
@@ -86,6 +98,7 @@ interface PrivateEntity {
   experienceState: { currentLevel: number };
   parkingSpaceProducerId: number | null;
   baseHeight: number;
+  moving: boolean;
 }
 
 function priv(logic: GameLogicSubsystem): PrivateLogic {
@@ -126,11 +139,19 @@ describe('parity: DeliverPayload nugget', () => {
     payloadCount?: number;
     delayDeliveryMax?: number;
     selfDestructObject?: string;
+    deliveryDistance?: number;
+    dropDelay?: number;
+    dropOffset?: string;
+    dropVariance?: string;
+    doorDelay?: number;
   } = {}) {
     const extraObjects = [
       makeObjectDef('TestTransport', 'America', ['VEHICLE', 'AIRCRAFT'], [
         makeBlock('LocomotorSet', 'SET_NORMAL TestTransportLoco', {}),
-        makeBlock('Behavior', 'DeliverPayloadAIUpdate ModuleTag_DeliverPayload', {}),
+        makeBlock('Behavior', 'DeliverPayloadAIUpdate ModuleTag_DeliverPayload', {
+          DoorDelay: opts.doorDelay ?? 0,
+        }),
+        makeBlock('Behavior', 'TransportContain ModuleTag_Contain', { ContainMax: 8 }),
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
       ]),
       makeObjectDef('TestPayload', 'America', ['INFANTRY'], [
@@ -172,6 +193,10 @@ describe('parity: DeliverPayload nugget', () => {
     if (opts.putInContainer !== undefined) nuggetFields['PutInContainer'] = opts.putInContainer;
     if (opts.delayDeliveryMax !== undefined) nuggetFields['DelayDeliveryMax'] = opts.delayDeliveryMax;
     if (opts.selfDestructObject !== undefined) nuggetFields['SelfDestructObject'] = opts.selfDestructObject;
+    if (opts.deliveryDistance !== undefined) nuggetFields['DeliveryDistance'] = opts.deliveryDistance;
+    if (opts.dropDelay !== undefined) nuggetFields['DropDelay'] = opts.dropDelay;
+    if (opts.dropOffset !== undefined) nuggetFields['DropOffset'] = opts.dropOffset;
+    if (opts.dropVariance !== undefined) nuggetFields['DropVariance'] = opts.dropVariance;
 
     addOCL(bundle, 'OCL_DeliverPayload', [{ type: 'DeliverPayload', fields: nuggetFields }]);
 
@@ -306,6 +331,60 @@ describe('parity: DeliverPayload nugget', () => {
     // Container should be in the transport.
     const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
     expect(containers[0]!.transportContainerId).toBe(transport.id);
+  });
+
+  it('starts DeliverPayloadAIUpdate staged delivery from OCL data', () => {
+    // C++ parity: ObjectCreationList.cpp:433-438 calls ai->deliverPayload(moveToPos, targetPos, data).
+    // The TS OCL path should therefore queue the same delivery-distance/drop-delay state,
+    // not merely spawn a loaded transport.
+    const { logic } = makeDeliverPayloadSetup({
+      deliveryDistance: 0,
+      dropDelay: 1000,
+      dropOffset: '4 6 0',
+      dropVariance: '0 0 0',
+      doorDelay: 500,
+    });
+
+    const launcher = getEntitiesByTemplate(logic, 'Launcher')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown, frames: undefined, tx: number, tz: number) => void })
+      .executeOCL('OCL_DeliverPayload', launcher, undefined, launcher.x, launcher.z);
+
+    const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
+    const payload = getEntitiesByTemplate(logic, 'TestPayload')[0]!;
+    const pending = priv(logic).pendingScriptReinforcementTransportArrivalByEntityId.get(transport.id);
+    expect(pending).toBeDefined();
+    expect(pending!.deliverPayloadMode).toBe(true);
+    expect(pending!.deliveryDistance).toBe(0);
+    expect(pending!.deliverPayloadDoorDelayFrames).toBe(15);
+    expect(pending!.deliverPayloadDropDelayFrames).toBe(30);
+    expect(pending!.deliverPayloadDropOffsetX).toBe(4);
+    expect(pending!.deliverPayloadDropOffsetZ).toBe(6);
+    expect(payload.transportContainerId).toBe(transport.id);
+
+    for (let i = 0; i < 16; i += 1) {
+      logic.update(1 / 30);
+    }
+
+    expect(payload.transportContainerId).toBeNull();
+    expect(payload.x).toBeCloseTo(transport.x + 4, 5);
+    expect(payload.z).toBeCloseTo(transport.z + 6, 5);
+  });
+
+  it('backs OCL delivery transports away by DeliveryDistance slop before approach', () => {
+    // C++ parity: ObjectCreationList.cpp:373-378 subtracts
+    // DeliveryDistance * 1.5 along the approach direction before spawning.
+    const { logic } = makeDeliverPayloadSetup({
+      startAtPreferredHeight: 'No',
+      deliveryDistance: 20,
+    });
+
+    const launcher = getEntitiesByTemplate(logic, 'Launcher')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown, frames: undefined, tx: number, tz: number) => void })
+      .executeOCL('OCL_DeliverPayload', launcher, undefined, launcher.x + 200, launcher.z);
+
+    const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
+    expect(transport.x).toBeCloseTo(launcher.x - 30, 5);
+    expect(transport.z).toBeCloseTo(launcher.z, 5);
   });
 });
 
