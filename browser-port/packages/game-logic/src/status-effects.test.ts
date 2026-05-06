@@ -1018,6 +1018,57 @@ describe('EMPUpdate', () => {
     expect(logic.getEntityState(2)!.health).toBe(500);
   });
 
+  it('emits DisableFXParticleSystem sparks on disabled victims', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('EMPPulse', 'America', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+          makeBlock('Behavior', 'EMPUpdate ModuleTag_EMP', {
+            Lifetime: 300,
+            StartFadeTime: 0,
+            DisabledDuration: 3000,
+            EffectRadius: 200,
+            DisableFXParticleSystem: 'EMPSparks',
+          }),
+        ]),
+        makeObjectDef('Tank', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ], {
+          Geometry: 'CYLINDER',
+          GeometryMajorRadius: 5,
+          GeometryMinorRadius: 5,
+          GeometryHeight: 10,
+        }),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('EMPPulse', 50, 50),
+        makeMapObject('Tank', 55, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.drainVisualEvents();
+
+    for (let i = 0; i < 3; i++) logic.update(1 / 30);
+
+    const sparkEvents = logic.drainVisualEvents().filter((event) =>
+      event.type === 'NAMED_PARTICLE_SYSTEM' && event.effectName === 'EMPSparks');
+    expect(sparkEvents).toHaveLength(15);
+    for (const event of sparkEvents) {
+      expect(event.sourceEntityId).toBe(2);
+      expect(event.lifetimeFrames).toBe(60);
+      expect(Number.isFinite(event.x)).toBe(true);
+      expect(Number.isFinite(event.y)).toBe(true);
+      expect(Number.isFinite(event.z)).toBe(true);
+    }
+  });
+
   it('skips infantry targets (unless SPAWNS_ARE_THE_WEAPONS)', () => {
     const bundle = makeBundle({
       objects: [

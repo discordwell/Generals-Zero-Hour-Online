@@ -607,6 +607,23 @@ describe('session 2026-05-04 — bundle-wide scanner over touched fields', () =>
     }
   });
 
+  it('EMPUpdate DisableFXParticleSystem flows through every retail user', () => {
+    const usages = [...iterFieldUsages('EMPUpdate', 'DisableFXParticleSystem')];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const { obj, bundleValue } of usages) {
+      const profile = extractEmpUpdateProfile(makeSelfStub(), obj as never);
+      expect(profile, `EMPUpdateProfile null for ${obj.name}`).not.toBeNull();
+      const typedProfile = profile as unknown as {
+        disableFXParticleSystemName: string;
+        sparksPerCubicFoot: number;
+      };
+      expect(typedProfile.disableFXParticleSystemName, `DisableFXParticleSystem mismatch on ${obj.name}`)
+        .toBe(String(bundleValue));
+      expect(typedProfile.sparksPerCubicFoot, `SparksPerCubicFoot default mismatch on ${obj.name}`)
+        .toBe(0.001);
+    }
+  });
+
   it('source Coord3D fields decode retail key/value token arrays', () => {
     const commandCenter = bundle.objects?.find((obj) => obj.name === 'AirF_AmericaCommandCenter');
     expect(commandCenter, 'expected AirF_AmericaCommandCenter in retail bundle').toBeDefined();

@@ -6957,6 +6957,10 @@ interface EMPUpdateProfile {
   endColor: readonly [number, number, number];
   /** Source parity: EMPUpdateModuleData::m_rejectMask parsed from DoesNotAffect. */
   doesNotAffect: Set<string>;
+  /** Source parity: EMPUpdateModuleData::m_disableFXParticleSystem. */
+  disableFXParticleSystemName: string;
+  /** Source parity: EMPUpdateModuleData::m_sparksPerCubicFoot. */
+  sparksPerCubicFoot: number;
   /** If true, the EMP does not affect the owner's own STRUCTURE entities. */
   doesNotAffectMyOwnBuildings: boolean;
   /** Required kindOf flags for targets (empty = all). */
@@ -54795,6 +54799,80 @@ export class GameLogicSubsystem implements Subsystem {
    * skip own buildings if doesNotAffectMyOwnBuildings, skip allied non-structures when
    * DoesNotAffect includes ALLIES, kill airborne aircraft.
    */
+  private resolveEmpVictimFootprintArea(victim: MapEntity): number {
+    const geom = victim.geometryInfo;
+    const majorRadius = Math.max(0, geom.majorRadius);
+    const minorRadius = Math.max(0, geom.minorRadius || geom.majorRadius);
+    if (majorRadius <= 0 || minorRadius <= 0) {
+      return 0;
+    }
+    return geom.shape === 'box'
+      ? 4 * majorRadius * minorRadius
+      : Math.PI * majorRadius * minorRadius;
+  }
+
+  private randomOffsetWithinEmpVictimFootprint(victim: MapEntity): { x: number; z: number } {
+    const geom = victim.geometryInfo;
+    const majorRadius = Math.max(0, geom.majorRadius);
+    const minorRadius = Math.max(0, geom.minorRadius || geom.majorRadius);
+    if (majorRadius <= 0 || minorRadius <= 0) {
+      return { x: 0, z: 0 };
+    }
+
+    let localX = 0;
+    let localZ = 0;
+    if (geom.shape === 'box') {
+      localX = (this.gameRandom.nextFloat() * 2 - 1) * majorRadius;
+      localZ = (this.gameRandom.nextFloat() * 2 - 1) * minorRadius;
+    } else {
+      const theta = this.gameRandom.nextFloat() * Math.PI * 2;
+      const radiusScale = Math.sqrt(this.gameRandom.nextFloat());
+      localX = Math.cos(theta) * radiusScale * majorRadius;
+      localZ = Math.sin(theta) * radiusScale * minorRadius;
+    }
+
+    const c = Math.cos(victim.rotationY);
+    const s = Math.sin(victim.rotationY);
+    return {
+      x: localX * c - localZ * s,
+      z: localX * s + localZ * c,
+    };
+  }
+
+  private emitEmpDisableParticleSystems(victim: MapEntity, profile: EMPUpdateProfile): void {
+    const effectName = profile.disableFXParticleSystemName.trim();
+    if (!effectName) return;
+
+    const height = Math.max(0, victim.geometryInfo.height || victim.baseHeight * 2);
+    const footprintArea = this.resolveEmpVictimFootprintArea(victim);
+    const victimVolume = footprintArea * Math.min(height, 10.0);
+    const emitterCount = Math.max(15, Math.ceil(Math.max(0, profile.sparksPerCubicFoot) * victimVolume));
+    const lifetimeFrames = Math.max(0, profile.disabledDurationFrames - 30);
+
+    for (let i = 0; i < emitterCount; i++) {
+      const footprintOffset = this.randomOffsetWithinEmpVictimFootprint(victim);
+      let offsetY = height > 3
+        ? 3 + this.gameRandom.nextFloat() * (height - 3)
+        : this.gameRandom.nextFloat() * height;
+      const offsetLength = Math.hypot(footprintOffset.x, offsetY, footprintOffset.z);
+      if (height > 0 && offsetLength > height) {
+        offsetY = (offsetY / offsetLength) * height;
+      }
+
+      this.visualEventBuffer.push({
+        type: 'NAMED_PARTICLE_SYSTEM',
+        x: victim.x + footprintOffset.x,
+        y: victim.y + offsetY,
+        z: victim.z + footprintOffset.z,
+        radius: 0,
+        sourceEntityId: victim.id,
+        projectileType: 'BULLET',
+        effectName,
+        lifetimeFrames,
+      });
+    }
+  }
+
   private doEmpDisableAttack(empEntity: MapEntity, profile: EMPUpdateProfile): void {
     const radiusSq = profile.effectRadius * profile.effectRadius;
     const producer = empEntity.producerEntityId > 0
@@ -54869,6 +54947,7 @@ export class GameLogicSubsystem implements Subsystem {
       // Apply DISABLED_EMP for the configured duration.
       if (profile.disabledDurationFrames > 0) {
         this.applyEmpDisable(victim, profile.disabledDurationFrames);
+        this.emitEmpDisableParticleSystems(victim, profile);
       }
       if (intendedVictim && victim.id === intendedVictim.id) {
         intendedVictimProcessed = true;

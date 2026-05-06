@@ -6152,6 +6152,8 @@ export function extractEmpUpdateProfile(self: GL, objectDef: ObjectDef | undefin
       startColor: readRgbColorField(block.fields, ['StartColor'], [255, 255, 255]),
       endColor: readRgbColorField(block.fields, ['EndColor'], [0, 0, 0]),
       doesNotAffect,
+      disableFXParticleSystemName: readStringField(block.fields, ['DisableFXParticleSystem']) ?? '',
+      sparksPerCubicFoot: readNumericField(block.fields, ['SparksPerCubicFoot']) ?? 0.001,
       doesNotAffectMyOwnBuildings: readBooleanField(block.fields, ['DoesNotAffectMyOwnBuildings']) === true,
       victimRequiredKindOf,
       victimForbiddenKindOf,
