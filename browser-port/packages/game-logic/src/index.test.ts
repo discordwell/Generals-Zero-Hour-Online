@@ -40529,6 +40529,64 @@ describe('Script condition groundwork', () => {
     })).toBe(true);
   });
 
+  it('falls back to live source object id when attacked-by-type source template is absent', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Target', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+            MaxHealth: 100,
+            InitialHealth: 100,
+          }),
+        ]),
+        makeObjectDef('VehicleAttacker', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+            MaxHealth: 100,
+            InitialHealth: 100,
+          }),
+        ]),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Target', 10, 10),          // id 1
+        makeMapObject('VehicleAttacker', 20, 10), // id 2
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    logic.setScriptTeamMembers('AlphaTeam', [1]);
+
+    const privateApi = logic as unknown as {
+      applyWeaponDamageAmount: (sourceEntityId: number | null, target: unknown, amount: number, damageType: string) => void;
+      spawnedEntities: Map<number, {
+        scriptLastDamageSourceEntityId: number | null;
+        scriptLastDamageSourceTemplateName: string | null;
+      }>;
+    };
+    privateApi.applyWeaponDamageAmount(2, privateApi.spawnedEntities.get(1), 10, 'SMALL_ARMS');
+
+    // Source parity: ScriptConditions.cpp old-system fallback uses m_sourceID
+    // when DamageInfo::m_sourceTemplate is absent.
+    privateApi.spawnedEntities.get(1)!.scriptLastDamageSourceTemplateName = null;
+    expect(privateApi.spawnedEntities.get(1)!.scriptLastDamageSourceEntityId).toBe(2);
+
+    expect(logic.evaluateScriptNamedAttackedByType({
+      entityId: 1,
+      objectType: 'VehicleAttacker',
+    })).toBe(true);
+    expect(logic.evaluateScriptTeamAttackedByType({
+      teamName: 'AlphaTeam',
+      objectType: 'VehicleAttacker',
+    })).toBe(true);
+    expect(logic.evaluateScriptNamedAttackedByType({
+      entityId: 1,
+      objectType: 'Target',
+    })).toBe(false);
+  });
+
   it('evaluates building-entered and is-building-empty from contain state', () => {
     const bundle = makeBundle({
       objects: [

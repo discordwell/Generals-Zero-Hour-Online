@@ -36412,7 +36412,7 @@ export class GameLogicSubsystem implements Subsystem {
 
   /**
    * Source parity: ScriptConditions::evaluateNamedAttackedByType.
-   * Current subset matches direct template names from last damage source template.
+   * Prefer persistent DamageInfo::m_sourceTemplate, then fall back to source ID.
    */
   evaluateScriptNamedAttackedByType(filter: {
     entityId: number;
@@ -36430,7 +36430,13 @@ export class GameLogicSubsystem implements Subsystem {
     if (!entity) {
       return false;
     }
-    const lastSourceTemplate = entity.scriptLastDamageSourceTemplateName;
+    let lastSourceTemplate = entity.scriptLastDamageSourceTemplateName;
+    if (!lastSourceTemplate && entity.scriptLastDamageSourceEntityId !== null) {
+      // Source parity old-system fallback: if m_sourceTemplate is unavailable,
+      // ScriptConditions.cpp looks up m_sourceID and checks the live attacker's template.
+      const attacker = this.spawnedEntities.get(entity.scriptLastDamageSourceEntityId);
+      lastSourceTemplate = attacker?.templateName ?? null;
+    }
     if (!lastSourceTemplate) {
       return false;
     }
