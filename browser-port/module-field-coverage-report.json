@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-05T15:35:01.827Z",
+  "generatedAt": "2026-05-06T07:08:27.087Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -1468,10 +1468,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/render-profile-helpers.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P0"
     },
     {
@@ -2568,7 +2573,8 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
         "packages/game-logic/src/index.test.ts",
-        "packages/game-logic/src/render-profile-helpers.test.ts"
+        "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P0"
     },
@@ -3181,6 +3187,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -5613,6 +5620,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -6245,6 +6253,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -7528,6 +7537,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
         "packages/game-logic/src/zh-specialpower-runtime.test.ts"
       ],
@@ -8014,6 +8024,7 @@
         "packages/game-logic/src/parity-autoheal.test.ts",
         "packages/game-logic/src/parity-conflict-respawn.test.ts",
         "packages/game-logic/src/parity-disguise-shroud.test.ts",
+        "packages/game-logic/src/parity-dozer-fireevent.test.ts",
         "packages/game-logic/src/parity-heightdie-firespread.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
@@ -10581,6 +10592,7 @@
         "packages/game-logic/src/parity-autoheal.test.ts",
         "packages/game-logic/src/parity-conflict-respawn.test.ts",
         "packages/game-logic/src/parity-disguise-shroud.test.ts",
+        "packages/game-logic/src/parity-dozer-fireevent.test.ts",
         "packages/game-logic/src/parity-heightdie-firespread.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
@@ -11001,6 +11013,7 @@
         "packages/game-logic/src/parity-score-kindof.test.ts",
         "packages/game-logic/src/parity-status-effects.test.ts",
         "packages/game-logic/src/production-spawn.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts"
       ],
@@ -11470,6 +11483,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/gameplay-loop.test.ts",
         "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/ini-readers.test.ts",
         "packages/game-logic/src/parity-agent.test.ts",
         "packages/game-logic/src/parity-handicap.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
@@ -11478,6 +11492,7 @@
         "packages/game-logic/src/parity-score-kindof.test.ts",
         "packages/game-logic/src/parity-status-effects.test.ts",
         "packages/game-logic/src/production-spawn.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts",
@@ -12410,6 +12425,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -14174,10 +14190,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/render-profile-helpers.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P1"
     },
     {
@@ -16279,6 +16300,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -16976,7 +16998,9 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
-        "packages/game-logic/src/index.test.ts"
+        "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/ini-readers.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -17245,10 +17269,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/render-profile-helpers.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -17364,6 +17393,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -18151,6 +18181,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -20042,6 +20073,7 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/game-logic/src/render-profile-helpers.ts",
         "packages/game-logic/src/upgrade-modules.ts"
       ],
       "testReferenced": true,
@@ -21434,6 +21466,7 @@
         "packages/game-logic/src/parity-score-kindof.test.ts",
         "packages/game-logic/src/parity-status-effects.test.ts",
         "packages/game-logic/src/production-spawn.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts"
       ],
@@ -21483,6 +21516,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/gameplay-loop.test.ts",
         "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/ini-readers.test.ts",
         "packages/game-logic/src/parity-agent.test.ts",
         "packages/game-logic/src/parity-handicap.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
@@ -21491,6 +21525,7 @@
         "packages/game-logic/src/parity-score-kindof.test.ts",
         "packages/game-logic/src/parity-status-effects.test.ts",
         "packages/game-logic/src/production-spawn.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts",
@@ -23704,6 +23739,7 @@
         "packages/game-logic/src/combat-weapon-set.ts",
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/index.ts",
+        "packages/game-logic/src/render-profile-helpers.ts",
         "packages/game-logic/src/script-actions.ts"
       ],
       "testReferenced": true,
@@ -23713,6 +23749,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
+        "packages/game-logic/src/render-profile-helpers.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -24138,6 +24175,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -24226,6 +24265,8 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/game-logic/src/index.ts",
+        "packages/game-logic/src/render-profile-helpers.ts",
         "packages/game-logic/src/upgrade-modules.ts"
       ],
       "testReferenced": true,
@@ -25314,6 +25355,7 @@
         "packages/game-logic/src/parity-score-kindof.test.ts",
         "packages/game-logic/src/parity-status-effects.test.ts",
         "packages/game-logic/src/production-spawn.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts"
       ],
@@ -25363,6 +25405,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/gameplay-loop.test.ts",
         "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/ini-readers.test.ts",
         "packages/game-logic/src/parity-agent.test.ts",
         "packages/game-logic/src/parity-handicap.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
@@ -25371,6 +25414,7 @@
         "packages/game-logic/src/parity-score-kindof.test.ts",
         "packages/game-logic/src/parity-status-effects.test.ts",
         "packages/game-logic/src/production-spawn.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/wet-test-harness.test.ts",
@@ -26697,6 +26741,7 @@
         "packages/game-logic/src/entity-lifecycle.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/railed-transport-save-state.test.ts",
+        "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/upgrade-production.test.ts",
         "packages/game-logic/src/zh-create-upgrade-collide-runtime.test.ts"
@@ -27350,11 +27395,14 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/main.ts"
+        "packages/app/src/main.ts",
+        "packages/game-logic/src/render-profile-helpers.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/parity-float-stream.test.ts",
+        "packages/game-logic/src/render-state.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -29873,6 +29921,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -31199,7 +31248,8 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
+        "packages/game-logic/src/entity-factory.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
@@ -31925,6 +31975,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -32792,11 +32843,14 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/main.ts"
+        "packages/app/src/main.ts",
+        "packages/game-logic/src/render-profile-helpers.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/parity-float-stream.test.ts",
+        "packages/game-logic/src/render-state.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -34220,6 +34274,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -35408,6 +35463,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -35669,11 +35725,14 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/main.ts"
+        "packages/app/src/main.ts",
+        "packages/game-logic/src/render-profile-helpers.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/parity-float-stream.test.ts",
+        "packages/game-logic/src/render-state.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -35700,10 +35759,15 @@
       "sourceKnown": false,
       "sourceDataClasses": [],
       "sourceFiles": [],
-      "gameplayReferenced": false,
-      "gameplayReferenceFiles": [],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "gameplayReferenced": true,
+      "gameplayReferenceFiles": [
+        "packages/game-logic/src/render-profile-helpers.ts"
+      ],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -37792,6 +37856,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -37933,6 +37998,7 @@
         "packages/game-logic/src/combat-weapon-set.ts",
         "packages/game-logic/src/entity-factory.ts",
         "packages/game-logic/src/index.ts",
+        "packages/game-logic/src/render-profile-helpers.ts",
         "packages/game-logic/src/script-actions.ts"
       ],
       "testReferenced": true,
@@ -37942,6 +38008,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
+        "packages/game-logic/src/render-profile-helpers.test.ts",
         "packages/game-logic/src/render-state.test.ts",
         "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -42399,6 +42466,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -42452,7 +42520,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/index.test.ts"
+        "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
     },
@@ -42846,6 +42915,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -46877,6 +46948,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -52487,6 +52559,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -53251,6 +53324,7 @@
         "packages/game-logic/src/parity-repairdock-ability.test.ts",
         "packages/game-logic/src/parity-zh-lifecycle-runtime.test.ts",
         "packages/game-logic/src/parity-zh-object-misc-runtime.test.ts",
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/special-power-save-state.test.ts",
         "packages/game-logic/src/spy-vision-save-state.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -58875,7 +58949,8 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
-        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
+        "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/status-effects.test.ts"
       ],
       "priority": "P2"
     },
@@ -60566,6 +60641,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -60611,6 +60687,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
+        "packages/game-logic/src/status-effects.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P2"
@@ -60691,7 +60768,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
-        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
+        "packages/game-logic/src/status-effects.test.ts"
       ],
       "priority": "P2"
     },
