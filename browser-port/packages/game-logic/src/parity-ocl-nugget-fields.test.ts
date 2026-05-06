@@ -738,6 +738,31 @@ describe('parity: CreateObject nugget missing fields', () => {
     return { logic, bundle };
   }
 
+  function makeApplyRandomForceSetup(nuggetFields: Record<string, unknown>) {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Source', 'America', ['STRUCTURE'], [
+          makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', { Mass: 5 }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+        ]),
+      ],
+    });
+
+    addOCL(bundle, 'OCL_ApplyRandomForce', [{
+      type: 'ApplyRandomForce',
+      fields: nuggetFields,
+    }]);
+
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Source', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+    return { logic, bundle };
+  }
+
   it('applies InvulnerableTime to spawned objects', () => {
     // C++ parity: ObjectCreationList.cpp:873 — InvulnerableTime parsed as duration.
     // C++ GenericObjectCreationNugget applies INVULNERABLE status for the specified duration.
@@ -1119,6 +1144,35 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(Math.abs(physics!.accelZ)).toBeLessThan(1e-9);
     // Force 60 divided by spawned mass 2.
     expect(physics!.accelY).toBeCloseTo(30);
+  });
+
+  it('applies ApplyRandomForce nugget to source physics without spawning an object', () => {
+    // C++ parity: ApplyRandomForceNugget::create mutates the primary object's
+    // PhysicsBehavior directly and returns NULL.
+    const { logic } = makeApplyRandomForceSetup({
+      SpinRate: 180,
+      MinForceMagnitude: 50,
+      MaxForceMagnitude: 50,
+      MinForcePitch: 90,
+      MaxForcePitch: 90,
+    });
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    const createdId = (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_ApplyRandomForce', source);
+
+    expect(createdId).toBeNull();
+    expect(getEntities(logic)).toHaveLength(1);
+    const physics = source.physicsBehaviorState;
+    expect(physics).not.toBeNull();
+    expect(Math.abs(physics!.accelX)).toBeLessThan(1e-9);
+    expect(Math.abs(physics!.accelZ)).toBeLessThan(1e-9);
+    // Source mass is 5, so fixed vertical force 50 becomes acceleration 10.
+    expect(physics!.accelY).toBeCloseTo(10);
+    const maxRate = 180 * Math.PI / 180 / 30;
+    expect(Math.abs(physics!.yawRate)).toBeLessThanOrEqual(maxRate);
+    expect(Math.abs(physics!.rollRate)).toBeLessThanOrEqual(maxRate);
+    expect(Math.abs(physics!.pitchRate)).toBeLessThanOrEqual(maxRate);
   });
 
   it('spawns GenericDebris with selected ModelNames and nugget Mass', () => {

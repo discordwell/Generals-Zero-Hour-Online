@@ -56764,8 +56764,10 @@ export class GameLogicSubsystem implements Subsystem {
         if (firstCreatedEntityId === null && createdId !== null) {
           firstCreatedEntityId = createdId;
         }
+      } else if (nuggetType === 'APPLYRANDOMFORCE') {
+        // Source parity: ApplyRandomForceNugget::create — mutate primary object's PhysicsBehavior.
+        this.executeApplyRandomForceNugget(nugget, sourceEntity);
       }
-      // ApplyRandomForce is omitted for now.
     }
     return firstCreatedEntityId;
   }
@@ -57256,6 +57258,40 @@ export class GameLogicSubsystem implements Subsystem {
     const fireX = targetX ?? sourceEntity.x;
     const fireZ = targetZ ?? sourceEntity.z;
     this.fireTemporaryWeaponAtPosition(sourceEntity, weaponDef, fireX, fireZ);
+  }
+
+  /**
+   * Source parity: ApplyRandomForceNugget::create — applies random force and spin
+   * to the primary object's PhysicsBehavior. C++ ObjectCreationList.cpp:599-681.
+   */
+  private executeApplyRandomForceNugget(
+    nugget: IniBlock,
+    sourceEntity: MapEntity,
+  ): void {
+    const physicsState = this.ensurePhysicsBehaviorStateForEntity(sourceEntity);
+    if (!physicsState || !sourceEntity.physicsBehaviorProfile) {
+      return;
+    }
+
+    const degPerSecToRadPerFrame = (value: number): number => value * Math.PI / 180 / LOGIC_FRAME_RATE;
+    const spinRate = degPerSecToRadPerFrame(readNumericField(nugget.fields, ['SpinRate']) ?? 0);
+    const minForceMagnitude = readNumericField(nugget.fields, ['MinForceMagnitude']) ?? 0;
+    const maxForceMagnitude = readNumericField(nugget.fields, ['MaxForceMagnitude']) ?? 0;
+    const minForcePitch = (readNumericField(nugget.fields, ['MinForcePitch']) ?? 0) * Math.PI / 180;
+    const maxForcePitch = (readNumericField(nugget.fields, ['MaxForcePitch']) ?? 0) * Math.PI / 180;
+
+    const angle = this.gameRandom.nextFloat() * Math.PI * 2;
+    const pitch = minForcePitch + this.gameRandom.nextFloat() * (maxForcePitch - minForcePitch);
+    const magnitude = minForceMagnitude + this.gameRandom.nextFloat() * (maxForceMagnitude - minForceMagnitude);
+    const horizontalMagnitude = Math.cos(pitch) * magnitude;
+    const forceX = Math.cos(angle) * horizontalMagnitude;
+    const forceZ = Math.sin(angle) * horizontalMagnitude;
+    const forceY = Math.sin(pitch) * magnitude;
+    this.applyPhysicsForceToEntity(sourceEntity, forceX, forceY, forceZ);
+
+    physicsState.yawRate = (this.gameRandom.nextFloat() * 2 - 1) * spinRate;
+    physicsState.rollRate = (this.gameRandom.nextFloat() * 2 - 1) * spinRate;
+    physicsState.pitchRate = (this.gameRandom.nextFloat() * 2 - 1) * spinRate;
   }
 
   private parseOCLWeaponSlot(nugget: IniBlock): number {
