@@ -56841,9 +56841,23 @@ export class GameLogicSubsystem implements Subsystem {
       .map((token) => token.toUpperCase());
     const inheritVelocity = dispositionTokens.includes('INHERIT_VELOCITY');
     const sendItOut = dispositionTokens.includes('SEND_IT_OUT');
+    const sendItFlying = dispositionTokens.includes('SEND_IT_FLYING');
+    const sendItUp = dispositionTokens.includes('SEND_IT_UP');
     const orientInForceDirection = readBooleanField(nugget.fields, ['OrientInForceDirection']) ?? false;
     const dispositionIntensity = readNumericField(nugget.fields, ['DispositionIntensity']) ?? 0;
+    const extraBounciness = readNumericField(nugget.fields, ['ExtraBounciness']) ?? 0;
     const extraFriction = (readNumericField(nugget.fields, ['ExtraFriction']) ?? 0) / LOGIC_FRAME_RATE;
+    const degPerSecToRadPerFrame = (value: number): number => value * Math.PI / 180 / LOGIC_FRAME_RATE;
+    const spinRateRaw = readNumericField(nugget.fields, ['SpinRate']);
+    const spinRate = spinRateRaw != null
+      ? degPerSecToRadPerFrame(spinRateRaw)
+      : (Math.PI / 32.0) * dispositionIntensity;
+    const yawRateRaw = readNumericField(nugget.fields, ['YawRate']);
+    const rollRateRaw = readNumericField(nugget.fields, ['RollRate']);
+    const pitchRateRaw = readNumericField(nugget.fields, ['PitchRate']);
+    const yawRate = yawRateRaw != null ? degPerSecToRadPerFrame(yawRateRaw) : spinRate;
+    const rollRate = rollRateRaw != null ? degPerSecToRadPerFrame(rollRateRaw) : spinRate;
+    const pitchRate = pitchRateRaw != null ? degPerSecToRadPerFrame(pitchRateRaw) : spinRate;
 
     let firstCreatedEntityId: number | null = null;
     let putInContainerEntity: MapEntity | null = null;
@@ -56967,6 +56981,42 @@ export class GameLogicSubsystem implements Subsystem {
             const forceX = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
             const forceZ = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
             this.applyPhysicsForceToEntity(spawned, forceX, 0, forceZ);
+            if (orientInForceDirection && (forceX !== 0 || forceZ !== 0)) {
+              spawned.rotationY = Math.atan2(forceZ, forceX);
+            }
+          }
+        }
+
+        if (sendItFlying || sendItUp) {
+          // Source parity: GenericObjectCreationNugget::doStuffToObj airborne
+          // disposition branch. SEND_IT_FLYING wins over SEND_IT_UP, matching
+          // the source if/else ordering.
+          const physicsState = this.ensurePhysicsBehaviorStateForEntity(spawned);
+          if (physicsState && spawned.physicsBehaviorProfile) {
+            spawned.physicsBehaviorProfile.allowBouncing = true;
+            physicsState.extraBounciness = extraBounciness;
+            physicsState.extraFriction = extraFriction;
+            physicsState.yawRate = (this.gameRandom.nextFloat() * 2 - 1) * yawRate;
+            physicsState.rollRate = (this.gameRandom.nextFloat() * 2 - 1) * rollRate;
+            physicsState.pitchRate = (this.gameRandom.nextFloat() * 2 - 1) * pitchRate;
+
+            let forceX: number;
+            let forceY: number;
+            let forceZ: number;
+            if (sendItFlying) {
+              const horizontalForce = 4.0 * dispositionIntensity;
+              const verticalForce = 3.0 * dispositionIntensity;
+              forceX = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
+              forceZ = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
+              forceY = (verticalForce * 0.33) + this.gameRandom.nextFloat() * (verticalForce - verticalForce * 0.33);
+            } else {
+              const horizontalForce = 2.0 * dispositionIntensity;
+              const verticalForce = 4.0 * dispositionIntensity;
+              forceX = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
+              forceZ = (this.gameRandom.nextFloat() * 2 - 1) * horizontalForce;
+              forceY = (verticalForce * 0.75) + this.gameRandom.nextFloat() * (verticalForce - verticalForce * 0.75);
+            }
+            this.applyPhysicsForceToEntity(spawned, forceX, forceY, forceZ);
             if (orientInForceDirection && (forceX !== 0 || forceZ !== 0)) {
               spawned.rotationY = Math.atan2(forceZ, forceX);
             }

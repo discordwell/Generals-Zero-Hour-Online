@@ -110,7 +110,7 @@ interface PrivateEntity {
   moving: boolean;
   moveTarget: { x: number; z: number } | null;
   attackTargetPosition: { x: number; z: number } | null;
-  physicsBehaviorProfile: { mass: number } | null;
+  physicsBehaviorProfile: { mass: number; allowBouncing?: boolean } | null;
   physicsBehaviorState: {
     velX: number;
     velY: number;
@@ -914,7 +914,7 @@ describe('parity: CreateObject nugget missing fields', () => {
     // BitTest(m_disposition, INHERIT_VELOCITY) and calls
     // objectPhysics->applyForce(sourcePhysics->getVelocity()).
     const { logic } = makeCreateObjectSetup(
-      { Disposition: ['SEND_IT_FLYING', 'INHERIT_VELOCITY'] },
+      { Disposition: 'INHERIT_VELOCITY' },
       undefined,
       { withPhysics: true },
     );
@@ -1001,6 +1001,48 @@ describe('parity: CreateObject nugget missing fields', () => {
     expect(Math.abs(physics!.accelX)).toBeLessThanOrEqual(6);
     expect(Math.abs(physics!.accelZ)).toBeLessThanOrEqual(6);
     expect(Math.hypot(physics!.accelX, physics!.accelZ)).toBeGreaterThan(0);
+    expect(spawned[0]!.rotationY).toBeCloseTo(Math.atan2(physics!.accelZ, physics!.accelX), 5);
+  });
+
+  it('applies SEND_IT_FLYING airborne force, bounce, spin, and friction', () => {
+    // C++ parity: ObjectCreationList.cpp SEND_IT_FLYING branch sets
+    // allow-bounce physics, extra bounciness/friction, random angular rates,
+    // and force with horizontal max 4*intensity and vertical range
+    // [0.33*(3*intensity), 3*intensity].
+    const { logic } = makeCreateObjectSetup(
+      {
+        Disposition: 'SEND_IT_FLYING',
+        DispositionIntensity: 2,
+        ExtraBounciness: 0.25,
+        ExtraFriction: 30,
+        SpinRate: 90,
+        OrientInForceDirection: 'Yes',
+      },
+      undefined,
+      { withPhysics: true },
+    );
+
+    const source = getEntitiesByTemplate(logic, 'Source')[0]!;
+    (logic as unknown as { executeOCL: (name: string, entity: unknown) => number | null })
+      .executeOCL('OCL_TestCreate', source);
+
+    const spawned = getEntitiesByTemplate(logic, 'SpawnedUnit');
+    expect(spawned.length).toBe(1);
+    expect(spawned[0]!.physicsBehaviorProfile?.allowBouncing).toBe(true);
+    const physics = spawned[0]!.physicsBehaviorState;
+    expect(physics).not.toBeNull();
+    expect(physics!.extraBounciness).toBeCloseTo(0.25);
+    expect(physics!.extraFriction).toBeCloseTo(1);
+    // Explicit SpinRate is parseAngularVelocityReal: deg/sec -> rad/frame.
+    const maxRate = 90 * Math.PI / 180 / 30;
+    expect(Math.abs(physics!.yawRate)).toBeLessThanOrEqual(maxRate);
+    expect(Math.abs(physics!.rollRate)).toBeLessThanOrEqual(maxRate);
+    expect(Math.abs(physics!.pitchRate)).toBeLessThanOrEqual(maxRate);
+    // Force is divided by spawned mass 2.
+    expect(Math.abs(physics!.accelX)).toBeLessThanOrEqual(4);
+    expect(Math.abs(physics!.accelZ)).toBeLessThanOrEqual(4);
+    expect(physics!.accelY).toBeGreaterThanOrEqual(0.99);
+    expect(physics!.accelY).toBeLessThanOrEqual(3);
     expect(spawned[0]!.rotationY).toBeCloseTo(Math.atan2(physics!.accelZ, physics!.accelX), 5);
   });
 });
