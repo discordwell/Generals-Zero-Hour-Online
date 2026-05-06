@@ -33,6 +33,8 @@ export interface LaserBeamConfig {
   segments?: number;
   /** Arc height for segmented beams (W3DLaserDraw ArcHeight). Default 0. */
   arcHeight?: number;
+  /** Segment endpoint overlap ratio for arced beams (W3DLaserDraw SegmentOverlapRatio). Default 0. */
+  segmentOverlapRatio?: number;
 }
 
 interface ActiveBeam {
@@ -156,6 +158,64 @@ function computeSegmentPoints(
   return points;
 }
 
+interface BeamSegment {
+  start: THREE.Vector3;
+  end: THREE.Vector3;
+}
+
+function computeSourceBeamSegments(
+  start: THREE.Vector3,
+  end: THREE.Vector3,
+  segments: number,
+  arcHeight: number,
+  segmentOverlapRatio: number,
+): BeamSegment[] {
+  const segmentCount = Math.max(1, Math.trunc(segments));
+  if (arcHeight <= 0 || segmentCount <= 1) {
+    return Array.from({ length: segmentCount }, () => ({
+      start: start.clone(),
+      end: end.clone(),
+    }));
+  }
+  if (segmentOverlapRatio === 0) {
+    const points = computeSegmentPoints(start, end, segmentCount, arcHeight);
+    return points.slice(0, -1).map((point, index) => ({
+      start: point,
+      end: points[index + 1]!,
+    }));
+  }
+
+  const lineVector = new THREE.Vector3().subVectors(end, start);
+  const halfLength = lineVector.length() * 0.5;
+  const lineMiddle = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+  const pointAtRatio = (ratio: number): THREE.Vector3 => {
+    const point = start.clone().add(lineVector.clone().multiplyScalar(ratio));
+    if (halfLength > 0) {
+      const dist = point.distanceTo(lineMiddle);
+      const scaledRadians = (dist / halfLength) * Math.PI * 0.5;
+      point.y += Math.cos(scaledRadians) * arcHeight;
+    }
+    return point;
+  };
+
+  const result: BeamSegment[] = [];
+  for (let segment = 0; segment < segmentCount; segment++) {
+    let startRatio = segment / segmentCount;
+    let endRatio = (segment + 1) / segmentCount;
+    if (segment > 0) {
+      startRatio -= segmentOverlapRatio;
+    }
+    if (segment < segmentCount - 1) {
+      endRatio += segmentOverlapRatio;
+    }
+    result.push({
+      start: pointAtRatio(startRatio),
+      end: pointAtRatio(endRatio),
+    });
+  }
+  return result;
+}
+
 export class LaserBeamRenderer {
   private readonly scene: THREE.Scene;
   private readonly activeBeams: ActiveBeam[] = [];
@@ -180,15 +240,17 @@ export class LaserBeamRenderer {
     const outerOpacity = clamp01(config.outerOpacity ?? DEFAULT_OUTER_OPACITY);
     const fullIntensityMs = config.fullIntensityMs ?? DEFAULT_FULL_INTENSITY_MS;
     const fadeMs = config.fadeMs ?? DEFAULT_FADE_MS;
-    const numBeams = config.numBeams ?? 2;
-    const segments = config.segments ?? 1;
+    const numBeams = Math.max(1, Math.trunc(config.numBeams ?? 2));
+    const segments = Math.max(1, Math.trunc(config.segments ?? 1));
     const arcHeight = config.arcHeight ?? 0;
+    const segmentOverlapRatio = Number.isFinite(config.segmentOverlapRatio ?? 0)
+      ? config.segmentOverlapRatio ?? 0
+      : 0;
 
     const start = new THREE.Vector3(startX, startY, startZ);
     const end = new THREE.Vector3(endX, endY, endZ);
 
-    // Compute segment points (for arcing / tessellation).
-    const segmentPoints = computeSegmentPoints(start, end, segments, arcHeight);
+    const beamSegments = computeSourceBeamSegments(start, end, segments, arcHeight, segmentOverlapRatio);
 
     const meshes: THREE.Mesh[] = [];
     const baseOpacities: number[] = [];
@@ -200,10 +262,10 @@ export class LaserBeamRenderer {
       const color = lerpColor(innerColor, outerColor, t);
       const opacity = lerp(innerOpacity, outerOpacity, t);
 
-      // Create a mesh for each segment in this layer.
-      for (let s = 0; s < segments; s++) {
+      for (let s = 0; s < beamSegments.length; s++) {
         const mesh = createBeamMesh(color, opacity);
-        positionBeamMesh(mesh, segmentPoints[s]!, segmentPoints[s + 1]!, width);
+        const segment = beamSegments[s]!;
+        positionBeamMesh(mesh, segment.start, segment.end, width);
         mesh.name = `laser-beam-layer-${layer}`;
         this.scene.add(mesh);
         meshes.push(mesh);

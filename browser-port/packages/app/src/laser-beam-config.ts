@@ -100,6 +100,7 @@ export function resolveW3DLaserDrawBeamConfig(objectDef: ObjectDef | undefined):
   const numBeams = readNumberField(fields, 'NumBeams');
   const segments = readNumberField(fields, 'Segments');
   const arcHeight = readNumberField(fields, 'ArcHeight');
+  const segmentOverlapRatio = readNumberField(fields, 'SegmentOverlapRatio');
   const maxIntensityLifetime = readNumberField(fields, 'MaxIntensityLifetime');
   const fadeLifetime = readNumberField(fields, 'FadeLifetime');
   const innerColor = readColorField(fields, 'InnerColor');
@@ -110,6 +111,7 @@ export function resolveW3DLaserDrawBeamConfig(objectDef: ObjectDef | undefined):
   if (numBeams !== undefined) config.numBeams = Math.max(1, Math.trunc(numBeams));
   if (segments !== undefined) config.segments = Math.max(1, Math.trunc(segments));
   if (arcHeight !== undefined) config.arcHeight = arcHeight;
+  if (segmentOverlapRatio !== undefined) config.segmentOverlapRatio = segmentOverlapRatio;
   if (maxIntensityLifetime !== undefined) config.fullIntensityMs = Math.max(0, maxIntensityLifetime);
   if (fadeLifetime !== undefined) config.fadeMs = Math.max(0, fadeLifetime);
   if (innerColor) {

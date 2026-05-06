@@ -230,6 +230,22 @@ describe('LaserBeamRenderer', () => {
     expect(renderer.getActiveBeamCount()).toBe(1);
   });
 
+  it('applies source SegmentOverlapRatio to arced segment endpoints', () => {
+    renderer.addBeam(0, 0, 0, 10, 0, 0, {
+      numBeams: 1,
+      segments: 2,
+      arcHeight: 4,
+      segmentOverlapRatio: 0.1,
+    });
+
+    const meshes = scene.children.filter(
+      (c) => c.name === 'laser-beam-layer-0',
+    ) as THREE.Mesh[];
+    expect(meshes.length).toBe(2);
+    expect(meshes[0]!.position.x).toBeCloseTo(3, 3);
+    expect(meshes[1]!.position.x).toBeCloseTo(7, 3);
+  });
+
   it('segmented beam with arcHeight=0 has no Y offset', () => {
     renderer.addBeam(0, 0, 0, 10, 0, 0, {
       numBeams: 1,

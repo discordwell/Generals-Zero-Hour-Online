@@ -40,6 +40,7 @@ describe('resolveW3DLaserDrawBeamConfig', () => {
       OuterColor: ['R:255', 'G:0', 'B:0', 'A:150'],
       Segments: 4,
       ArcHeight: 30,
+      SegmentOverlapRatio: 0.125,
       MaxIntensityLifetime: 100,
       FadeLifetime: 250,
     }));
@@ -52,6 +53,7 @@ describe('resolveW3DLaserDrawBeamConfig', () => {
       outerColor: 0xff0000,
       segments: 4,
       arcHeight: 30,
+      segmentOverlapRatio: 0.125,
       fullIntensityMs: 100,
       fadeMs: 250,
     }));
