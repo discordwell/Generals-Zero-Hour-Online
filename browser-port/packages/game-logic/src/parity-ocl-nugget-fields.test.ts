@@ -200,13 +200,14 @@ describe('parity: DeliverPayload nugget', () => {
           ? [makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', { Mass: 2 })]
           : []),
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
-      ]),
+      ], { TransportSlotCount: 1 }),
     ];
     if (opts.putInContainer) {
       extraObjects.push(
         makeObjectDef('PayloadContainer', 'America', ['VEHICLE'], [
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', { ContainMax: 1 }),
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
-        ]),
+        ], { TransportSlotCount: 1 }),
       );
     }
 
@@ -397,10 +398,15 @@ describe('parity: DeliverPayload nugget', () => {
       .executeOCL('OCL_DeliverPayload', launcher);
 
     const containers = getEntitiesByTemplate(logic, 'PayloadContainer');
+    const payloads = getEntitiesByTemplate(logic, 'TestPayload');
     expect(containers.length).toBe(1);
+    expect(payloads.length).toBe(1);
     // Container should be in the transport.
     const transport = getEntitiesByTemplate(logic, 'TestTransport')[0]!;
     expect(containers[0]!.transportContainerId).toBe(transport.id);
+    // Source parity: payload is first added to PutInContainer, then that
+    // container is loaded into the transport.
+    expect(payloads[0]!.transportContainerId).toBe(containers[0]!.id);
   });
 
   it('starts DeliverPayloadAIUpdate staged delivery from OCL data', () => {

@@ -57288,6 +57288,7 @@ export class GameLogicSubsystem implements Subsystem {
           if (!payload) continue;
 
           // Source parity: PutInContainer — create an intermediate container for the payload.
+          let payloadToLoad = payload;
           if (putInContainerName) {
             const container = this.spawnEntityFromTemplate(
               putInContainerName,
@@ -57297,12 +57298,15 @@ export class GameLogicSubsystem implements Subsystem {
               sourceEntity.side,
             );
             if (container) {
-              container.transportContainerId = transport.id;
+              if (container.containProfile && this.canScriptContainerFitEntity(container, payload)) {
+                this.enterTransport(payload, container);
+                payloadToLoad = container;
+              }
             }
           }
 
           // Source parity: add payload to transport's contain system.
-          payload.transportContainerId = transport.id;
+          this.enterTransport(payloadToLoad, transport);
         }
       }
 
