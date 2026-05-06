@@ -7006,6 +7006,8 @@ interface LeafletDropRuntimeState {
   startFrame: number;
   /** Whether the disable attack has already fired. */
   fired: boolean;
+  /** Source parity: LeafletDropBehavior::m_fxFired. Not serialized by source xfer. */
+  fxFired: boolean;
 }
 
 /**
@@ -23966,6 +23968,7 @@ export class GameLogicSubsystem implements Subsystem {
         entity.leafletDropState = {
           startFrame: Math.max(0, Math.trunc(leafletState.startFrame)),
           fired: false,
+          fxFired: false,
         };
         continue;
       }
@@ -55262,10 +55265,29 @@ export class GameLogicSubsystem implements Subsystem {
         entity.leafletDropState = {
           startFrame: this.frameCounter + profile.delayFrames,
           fired: false,
+          fxFired: false,
         };
       }
 
       const state = entity.leafletDropState;
+      // Source parity: LeafletDropBehavior::update creates and attaches
+      // m_leafletFXParticleSystem on the first update, before the delay gate.
+      if (state.fxFired !== true) {
+        const effectName = profile.leafletFXParticleSystem.trim();
+        if (effectName) {
+          this.visualEventBuffer.push({
+            type: 'NAMED_PARTICLE_SYSTEM',
+            x: entity.x,
+            y: entity.y,
+            z: entity.z,
+            radius: 0,
+            sourceEntityId: entity.id,
+            projectileType: 'BULLET',
+            effectName,
+          });
+        }
+        state.fxFired = true;
+      }
       if (state.fired) continue;
       if (this.frameCounter < state.startFrame) continue;
 

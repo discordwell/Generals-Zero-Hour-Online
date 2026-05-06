@@ -1459,6 +1459,68 @@ describe('EMPUpdate', () => {
   });
 });
 
+describe('LeafletDropBehavior', () => {
+  it('emits LeafletFXParticleSystem on first update before delayed disable', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('LeafletContainer', 'America', ['PROJECTILE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 10, InitialHealth: 10 }),
+          makeBlock('Behavior', 'LeafletDropBehavior ModuleTag_Leaflet', {
+            Delay: 2500,
+            DisabledDuration: 20000,
+            AffectRadius: 110,
+            LeafletFXParticleSystem: 'LeafletParticles1',
+          }),
+        ]),
+        makeObjectDef('EnemyInfantry', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('LeafletContainer', 50, 50),
+        makeMapObject('EnemyInfantry', 55, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.drainVisualEvents();
+
+    logic.update(1 / 30);
+    expect(logic.drainVisualEvents()).toContainEqual(expect.objectContaining({
+      type: 'NAMED_PARTICLE_SYSTEM',
+      effectName: 'LeafletParticles1',
+      sourceEntityId: 1,
+      x: 50,
+      z: 50,
+    }));
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { objectStatusFlags: Set<string> }>;
+    };
+    expect(priv.spawnedEntities.get(2)!.objectStatusFlags.has('DISABLED_EMP')).toBe(false);
+
+    const preDelayEvents: ReturnType<typeof logic.drainVisualEvents> = [];
+    for (let i = 0; i < 10; i++) {
+      logic.update(1 / 30);
+      preDelayEvents.push(...logic.drainVisualEvents());
+    }
+    expect(preDelayEvents).not.toContainEqual(expect.objectContaining({
+      type: 'NAMED_PARTICLE_SYSTEM',
+      effectName: 'LeafletParticles1',
+    }));
+    expect(priv.spawnedEntities.get(2)!.objectStatusFlags.has('DISABLED_EMP')).toBe(false);
+
+    for (let i = 0; i < 80; i++) logic.update(1 / 30);
+    expect(priv.spawnedEntities.get(2)!.objectStatusFlags.has('DISABLED_EMP')).toBe(true);
+  });
+});
+
 describe('NeutronBlastBehavior', () => {
   it('kills infantry and makes vehicles unmanned on death', () => {
     const bundle = makeBundle({

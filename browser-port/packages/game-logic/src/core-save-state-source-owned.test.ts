@@ -10444,7 +10444,7 @@ describe('source-owned game-logic core save-state', () => {
         radarExtendDoneFrame: number;
         radarExtendComplete: boolean;
         radarActive: boolean;
-        leafletDropState: { startFrame: number; fired: boolean } | null;
+        leafletDropState: { startFrame: number; fired: boolean; fxFired: boolean } | null;
         hijackerState: {
           targetId: number;
           update: boolean;
@@ -10475,6 +10475,7 @@ describe('source-owned game-logic core save-state', () => {
     expect(privateLogic.spawnedEntities.get(126)!.leafletDropState).toEqual({
       startFrame: 430,
       fired: false,
+      fxFired: false,
     });
 
     expect(privateLogic.spawnedEntities.get(127)!.hijackerState).toEqual({
