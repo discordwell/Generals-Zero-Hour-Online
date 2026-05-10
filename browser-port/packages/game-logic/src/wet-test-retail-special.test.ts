@@ -43,9 +43,7 @@ const hasRetailData = loadRetailData();
 // ---------------------------------------------------------------------------
 
 function createFreshGame(credits = 50000): GameLogicSubsystem {
-  const logic = new GameLogicSubsystem(new THREE.Scene(), {
-    multipleFactory: 0.85,
-  });
+  const logic = new GameLogicSubsystem(new THREE.Scene());
   const heightmap = HeightmapGrid.fromJSON(mapData.heightmap);
   logic.loadMapObjects(mapData, iniRegistry, heightmap);
   logic.setPlayerSide(0, 'America');
@@ -61,9 +59,7 @@ function createFreshGame(credits = 50000): GameLogicSubsystem {
 }
 
 function createUSAvsChinaGame(credits = 50000): GameLogicSubsystem {
-  const logic = new GameLogicSubsystem(new THREE.Scene(), {
-    multipleFactory: 0.85,
-  });
+  const logic = new GameLogicSubsystem(new THREE.Scene());
   const heightmap = HeightmapGrid.fromJSON(mapData.heightmap);
   logic.loadMapObjects(mapData, iniRegistry, heightmap);
   logic.setPlayerSide(0, 'America');

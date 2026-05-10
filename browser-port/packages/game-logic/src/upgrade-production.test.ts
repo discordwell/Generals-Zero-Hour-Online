@@ -1420,7 +1420,7 @@ describe('multiple factory production speed bonus', () => {
 
     // --- Single factory baseline ---
     const scene1 = new THREE.Scene();
-    // multipleFactory=0.85 matches retail GameData.ini (C++ default is 0.0 = no bonus)
+    // Explicit 0.85 config verifies the source formula for non-retail/modded values.
     const logic1 = new GameLogicSubsystem(scene1, { multipleFactory: 0.85 });
     logic1.loadMapObjects(
       makeMap([makeMapObject('WarFactory', 40, 40)], 128, 128),

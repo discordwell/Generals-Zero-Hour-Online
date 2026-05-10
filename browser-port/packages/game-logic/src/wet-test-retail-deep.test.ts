@@ -34,11 +34,9 @@ function loadRetailData(): boolean {
 
 const hasRetailData = loadRetailData();
 
-/** Create a fresh game instance with generous credits and retail multipleFactory config. */
-function createFreshGame(config?: { multipleFactory?: number; credits?: number }): GameLogicSubsystem {
-  const logic = new GameLogicSubsystem(new THREE.Scene(), {
-    multipleFactory: config?.multipleFactory ?? 0.85,
-  });
+/** Create a fresh game instance with generous credits and retail GameData config. */
+function createFreshGame(config?: { credits?: number }): GameLogicSubsystem {
+  const logic = new GameLogicSubsystem(new THREE.Scene());
   const heightmap = HeightmapGrid.fromJSON(mapData.heightmap);
   logic.loadMapObjects(mapData, iniRegistry, heightmap);
   logic.setPlayerSide(0, 'America');
@@ -370,12 +368,12 @@ describe.skipIf(!hasRetailData)('deep retail wet test: gameplay flows', () => {
     expect(crashAnomalies.length).toBe(0);
   }, 120_000);
 
-  // ── 3. Multiple factory production bonus ───────────────────────────────
-  it('multiple factory production bonus: 2 Barracks produce faster', () => {
+  // ── 3. Multiple factory production coverage ────────────────────────────
+  it('multiple factory production: 2 Barracks produce concurrently with retail GameData', () => {
     const anomalies: string[] = [];
 
-    // Game WITH multipleFactory=0.85 (retail value)
-    const logic = createFreshGame({ multipleFactory: 0.85 });
+    // Game WITH retail GameData.ini MultipleFactory=1.0.
+    const logic = createFreshGame();
     const dozer = findUSADozer(logic)!;
     const cc = findUSACC(logic)!;
 
@@ -433,8 +431,9 @@ describe.skipIf(!hasRetailData)('deep retail wet test: gameplay flows', () => {
 
       console.log(`MULTI-FACTORY: First Ranger produced at frame ${framesToFirst}, total ${rangerCount} Rangers`);
 
-      // With multipleFactory=0.85, production should be faster (~85% of normal time)
-      // A Ranger normally takes about 150 frames. With bonus: ~128 frames.
+      // Retail GameData.ini sets MultipleFactory=1.0, so this is a
+      // coverage/wiring check for multiple factory production rather than a
+      // speedup assertion.
       if (framesToFirst > 0) {
         const productionState = logic.getProductionState(allBarracks[0]!.id);
         console.log(`MULTI-FACTORY: Barracks 1 queue has ${productionState.queueEntryCount} entries`);

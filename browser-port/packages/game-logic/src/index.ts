@@ -48164,7 +48164,7 @@ export class GameLogicSubsystem implements Subsystem {
       // type speed up production. Computed per-frame so building/losing factories mid-
       // production immediately adjusts the rate (matching C++ ProductionUpdate behavior).
       // C++ (ThingTemplate.cpp:1421): only applies when m_MultipleFactory > 0.0f.
-      // C++ default is 0.0 (no bonus); retail GameData.ini sets 0.85.
+      // C++ default is 0.0 (no bonus); retail GameData.ini sets 1.0.
       const factoryMult = this.config.multipleFactory;
       if (factoryMult > 0 && production.type === 'UNIT') {
         let sameTypeCount = 0;

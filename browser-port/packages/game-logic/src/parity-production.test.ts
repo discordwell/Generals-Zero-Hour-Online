@@ -137,7 +137,8 @@ describe('parity production: MultipleFactory build speed bonus', () => {
    *   }
    *
    * GlobalData.cpp:842 — m_MultipleFactory defaults to 0.0.
-   * GameData.ini overrides it to 0.85 in retail.
+   * Retail GameData.ini overrides it to 1.0; explicit 0.85 cases below
+   * prove the source formula still responds to non-retail/modded config.
    */
 
   it('with 1 factory, unit production takes the expected number of frames', () => {
@@ -188,9 +189,9 @@ describe('parity production: MultipleFactory build speed bonus', () => {
     expect(frames).toBeLessThanOrEqual(155);
   });
 
-  it('with MultipleFactory=0.85 (retail INI), 2 factories speed up production', () => {
+  it('with explicit MultipleFactory=0.85, 2 factories speed up production', () => {
     /**
-     * Retail GameData.ini: MultipleFactory = 0.85
+     * Explicit modded config: MultipleFactory = 0.85
      * With 1 extra factory: rate = 1/0.85 = ~1.176
      * BuildTime=5s = 150 frames; effective = 150 / 1.176 = ~127.5 frames.
      */
@@ -263,7 +264,7 @@ describe('parity production: low energy production penalty', () => {
    *   Real EnergyPercent = player->getEnergy()->getEnergySupplyRatio();
    *   if (EnergyPercent > 1.0f) EnergyPercent = 1.0f;
    *   Real EnergyShort = 1.0f - EnergyPercent;
-   *   EnergyShort *= TheGlobalData->m_LowEnergyPenaltyModifier;  // default 0.0, INI sets 0.4
+   *   EnergyShort *= TheGlobalData->m_LowEnergyPenaltyModifier;  // default 0.0, retail INI sets 1.0
    *   Real penaltyRate = 1.0f - EnergyShort;
    *   penaltyRate = max(penaltyRate, TheGlobalData->m_MinLowEnergyProductionSpeed);  // default 0.0
    *   if (EnergyPercent < 1.0f)
@@ -271,11 +272,10 @@ describe('parity production: low energy production penalty', () => {
    *   if (penaltyRate <= 0.0f) penaltyRate = 0.01f;
    *   buildTime /= penaltyRate;
    *
-   * TS source: index.ts:23887-23888
-   *   productionRate = Math.max(0.2, 1 - energyShort * 0.4);
-   *   - Hardcodes m_LowEnergyPenaltyModifier = 0.4
-   *   - Hardcodes m_MinLowEnergyProductionSpeed = 0.2
-   *   - Applies m_MaxLowEnergyProductionSpeed cap via config.maxLowEnergyProductionSpeed
+   * TS source now reads the same GlobalData values from config:
+   *   - m_LowEnergyPenaltyModifier (retail 1.0)
+   *   - m_MinLowEnergyProductionSpeed (retail 0.5)
+   *   - m_MaxLowEnergyProductionSpeed (retail 0.8)
    */
 
   it('with sufficient power, production runs at normal speed', () => {

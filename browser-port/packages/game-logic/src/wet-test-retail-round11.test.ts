@@ -138,9 +138,7 @@ function loadCampaignGame(mapData: MapDataJSON): GameLogicSubsystem {
 
 /** Create a fresh skirmish game. */
 function createFreshGame(credits = 50000, map?: MapDataJSON): GameLogicSubsystem {
-  const logic = new GameLogicSubsystem(new THREE.Scene(), {
-    multipleFactory: 0.85,
-  });
+  const logic = new GameLogicSubsystem(new THREE.Scene());
   const mapToUse = map ?? tournamentDesertMap;
   const heightmap = HeightmapGrid.fromJSON(mapToUse.heightmap);
   logic.loadMapObjects(mapToUse, iniRegistry, heightmap);
@@ -158,9 +156,7 @@ function createFreshGame(credits = 50000, map?: MapDataJSON): GameLogicSubsystem
 
 /** Create a 3-player skirmish game on a map with 3+ spawn points. */
 function createThreePlayerGame(credits = 50000, map: MapDataJSON): GameLogicSubsystem {
-  const logic = new GameLogicSubsystem(new THREE.Scene(), {
-    multipleFactory: 0.85,
-  });
+  const logic = new GameLogicSubsystem(new THREE.Scene());
   const heightmap = HeightmapGrid.fromJSON(map.heightmap);
   logic.loadMapObjects(map, iniRegistry, heightmap);
   logic.setPlayerSide(0, 'America');

@@ -72,9 +72,7 @@ interface FreshGameConfig {
 }
 
 function createFreshGame(config: FreshGameConfig): GameLogicSubsystem {
-  const logic = new GameLogicSubsystem(new THREE.Scene(), {
-    multipleFactory: 0.85,
-  });
+  const logic = new GameLogicSubsystem(new THREE.Scene());
   const map = config.map ?? tournamentDesertMap;
   const heightmap = HeightmapGrid.fromJSON(map.heightmap);
   logic.loadMapObjects(map, iniRegistry, heightmap);
