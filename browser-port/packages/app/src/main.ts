@@ -112,6 +112,7 @@ import { createScriptObjectAmbientAudioRuntimeBridge } from './script-object-amb
 import { ScriptSkyboxController } from './script-skybox.js';
 import { createScriptUiEffectsRuntimeBridge } from './script-ui-effects-runtime.js';
 import { syncScriptViewRuntimeBridge } from './script-view-runtime.js';
+import { ChatUI } from './chat-ui.js';
 import { assertIniBundleConsistency, assertRequiredManifestEntries } from './runtime-guardrails.js';
 import {
   GameShell,
@@ -3127,6 +3128,10 @@ async function startGame(
 
   // F1/? help overlay, F2 toggle debug overlay, F3 toggle wireframe
   window.addEventListener('keydown', (e) => {
+    if (chatUI.handleKeyDown(e)) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === 'F1' || e.key === '?') {
       e.preventDefault();
       toggleHelp();
@@ -4404,6 +4409,36 @@ async function startGame(
 
   // Control harness for automated play-testing via browser console.
   const localPlayerId = networkManager.getLocalPlayerID();
+  const resolveChatRecipientMask = (): number => {
+    let mask = 0;
+    for (const slot of networkManager.getKnownPlayerSlots()) {
+      if (networkManager.isPlayerConnected(slot)) {
+        mask |= (1 << slot);
+      }
+    }
+    return mask || (1 << networkManager.getLocalPlayerID());
+  };
+  const chatUI = new ChatUI(gameContainer, {
+    isMultiplayer: networkManager.getNumPlayers() > 1,
+    localEcho: false,
+    onSend: (text) => {
+      networkManager.sendChat(text, resolveChatRecipientMask());
+    },
+  });
+  const flushNetworkChatMessages = (): void => {
+    const localMask = 1 << networkManager.getLocalPlayerID();
+    for (const message of networkManager.drainChatMessages()) {
+      if (message.kind === 'chat' && (message.mask & localMask) === 0) {
+        continue;
+      }
+      chatUI.addMessage({
+        text: message.text,
+        sender: networkManager.getPlayerName(message.sender),
+        timestamp: Date.now(),
+      });
+    }
+  };
+
   (window as unknown as Record<string, unknown>).__harness = createControlHarness(
     gameLogic,
     rtsCamera,
@@ -4444,6 +4479,7 @@ async function startGame(
         camera.position.y,
         camera.position.z,
       );
+      flushNetworkChatMessages();
       scriptAudioRuntimeBridge.syncBeforeSimulationStep();
 
       const pendingControlBarCommand = uiRuntime.getPendingControlBarCommand();
@@ -5534,6 +5570,7 @@ async function startGame(
     scriptSkyboxController.dispose();
     voiceBridge.dispose();
     musicManager.dispose();
+    chatUI.dispose();
     cursorManager.dispose();
     shroudRenderer.dispose();
     delete (globalThis as Record<string, unknown>)['__GENERALS_E2E__'];

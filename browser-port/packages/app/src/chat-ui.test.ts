@@ -75,6 +75,24 @@ describe('ChatUI', () => {
     expect(onSend).toHaveBeenCalledWith('Attack now!');
   });
 
+  it('can defer multiplayer local echo to the network delivery path', () => {
+    const onSend = vi.fn();
+    chatUI = new ChatUI(parent, { isMultiplayer: true, onSend, localEcho: false });
+    chatUI.openInput();
+    const input = parent.querySelector('input')! as HTMLInputElement;
+    input.value = 'Hold position';
+    chatUI.sendMessage();
+
+    const messages = parent.querySelector('#chat-messages')!;
+    expect(messages.children.length).toBe(0);
+    expect(onSend).toHaveBeenCalledWith('Hold position');
+
+    chatUI.addMessage({ text: 'Hold position', sender: 'Host', timestamp: Date.now() });
+    expect(messages.children.length).toBe(1);
+    expect(messages.children[0]!.textContent).toContain('Host:');
+    expect(messages.children[0]!.textContent).toContain('Hold position');
+  });
+
   it('does not send empty messages', () => {
     const onSend = vi.fn();
     chatUI = new ChatUI(parent, { isMultiplayer: true, onSend });

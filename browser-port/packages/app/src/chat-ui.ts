@@ -6,7 +6,7 @@
  * 5 seconds.
  *
  * In single-player mode, sending a message shows "Chat not available in single player".
- * Network message dispatch is not yet implemented — this is the UI layer only.
+ * In multiplayer mode, messages are dispatched through the provided onSend hook.
  */
 
 export interface ChatMessage {
@@ -24,6 +24,8 @@ export interface ChatUIOptions {
   maxVisibleMessages?: number;
   /** Called when a message is sent (for network dispatch). */
   onSend?: (text: string) => void;
+  /** Whether sent multiplayer messages should be displayed immediately. Default: true. */
+  localEcho?: boolean;
 }
 
 const DEFAULT_FADE_DURATION_MS = 5000;
@@ -38,6 +40,7 @@ export class ChatUI {
   private readonly fadeDurationMs: number;
   private readonly maxVisibleMessages: number;
   private readonly onSend: ((text: string) => void) | null;
+  private readonly localEcho: boolean;
 
   private isOpen = false;
   private messages: Array<ChatMessage & { element: HTMLDivElement; createdAt: number }> = [];
@@ -48,6 +51,7 @@ export class ChatUI {
     this.fadeDurationMs = options.fadeDurationMs ?? DEFAULT_FADE_DURATION_MS;
     this.maxVisibleMessages = options.maxVisibleMessages ?? DEFAULT_MAX_VISIBLE;
     this.onSend = options.onSend ?? null;
+    this.localEcho = options.localEcho ?? true;
 
     // Container — anchored to the bottom-left of the game area.
     this.container = document.createElement('div');
@@ -158,13 +162,13 @@ export class ChatUI {
       return;
     }
 
-    const message: ChatMessage = {
-      text,
-      sender: 'You',
-      timestamp: Date.now(),
-    };
-
-    this.addMessage(message);
+    if (this.localEcho) {
+      this.addMessage({
+        text,
+        sender: 'You',
+        timestamp: Date.now(),
+      });
+    }
 
     if (this.onSend) {
       this.onSend(text);

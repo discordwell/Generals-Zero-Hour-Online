@@ -67,10 +67,13 @@ import type {
   Subsystem,
 } from '@generals/engine';
 
-interface ChatMessage {
+export interface NetworkChatMessage {
+  kind: 'chat' | 'disconnectChat';
   sender: number;
   text: string;
   mask: number;
+  executionFrame?: number;
+  commandId?: number;
 }
 
 interface NetworkUser {
@@ -146,7 +149,8 @@ export class NetworkManager implements Subsystem {
   private disconnectPlayerTimeoutMs = SOURCE_NETWORK_PLAYER_TIMEOUT_MS;
   private disconnectScreenNotifyTimeoutMs = SOURCE_NETWORK_DISCONNECT_SCREEN_NOTIFY_TIMEOUT_MS;
   private disconnectKeepAliveIntervalMs = 500;
-  private chatHistory: ChatMessage[] = [];
+  private chatHistory: NetworkChatMessage[] = [];
+  private pendingChatMessages: NetworkChatMessage[] = [];
   private playerNames = new Map<number, string>();
   private playerSides = new Map<number, string>();
   private disconnectedPlayers = new Set<number>();
@@ -1405,11 +1409,66 @@ export class NetworkManager implements Subsystem {
   }
 
   sendChat(text: string, playerMask = 0): void {
-    this.chatHistory.push({ sender: this.localPlayerID, text, mask: playerMask });
+    const messageText = typeof text === 'string' ? text.trim() : '';
+    if (!messageText) {
+      return;
+    }
+
+    const executionFrame = this.getExecutionFrame();
+    const message = {
+      commandType: NETCOMMANDTYPE_CHAT,
+      type: 'chat',
+      sender: this.localPlayerID,
+      playerID: this.localPlayerID,
+      text: messageText,
+      message: messageText,
+      playerMask: playerMask >>> 0,
+      mask: playerMask >>> 0,
+      executionFrame,
+      frame: executionFrame,
+    };
+    this.assignCommandIdIfRequired(message);
+
+    const transport = this.transport as TransportLike | null;
+    const directSend = transport?.sendLocalCommandDirect;
+    if (typeof directSend === 'function') {
+      directSend.call(transport, message, 0xff ^ (1 << this.localPlayerID));
+    }
+
+    this.processChatCommand(message);
   }
 
   sendDisconnectChat(text: string): void {
-    this.sendChat(text, 0xff ^ (1 << this.localPlayerID));
+    const messageText = typeof text === 'string' ? text.trim() : '';
+    if (!messageText) {
+      return;
+    }
+
+    const message = {
+      commandType: NETCOMMANDTYPE_DISCONNECTCHAT,
+      type: 'disconnectchat',
+      sender: this.localPlayerID,
+      playerID: this.localPlayerID,
+      text: messageText,
+      message: messageText,
+    };
+    this.assignCommandIdIfRequired(message);
+
+    const transport = this.transport as TransportLike | null;
+    const directSend = transport?.sendLocalCommandDirect;
+    if (typeof directSend === 'function') {
+      directSend.call(transport, message, 0xff ^ (1 << this.localPlayerID));
+    }
+
+    this.processDisconnectChatCommand(message);
+  }
+
+  getChatHistory(): readonly NetworkChatMessage[] {
+    return this.chatHistory;
+  }
+
+  drainChatMessages(): NetworkChatMessage[] {
+    return this.pendingChatMessages.splice(0);
   }
 
   sendFile(path: string, playerMask = 0, commandId = 0): void {
@@ -2021,6 +2080,13 @@ export class NetworkManager implements Subsystem {
     }
 
     this.chatHistory.push({
+      kind: 'disconnectChat',
+      sender,
+      text,
+      mask: 0,
+    });
+    this.pendingChatMessages.push({
+      kind: 'disconnectChat',
       sender,
       text,
       mask: 0,
@@ -2038,11 +2104,18 @@ export class NetworkManager implements Subsystem {
       return;
     }
     const mask = resolveNetworkMaskFromMessage(msg, ['playerMask', 'mask']);
-    this.chatHistory.push({
+    const executionFrame = resolveNetworkNumericFieldFromMessage(msg, ['executionFrame', 'frame']) ?? undefined;
+    const commandId = resolveNetworkNumericFieldFromMessage(msg, ['commandId', 'id']) ?? undefined;
+    const chatMessage: NetworkChatMessage = {
+      kind: 'chat',
       sender,
       text,
       mask,
-    });
+      executionFrame,
+      commandId,
+    };
+    this.chatHistory.push(chatMessage);
+    this.pendingChatMessages.push(chatMessage);
   }
 
   processProgressCommand(message: unknown): void {

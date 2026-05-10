@@ -9,6 +9,7 @@ import { HeightmapGrid, type MapDataJSON } from '@generals/terrain';
 
 const NETCOMMANDTYPE_WRAPPER = 17;
 const NETCOMMANDTYPE_CHAT = 11;
+const NETCOMMANDTYPE_DISCONNECTCHAT = 10;
 const NETCOMMANDTYPE_RUNAHEADMETRICS = 6;
 const NETCOMMANDTYPE_RUNAHEAD = 7;
 const NETCOMMANDTYPE_PACKETROUTERQUERY = 25;
@@ -2024,7 +2025,54 @@ describe('Network file transfer helpers', () => {
 });
 
 describe('Network chat helpers', () => {
-  it('sends disconnect chat using a mask that excludes the local slot', () => {
+  it('relays sent chat and processes the local chat line like ConnectionManager::sendChat', () => {
+    const sent: Array<{ command: unknown; relayMask: number }> = [];
+    const manager = new NetworkManager({
+      localPlayerName: 'Host',
+      localPlayerID: 1,
+    });
+    manager.attachTransport({
+      sendLocalCommandDirect: (command: unknown, relayMask: number) => {
+        sent.push({ command, relayMask });
+      },
+    });
+
+    manager.sendChat(' attack now ', 0b0011);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.relayMask).toBe(0xfd);
+    expect(sent[0]!.command).toMatchObject({
+      commandType: NETCOMMANDTYPE_CHAT,
+      type: 'chat',
+      sender: 1,
+      playerID: 1,
+      text: 'attack now',
+      playerMask: 0b0011,
+      mask: 0b0011,
+      executionFrame: 0,
+      frame: 0,
+      commandId: 64001,
+    });
+
+    expect(manager.getChatHistory()).toHaveLength(1);
+    expect(manager.getChatHistory()[0]).toMatchObject({
+      sender: 1,
+      text: 'attack now',
+      mask: 0b0011,
+      executionFrame: 0,
+      commandId: 64001,
+    });
+    expect(manager.drainChatMessages()).toEqual([
+      expect.objectContaining({
+        sender: 1,
+        text: 'attack now',
+        mask: 0b0011,
+      }),
+    ]);
+    expect(manager.drainChatMessages()).toEqual([]);
+  });
+
+  it('processes sent disconnect chat locally without a recipient mask', () => {
     const manager = new NetworkManager({
       localPlayerName: 'Host',
       localPlayerID: 1,
@@ -2040,8 +2088,40 @@ describe('Network chat helpers', () => {
     expect(internals.chatHistory[0]).toMatchObject({
       sender: 1,
       text: 'disconnecting',
-      mask: 0xfd,
+      mask: 0,
     });
+  });
+
+  it('relays disconnect chat using NETCOMMANDTYPE_DISCONNECTCHAT', () => {
+    const sent: Array<{ command: unknown; relayMask: number }> = [];
+    const manager = new NetworkManager({
+      localPlayerName: 'Host',
+      localPlayerID: 2,
+    });
+    manager.attachTransport({
+      sendLocalCommandDirect: (command: unknown, relayMask: number) => {
+        sent.push({ command, relayMask });
+      },
+    });
+
+    manager.sendDisconnectChat('leaving');
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.relayMask).toBe(0xfb);
+    expect(sent[0]!.command).toMatchObject({
+      commandType: NETCOMMANDTYPE_DISCONNECTCHAT,
+      type: 'disconnectchat',
+      sender: 2,
+      playerID: 2,
+      text: 'leaving',
+    });
+    expect(manager.drainChatMessages()).toEqual([
+      expect.objectContaining({
+        sender: 2,
+        text: 'leaving',
+        mask: 0,
+      }),
+    ]);
   });
 });
 
