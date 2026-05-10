@@ -1167,11 +1167,13 @@ describe('MapParser', () => {
     expect(parsed.objects).toHaveLength(0);
   });
 
-  it('should keep parsing when PlayerScriptsList payload is malformed', () => {
+  it('should reject malformed PlayerScriptsList payloads', () => {
     const chunks: ChunkDef[] = [
       { name: 'HeightMapData', id: 1 },
       { name: 'SidesList', id: 2 },
       { name: 'PlayerScriptsList', id: 3 },
+      { name: 'ScriptList', id: 4 },
+      { name: 'Script', id: 5 },
     ];
 
     const hmWidth = 2;
@@ -1179,8 +1181,10 @@ describe('MapParser', () => {
     const hmDataLen = hmWidth * hmHeight;
     const hmPayload = 4 + 4 + 4 + 4 + hmDataLen;
 
-    const malformedScriptPayload = Uint8Array.from([0xff, 0xff, 0xff, 0xff]);
-    const sidesPayload = 4 + 4 + CHUNK_HEADER_SIZE + malformedScriptPayload.length;
+    const malformedScriptPayload = Uint8Array.from([0xff]);
+    const scriptListPayload = CHUNK_HEADER_SIZE + malformedScriptPayload.length;
+    const playerScriptsPayload = CHUNK_HEADER_SIZE + scriptListPayload;
+    const sidesPayload = 4 + 4 + CHUNK_HEADER_SIZE + playerScriptsPayload;
 
     const totalSize =
       tocSize(chunks) +
@@ -1203,17 +1207,17 @@ describe('MapParser', () => {
     off = writeChunkHeader(view, off, 2, 2, sidesPayload);
     off = writeInt32(view, off, 0); // sideCount
     off = writeInt32(view, off, 0); // teamCount (version >= 2)
-    off = writeChunkHeader(view, off, 3, 1, malformedScriptPayload.length);
+    off = writeChunkHeader(view, off, 3, 1, playerScriptsPayload);
+    off = writeChunkHeader(view, off, 4, 1, scriptListPayload);
+    off = writeChunkHeader(view, off, 5, 2, malformedScriptPayload.length);
     for (const value of malformedScriptPayload) {
       off = writeUint8(view, off, value);
     }
 
-    const parsed = MapParser.parse(buffer);
-    expect(parsed.heightmap.width).toBe(hmWidth);
-    expect(parsed.heightmap.height).toBe(hmHeight);
-    expect(parsed.sidesList).toBeDefined();
-    expect(parsed.sidesList?.sides).toHaveLength(0);
-    expect(parsed.sidesList?.teams).toHaveLength(0);
+    // Source parity: SidesList::ParseSidesDataChunk registers
+    // PlayerScriptsList and throws ERROR_CORRUPT_FILE_FORMAT when file.parse
+    // fails instead of silently keeping the rest of the map.
+    expect(() => MapParser.parse(buffer)).toThrow();
   });
 
   it('should parse PlayerScriptsList chunks with v4 conditions and v2 actions', () => {
