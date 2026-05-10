@@ -61,7 +61,12 @@ interface BundleBlock {
   fields?: Record<string, unknown>;
   blocks?: BundleBlock[];
 }
-const bundle = JSON.parse(readFileSync(BUNDLE_PATH, 'utf-8')) as { objects?: BundleObject[] };
+const bundle = JSON.parse(readFileSync(BUNDLE_PATH, 'utf-8')) as {
+  objects?: BundleObject[];
+  gameData?: {
+    weaponBonusEntries?: Array<{ condition?: string; field?: string; multiplier?: number }>;
+  };
+};
 
 function moduleTagOf(block: BundleBlock): string | null {
   return (block.name ?? '').split(/\s+/)[1]?.trim().toUpperCase() ?? null;
@@ -197,6 +202,17 @@ function transitionEffectName(value: unknown, effectKey: 'FXLIST' | 'PSYS'): str
 }
 
 describe('session 2026-05-04 — bundle-wide scanner over touched fields', () => {
+  it('retail GameData weapon bonus table is present in the converted bundle', () => {
+    const entries = bundle.gameData?.weaponBonusEntries ?? [];
+    expect(entries.length).toBeGreaterThanOrEqual(23);
+    expect(entries).toContainEqual({ condition: 'HORDE', field: 'RATE_OF_FIRE', multiplier: 1.5 });
+    expect(entries).toContainEqual({ condition: 'VETERAN', field: 'DAMAGE', multiplier: 1.1 });
+    expect(entries).toContainEqual({ condition: 'ELITE', field: 'RATE_OF_FIRE', multiplier: 1.4 });
+    expect(entries).toContainEqual({ condition: 'HERO', field: 'DAMAGE', multiplier: 1.3 });
+    expect(entries).toContainEqual({ condition: 'BATTLEPLAN_SEARCHANDDESTROY', field: 'RANGE', multiplier: 1.2 });
+    expect(entries).toContainEqual({ condition: 'SOLO_AI_HARD', field: 'RATE_OF_FIRE', multiplier: 1.2 });
+  });
+
   it('FlightDeckBehavior Runway1CatapultSystem flows through every retail aircraft carrier', () => {
     const usages = [...iterFieldUsages('FlightDeckBehavior', 'Runway1CatapultSystem')];
     expect(usages.length).toBeGreaterThan(0);

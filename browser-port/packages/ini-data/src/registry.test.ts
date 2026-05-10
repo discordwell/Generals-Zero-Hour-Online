@@ -187,6 +187,36 @@ End
       ]);
     });
 
+    it('parses GameData WeaponBonus from the flat-token array shape', () => {
+      registry.loadBlocks([
+        makeBlock('GameData', 'Default', {
+          WeaponBonus: ['HORDE', 'RATE_OF_FIRE', '150%'],
+        }),
+      ]);
+
+      expect(registry.getGameData()?.weaponBonusEntries).toEqual([
+        { condition: 'HORDE', field: 'RATE_OF_FIRE', multiplier: 1.5 },
+      ]);
+    });
+
+    it('parses repeated GameData WeaponBonus lines from parsed INI', () => {
+      const parsed = parseIni(`
+GameData
+  WeaponBonus = HORDE RATE_OF_FIRE 150%
+  WeaponBonus = VETERAN DAMAGE 110%
+  WeaponBonus = BATTLEPLAN_SEARCHANDDESTROY RANGE 120%
+End
+`);
+
+      registry.loadBlocks(parsed.blocks);
+
+      expect(registry.getGameData()?.weaponBonusEntries).toEqual([
+        { condition: 'HORDE', field: 'RATE_OF_FIRE', multiplier: 1.5 },
+        { condition: 'VETERAN', field: 'DAMAGE', multiplier: 1.1 },
+        { condition: 'BATTLEPLAN_SEARCHANDDESTROY', field: 'RANGE', multiplier: 1.2 },
+      ]);
+    });
+
     it('tracks KindOf arrays', () => {
       registry.loadBlocks([
         makeBlock('Object', 'Tank', { KindOf: ['VEHICLE', 'SELECTABLE', 'CAN_ATTACK'] }),

@@ -1408,22 +1408,9 @@ export class IniDataRegistry {
       ? [...this.gameData.weaponBonusEntries]
       : [];
 
-    const weaponBonusValue = block.fields['WeaponBonus'];
-    if (weaponBonusValue) {
-      const lines = Array.isArray(weaponBonusValue) ? weaponBonusValue : [weaponBonusValue];
-      for (const line of lines) {
-        const tokens = String(line).trim().split(/\s+/);
-        if (tokens.length < 3) continue;
-        const condition = tokens[0]!.toUpperCase();
-        const field = tokens[1]!.toUpperCase();
-        const rawPercent = tokens[2]!;
-        // Source parity: INI::scanPercentToReal — "125%" → 1.25 (no clamping).
-        const percentStr = rawPercent.endsWith('%') ? rawPercent.slice(0, -1) : rawPercent;
-        const multiplier = Number(percentStr) / 100;
-        if (Number.isFinite(multiplier)) {
-          entries.push({ condition, field, multiplier });
-        }
-      }
+    const parsedWeaponBonusEntries = parseGameDataWeaponBonusEntries(block.fields['WeaponBonus']);
+    for (const entry of parsedWeaponBonusEntries) {
+      entries.push(entry);
     }
 
     // ── Sell percentage (source parity: GlobalData.cpp:873, m_sellPercentage) ──
@@ -1935,6 +1922,50 @@ function extractDurationFrames(value: IniValue | undefined): number | undefined 
     return undefined;
   }
   return Math.max(0, Math.ceil(durationMs * 30 / 1000));
+}
+
+function extractTokenEntries(value: IniValue | undefined): string[][] {
+  if (typeof value === 'undefined') {
+    return [];
+  }
+  if (typeof value === 'string') {
+    const tokens = value.trim().split(/\s+/).filter(Boolean);
+    return tokens.length > 0 ? [tokens] : [];
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return [[String(value)]];
+  }
+  if (Array.isArray(value)) {
+    if (value.some((entry) => Array.isArray(entry))) {
+      return value.flatMap((entry) => extractTokenEntries(entry as IniValue));
+    }
+    const primitiveValues = value.filter((entry): entry is string | number | boolean =>
+      typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean');
+    if (primitiveValues.some((entry) => typeof entry === 'string' && /\s/.test(entry))) {
+      return primitiveValues.flatMap((entry) => extractTokenEntries(entry as IniValue));
+    }
+    const tokens = primitiveValues
+      .map((entry) => String(entry).trim())
+      .filter(Boolean);
+    return tokens.length > 0 ? [tokens] : [];
+  }
+  return [];
+}
+
+function parseGameDataWeaponBonusEntries(value: IniValue | undefined): WeaponBonusEntry[] {
+  const entries: WeaponBonusEntry[] = [];
+  for (const tokens of extractTokenEntries(value)) {
+    if (tokens.length < 3) {
+      continue;
+    }
+    const condition = tokens[0]!.toUpperCase();
+    const field = tokens[1]!.toUpperCase();
+    const multiplier = extractUnclampedPercentToReal(tokens[2] as IniValue);
+    if (multiplier !== undefined) {
+      entries.push({ condition, field, multiplier });
+    }
+  }
+  return entries;
 }
 
 /**
