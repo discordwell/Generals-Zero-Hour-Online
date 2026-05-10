@@ -6501,6 +6501,16 @@ interface SwayClientUpdateState {
 /**
  * Source parity: RadiusDecalUpdate runtime state — position, radius, visibility.
  */
+interface RadiusDecalTemplateState {
+  textureName: string;
+  shadowType: string;
+  minOpacity: number;
+  maxOpacity: number;
+  opacityThrobFrames: number;
+  color: number;
+  onlyVisibleToOwningPlayer: boolean;
+}
+
 interface RadiusDecalState {
   positionX: number;
   positionY: number;
@@ -6508,6 +6518,7 @@ interface RadiusDecalState {
   radius: number;
   visible: boolean;
   killWhenNoLongerAttacking: boolean;
+  template?: RadiusDecalTemplateState | null;
 }
 
 interface RadiusDecalModuleState {
@@ -57340,18 +57351,91 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     const radius = Math.max(0, readNumericField(nugget.fields, ['DeliveryDecalRadius']) ?? 0);
-    sourceEntity.radiusDecalStates = [{
-      positionX: attackX,
-      positionY: this.resolveGroundHeight(attackX, attackZ),
-      positionZ: attackZ,
-      radius,
-      visible: radius > 0,
-      killWhenNoLongerAttacking: true,
-    }];
+    const template = this.extractRadiusDecalTemplateFromNugget(nugget);
+    sourceEntity.radiusDecalStates = radius > 0 && template.textureName.length > 0
+      ? [{
+          positionX: attackX,
+          positionY: this.resolveGroundHeight(attackX, attackZ),
+          positionZ: attackZ,
+          radius,
+          visible: true,
+          killWhenNoLongerAttacking: true,
+          template,
+        }]
+      : [];
     for (const state of sourceEntity.radiusDecalModuleStates) {
       state.killWhenNoLongerAttacking = true;
     }
     this.setEntityAttackStatus(sourceEntity, true);
+  }
+
+  private extractRadiusDecalTemplateFromNugget(nugget: IniBlock): RadiusDecalTemplateState {
+    let fields: Record<string, IniValue> = {};
+    for (const block of nugget.blocks ?? []) {
+      if ((block.type ?? '').trim().toUpperCase() === 'DELIVERYDECAL') {
+        fields = block.fields;
+        break;
+      }
+    }
+    return {
+      textureName: readStringField(fields, ['Texture'])?.trim() ?? '',
+      shadowType: readStringField(fields, ['Style'])?.trim().toUpperCase() ?? 'SHADOW_ALPHA_DECAL',
+      minOpacity: this.readRadiusDecalOpacityField(fields, 'OpacityMin', 1.0),
+      maxOpacity: this.readRadiusDecalOpacityField(fields, 'OpacityMax', 1.0),
+      opacityThrobFrames: this.msToLogicFrames(
+        readNumericField(fields, ['OpacityThrobTime']) ?? (LOGIC_FRAME_RATE * LOGIC_FRAME_MS),
+      ),
+      color: this.readRadiusDecalColorField(fields, 'Color'),
+      onlyVisibleToOwningPlayer: readBooleanField(fields, ['OnlyVisibleToOwningPlayer']) ?? true,
+    };
+  }
+
+  private readRadiusDecalOpacityField(
+    fields: Record<string, IniValue>,
+    fieldName: string,
+    fallback: number,
+  ): number {
+    const value = this.readIniFieldValue(fields, fieldName);
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    const raw = readStringField(fields, [fieldName]);
+    if (!raw) {
+      return fallback;
+    }
+    const trimmed = raw.trim();
+    if (trimmed.endsWith('%')) {
+      const parsedPercent = Number(trimmed.slice(0, -1).trim());
+      return Number.isFinite(parsedPercent) ? parsedPercent / 100 : fallback;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private readRadiusDecalColorField(fields: Record<string, IniValue>, fieldName: string): number {
+    const value = this.readIniFieldValue(fields, fieldName);
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.trunc(value) | 0;
+    }
+    const tokens = readStringList(fields, [fieldName]);
+    if (tokens.length === 0) {
+      return 0;
+    }
+
+    const components: Record<'R' | 'G' | 'B' | 'A', number> = { R: 0, G: 0, B: 0, A: 255 };
+    for (const token of tokens) {
+      const match = token.match(/^([RGBA])\s*:\s*(-?\d+(?:\.\d+)?)$/i);
+      if (!match) continue;
+      const channel = match[1]!.toUpperCase() as 'R' | 'G' | 'B' | 'A';
+      components[channel] = Math.max(0, Math.min(255, Math.trunc(Number(match[2]))));
+    }
+
+    return (
+      ((components.A & 0xff) << 24)
+      | ((components.R & 0xff) << 16)
+      | ((components.G & 0xff) << 8)
+      | (components.B & 0xff)
+    ) | 0;
   }
 
   /**

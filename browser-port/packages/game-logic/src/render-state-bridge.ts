@@ -735,6 +735,13 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
             positionZ: d.positionZ,
             radius: d.radius,
             visible: d.visible,
+            textureName: d.template?.textureName,
+            shadowType: d.template?.shadowType,
+            minOpacity: d.template?.minOpacity,
+            maxOpacity: d.template?.maxOpacity,
+            opacityThrobFrames: d.template?.opacityThrobFrames,
+            color: d.template?.color,
+            onlyVisibleToOwningPlayer: d.template?.onlyVisibleToOwningPlayer,
           }))
         : undefined,
       forcedHiddenSubObjects: forcedSubObjectVisibility.forcedHiddenSubObjects,

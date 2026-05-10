@@ -152,6 +152,20 @@ export interface RenderableRadiusDecal {
   positionZ: number;
   radius: number;
   visible: boolean;
+  /** Source parity: RadiusDecalTemplate::m_name texture name. */
+  textureName?: string;
+  /** Source parity: RadiusDecalTemplate::m_shadowType. */
+  shadowType?: string;
+  /** Source parity: RadiusDecalTemplate::m_minOpacity. */
+  minOpacity?: number;
+  /** Source parity: RadiusDecalTemplate::m_maxOpacity. */
+  maxOpacity?: number;
+  /** Source parity: RadiusDecalTemplate::m_opacityThrobTime in logic frames. */
+  opacityThrobFrames?: number;
+  /** Source parity: RadiusDecalTemplate::m_color packed as AARRGGBB, 0 = player color. */
+  color?: number;
+  /** Source parity: RadiusDecalTemplate::m_onlyVisibleToOwningPlayer. */
+  onlyVisibleToOwningPlayer?: boolean;
 }
 
 export interface RenderableAnimatedParticleSysBoneClientUpdate {

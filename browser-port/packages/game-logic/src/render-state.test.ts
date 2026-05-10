@@ -1263,7 +1263,15 @@ describe('RadiusDecalUpdate', () => {
       objectCreationLists: [
         makeObjectCreationListDef('OCL_TestAttack', [
           makeBlock('Attack', 'Attack', { NumberOfShots: 1, WeaponSlot: 'PRIMARY', DeliveryDecalRadius: 35 }, [
-            makeBlock('DeliveryDecal', 'DeliveryDecal', { Texture: 'TestDecal' }),
+            makeBlock('DeliveryDecal', 'DeliveryDecal', {
+              Texture: 'TestDecal',
+              Style: 'SHADOW_ALPHA_DECAL',
+              OpacityMin: 0.25,
+              OpacityMax: 0.5,
+              OpacityThrobTime: 500,
+              Color: ['R:33', 'G:255', 'B:67', 'A:255'],
+              OnlyVisibleToOwningPlayer: true,
+            }),
           ]),
         ]),
       ],
@@ -1288,6 +1296,15 @@ describe('RadiusDecalUpdate', () => {
           radius: number;
           visible: boolean;
           killWhenNoLongerAttacking: boolean;
+          template?: {
+            textureName: string;
+            shadowType: string;
+            minOpacity: number;
+            maxOpacity: number;
+            opacityThrobFrames: number;
+            color: number;
+            onlyVisibleToOwningPlayer: boolean;
+          } | null;
         }>;
         radiusDecalModuleStates: Array<{ moduleTag: string; killWhenNoLongerAttacking: boolean }>;
       }>;
@@ -1298,6 +1315,7 @@ describe('RadiusDecalUpdate', () => {
 
     priv.executeOCL('OCL_TestAttack', launcher, undefined, 30, 30);
 
+    const expectedColor = ((255 << 24) | (33 << 16) | (255 << 8) | 67) | 0;
     expect(launcher.radiusDecalStates).toHaveLength(1);
     expect(launcher.radiusDecalStates[0]).toMatchObject({
       positionX: 30,
@@ -1305,6 +1323,26 @@ describe('RadiusDecalUpdate', () => {
       radius: 35,
       visible: true,
       killWhenNoLongerAttacking: true,
+      template: {
+        textureName: 'TestDecal',
+        shadowType: 'SHADOW_ALPHA_DECAL',
+        minOpacity: 0.25,
+        maxOpacity: 0.5,
+        opacityThrobFrames: 15,
+        color: expectedColor,
+        onlyVisibleToOwningPlayer: true,
+      },
+    });
+    const launcherRenderState = logic.getRenderableEntityStates()
+      .find((entity) => entity.templateName === 'Launcher')!;
+    expect(launcherRenderState.radiusDecals![0]).toMatchObject({
+      textureName: 'TestDecal',
+      shadowType: 'SHADOW_ALPHA_DECAL',
+      minOpacity: 0.25,
+      maxOpacity: 0.5,
+      opacityThrobFrames: 15,
+      color: expectedColor,
+      onlyVisibleToOwningPlayer: true,
     });
     expect(launcher.radiusDecalModuleStates[0]!.killWhenNoLongerAttacking).toBe(true);
     expect(launcher.objectStatusFlags.has('IS_ATTACKING')).toBe(true);
