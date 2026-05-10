@@ -7627,9 +7627,9 @@ export const DEFAULT_POISON_DAMAGE_INTERVAL_FRAMES = 10; // ~0.33s at 30fps
 export const DEFAULT_FLAME_DAMAGE_LIMIT = 20.0;
 export const DEFAULT_AFLAME_DAMAGE_AMOUNT = 5;
 
-/** Global base regen config from GlobalData.ini. */
-export const BASE_REGEN_HEALTH_PERCENT_PER_SECOND = 0.02; // 2% per second default
-const BASE_REGEN_DELAY_FRAMES = 60; // ~2s delay after damage before regen starts
+/** Source default: GlobalData::m_baseRegenHealthPercentPerSecond. Retail GameData.ini enables it. */
+export const BASE_REGEN_HEALTH_PERCENT_PER_SECOND = 0;
+const BASE_REGEN_DELAY_FRAMES = 0;
 
 const DEFAULT_GAME_LOGIC_CONFIG: Readonly<GameLogicConfig> = {
   renderUnknownObjects: true,
@@ -7640,8 +7640,13 @@ const DEFAULT_GAME_LOGIC_CONFIG: Readonly<GameLogicConfig> = {
   superweaponRestriction: 0,
   maxTunnelCapacity: 10,
   partitionCellSize: PATHFIND_CELL_SIZE,
-  multipleFactory: 0, // C++ default: 0.0 (GlobalData.cpp:842), retail INI: 0.85
-  maxLowEnergyProductionSpeed: 0, // C++ default: 0.0 (GlobalData.cpp), retail INI: ~0.5
+  multipleFactory: 0,
+  minLowEnergyProductionSpeed: 0,
+  maxLowEnergyProductionSpeed: 0,
+  lowEnergyPenaltyModifier: 0,
+  baseRegenHealthPercentPerSecond: BASE_REGEN_HEALTH_PERCENT_PER_SECOND,
+  baseRegenDelayFrames: BASE_REGEN_DELAY_FRAMES,
+  historicDamageLimitFrames: 0,
   isCampaignMode: false, // Source parity: VictoryConditions::update() skips for non-multiplayer
 };
 
@@ -12058,6 +12063,35 @@ export class GameLogicSubsystem implements Subsystem {
       }
       if (gameDataConfig.partitionCellSize !== undefined) {
         this.config.partitionCellSize = Math.max(1, gameDataConfig.partitionCellSize);
+      }
+      if (gameDataConfig.multipleFactory !== undefined
+          && this.config.multipleFactory === DEFAULT_GAME_LOGIC_CONFIG.multipleFactory) {
+        this.config.multipleFactory = gameDataConfig.multipleFactory;
+      }
+      if (gameDataConfig.minLowEnergyProductionSpeed !== undefined
+          && this.config.minLowEnergyProductionSpeed === DEFAULT_GAME_LOGIC_CONFIG.minLowEnergyProductionSpeed) {
+        this.config.minLowEnergyProductionSpeed = gameDataConfig.minLowEnergyProductionSpeed;
+      }
+      if (gameDataConfig.maxLowEnergyProductionSpeed !== undefined
+          && this.config.maxLowEnergyProductionSpeed === DEFAULT_GAME_LOGIC_CONFIG.maxLowEnergyProductionSpeed) {
+        this.config.maxLowEnergyProductionSpeed = gameDataConfig.maxLowEnergyProductionSpeed;
+      }
+      if (gameDataConfig.lowEnergyPenaltyModifier !== undefined
+          && this.config.lowEnergyPenaltyModifier === DEFAULT_GAME_LOGIC_CONFIG.lowEnergyPenaltyModifier) {
+        this.config.lowEnergyPenaltyModifier = gameDataConfig.lowEnergyPenaltyModifier;
+      }
+      if (gameDataConfig.baseRegenHealthPercentPerSecond !== undefined
+          && this.config.baseRegenHealthPercentPerSecond
+            === DEFAULT_GAME_LOGIC_CONFIG.baseRegenHealthPercentPerSecond) {
+        this.config.baseRegenHealthPercentPerSecond = gameDataConfig.baseRegenHealthPercentPerSecond;
+      }
+      if (gameDataConfig.baseRegenDelayFrames !== undefined
+          && this.config.baseRegenDelayFrames === DEFAULT_GAME_LOGIC_CONFIG.baseRegenDelayFrames) {
+        this.config.baseRegenDelayFrames = gameDataConfig.baseRegenDelayFrames;
+      }
+      if (gameDataConfig.historicDamageLimitFrames !== undefined
+          && this.config.historicDamageLimitFrames === DEFAULT_GAME_LOGIC_CONFIG.historicDamageLimitFrames) {
+        this.config.historicDamageLimitFrames = gameDataConfig.historicDamageLimitFrames;
       }
     }
     const aiConfig = iniDataRegistry.getAiConfig();
@@ -48115,14 +48149,13 @@ export class GameLogicSubsystem implements Subsystem {
         const powerState = this.getSidePowerStateMap(producerSide);
         const totalProd = powerState.energyProduction + powerState.powerBonus;
         if (powerState.energyConsumption > 0 && totalProd < powerState.energyConsumption) {
-          const energyPercent = totalProd / powerState.energyConsumption;
-          const energyShort = Math.min(1, 1 - energyPercent);
-          // m_LowEnergyPenaltyModifier = 0.4 from GlobalData
-          productionRate = Math.max(0.2, 1 - energyShort * 0.4);
-          // Source parity: ThingTemplate.cpp:1409 — cap rate to MaxLowEnergyProductionSpeed
-          // when energy supply < 100%. C++ default 0.0 disables the cap; retail INI ~0.5.
-          if (this.config.maxLowEnergyProductionSpeed > 0) {
-            productionRate = Math.min(productionRate, this.config.maxLowEnergyProductionSpeed);
+          const energyPercent = Math.min(1, Math.max(0, totalProd / powerState.energyConsumption));
+          const energyShort = (1 - energyPercent) * this.config.lowEnergyPenaltyModifier;
+          productionRate = 1 - energyShort;
+          productionRate = Math.max(productionRate, this.config.minLowEnergyProductionSpeed);
+          productionRate = Math.min(productionRate, this.config.maxLowEnergyProductionSpeed);
+          if (productionRate <= 0) {
+            productionRate = 0.01;
           }
         }
       }
@@ -51866,7 +51899,7 @@ export class GameLogicSubsystem implements Subsystem {
       target.autoHealDamageDelayUntilFrame = this.frameCounter + target.autoHealProfile.startHealingDelayFrames;
     }
     if (target.baseRegenerateUpdateProfile) {
-      target.baseRegenDelayUntilFrame = this.frameCounter + BASE_REGEN_DELAY_FRAMES;
+      target.baseRegenDelayUntilFrame = this.frameCounter + this.config.baseRegenDelayFrames;
     }
     if (target.kindOf.has('STRUCTURE')) {
       // Source parity: EVA — announce base under attack for important structures.

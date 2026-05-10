@@ -26,7 +26,16 @@ function makeBaseRegenLogic() {
       makeMapObject('RegenStructure', 8, 8),
       makeMapObject('PlainStructure', 16, 8),
     ], 32, 32),
-    makeRegistry(makeBundle({ objects: [regenStructure, plainStructure] })),
+    makeRegistry(makeBundle({
+      objects: [regenStructure, plainStructure],
+      gameData: {
+        weaponBonusEntries: [],
+        healthBonuses: [1, 1, 1, 1],
+        soloPlayerHealthBonuses: [[1, 1, 1], [1, 1, 1]],
+        baseRegenHealthPercentPerSecond: 0.003,
+        baseRegenDelayFrames: 90,
+      },
+    })),
     makeHeightmap(32, 32),
   );
   return logic;

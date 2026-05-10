@@ -65,6 +65,13 @@ const bundle = JSON.parse(readFileSync(BUNDLE_PATH, 'utf-8')) as {
   objects?: BundleObject[];
   gameData?: {
     weaponBonusEntries?: Array<{ condition?: string; field?: string; multiplier?: number }>;
+    multipleFactory?: number;
+    minLowEnergyProductionSpeed?: number;
+    maxLowEnergyProductionSpeed?: number;
+    lowEnergyPenaltyModifier?: number;
+    baseRegenHealthPercentPerSecond?: number;
+    baseRegenDelayFrames?: number;
+    historicDamageLimitFrames?: number;
   };
 };
 
@@ -211,6 +218,18 @@ describe('session 2026-05-04 — bundle-wide scanner over touched fields', () =>
     expect(entries).toContainEqual({ condition: 'HERO', field: 'DAMAGE', multiplier: 1.3 });
     expect(entries).toContainEqual({ condition: 'BATTLEPLAN_SEARCHANDDESTROY', field: 'RANGE', multiplier: 1.2 });
     expect(entries).toContainEqual({ condition: 'SOLO_AI_HARD', field: 'RATE_OF_FIRE', multiplier: 1.2 });
+  });
+
+  it('retail GameData production and base-regen values are present in the converted bundle', () => {
+    expect(bundle.gameData).toEqual(expect.objectContaining({
+      multipleFactory: 1,
+      minLowEnergyProductionSpeed: 0.5,
+      maxLowEnergyProductionSpeed: 0.8,
+      lowEnergyPenaltyModifier: 1,
+      baseRegenHealthPercentPerSecond: 0.003,
+      baseRegenDelayFrames: 90,
+      historicDamageLimitFrames: 150,
+    }));
   });
 
   it('FlightDeckBehavior Runway1CatapultSystem flows through every retail aircraft carrier', () => {

@@ -335,6 +335,20 @@ export interface GameDataConfig {
    * Parsed from INI via parsePercentToReal.
    */
   sellPercentage?: number;
+  /** Source parity: GlobalData::m_MultipleFactory. */
+  multipleFactory?: number;
+  /** Source parity: GlobalData::m_MinLowEnergyProductionSpeed. */
+  minLowEnergyProductionSpeed?: number;
+  /** Source parity: GlobalData::m_MaxLowEnergyProductionSpeed. */
+  maxLowEnergyProductionSpeed?: number;
+  /** Source parity: GlobalData::m_LowEnergyPenaltyModifier. */
+  lowEnergyPenaltyModifier?: number;
+  /** Source parity: GlobalData::m_baseRegenHealthPercentPerSecond. */
+  baseRegenHealthPercentPerSecond?: number;
+  /** Source parity: GlobalData::m_baseRegenDelay, converted to logic frames. */
+  baseRegenDelayFrames?: number;
+  /** Source parity: GlobalData::m_historicDamageLimit, converted to logic frames. */
+  historicDamageLimitFrames?: number;
   /**
    * Source parity: GlobalData::m_soloPlayerHealthBonusForDifficulty[PLAYERTYPE_COUNT][DIFFICULTY_COUNT]
    * 2x3 matrix indexed by [playerType][difficulty]:
@@ -689,6 +703,13 @@ export class IniDataRegistry {
             : [1.0, 1.0, 1.0, 1.0],
           partitionCellSize: bundle.gameData.partitionCellSize,
           sellPercentage: bundle.gameData.sellPercentage,
+          multipleFactory: bundle.gameData.multipleFactory,
+          minLowEnergyProductionSpeed: bundle.gameData.minLowEnergyProductionSpeed,
+          maxLowEnergyProductionSpeed: bundle.gameData.maxLowEnergyProductionSpeed,
+          lowEnergyPenaltyModifier: bundle.gameData.lowEnergyPenaltyModifier,
+          baseRegenHealthPercentPerSecond: bundle.gameData.baseRegenHealthPercentPerSecond,
+          baseRegenDelayFrames: bundle.gameData.baseRegenDelayFrames,
+          historicDamageLimitFrames: bundle.gameData.historicDamageLimitFrames,
           soloPlayerHealthBonuses: bundle.gameData.soloPlayerHealthBonuses
             ? [
                 [...bundle.gameData.soloPlayerHealthBonuses[0]] as [number, number, number],
@@ -786,6 +807,13 @@ export class IniDataRegistry {
           healthBonuses: [...this.gameData.healthBonuses] as [number, number, number, number],
           partitionCellSize: this.gameData.partitionCellSize,
           sellPercentage: this.gameData.sellPercentage,
+          multipleFactory: this.gameData.multipleFactory,
+          minLowEnergyProductionSpeed: this.gameData.minLowEnergyProductionSpeed,
+          maxLowEnergyProductionSpeed: this.gameData.maxLowEnergyProductionSpeed,
+          lowEnergyPenaltyModifier: this.gameData.lowEnergyPenaltyModifier,
+          baseRegenHealthPercentPerSecond: this.gameData.baseRegenHealthPercentPerSecond,
+          baseRegenDelayFrames: this.gameData.baseRegenDelayFrames,
+          historicDamageLimitFrames: this.gameData.historicDamageLimitFrames,
           soloPlayerHealthBonuses: [
             [...this.gameData.soloPlayerHealthBonuses[0]] as [number, number, number],
             [...this.gameData.soloPlayerHealthBonuses[1]] as [number, number, number],
@@ -1013,6 +1041,13 @@ export class IniDataRegistry {
             healthBonuses: [...this.gameData.healthBonuses] as [number, number, number, number],
             partitionCellSize: this.gameData.partitionCellSize,
             sellPercentage: this.gameData.sellPercentage,
+            multipleFactory: this.gameData.multipleFactory,
+            minLowEnergyProductionSpeed: this.gameData.minLowEnergyProductionSpeed,
+            maxLowEnergyProductionSpeed: this.gameData.maxLowEnergyProductionSpeed,
+            lowEnergyPenaltyModifier: this.gameData.lowEnergyPenaltyModifier,
+            baseRegenHealthPercentPerSecond: this.gameData.baseRegenHealthPercentPerSecond,
+            baseRegenDelayFrames: this.gameData.baseRegenDelayFrames,
+            historicDamageLimitFrames: this.gameData.historicDamageLimitFrames,
             soloPlayerHealthBonuses: [
               [...this.gameData.soloPlayerHealthBonuses[0]] as [number, number, number],
               [...this.gameData.soloPlayerHealthBonuses[1]] as [number, number, number],
@@ -1428,6 +1463,49 @@ export class IniDataRegistry {
       partitionCellSize = partitionCellSizeValue;
     }
 
+    let multipleFactory = this.gameData?.multipleFactory;
+    const multipleFactoryValue = extractNumber(block.fields['MultipleFactory']);
+    if (multipleFactoryValue !== undefined) {
+      multipleFactory = multipleFactoryValue;
+    }
+
+    let minLowEnergyProductionSpeed = this.gameData?.minLowEnergyProductionSpeed;
+    const minLowEnergyProductionSpeedValue = extractNumber(block.fields['MinLowEnergyProductionSpeed']);
+    if (minLowEnergyProductionSpeedValue !== undefined) {
+      minLowEnergyProductionSpeed = minLowEnergyProductionSpeedValue;
+    }
+
+    let maxLowEnergyProductionSpeed = this.gameData?.maxLowEnergyProductionSpeed;
+    const maxLowEnergyProductionSpeedValue = extractNumber(block.fields['MaxLowEnergyProductionSpeed']);
+    if (maxLowEnergyProductionSpeedValue !== undefined) {
+      maxLowEnergyProductionSpeed = maxLowEnergyProductionSpeedValue;
+    }
+
+    let lowEnergyPenaltyModifier = this.gameData?.lowEnergyPenaltyModifier;
+    const lowEnergyPenaltyModifierValue = extractNumber(block.fields['LowEnergyPenaltyModifier']);
+    if (lowEnergyPenaltyModifierValue !== undefined) {
+      lowEnergyPenaltyModifier = lowEnergyPenaltyModifierValue;
+    }
+
+    let baseRegenHealthPercentPerSecond = this.gameData?.baseRegenHealthPercentPerSecond;
+    const baseRegenHealthPercentPerSecondValue =
+      extractUnclampedPercentToReal(block.fields['BaseRegenHealthPercentPerSecond']);
+    if (baseRegenHealthPercentPerSecondValue !== undefined) {
+      baseRegenHealthPercentPerSecond = baseRegenHealthPercentPerSecondValue;
+    }
+
+    let baseRegenDelayFrames = this.gameData?.baseRegenDelayFrames;
+    const baseRegenDelayFramesValue = extractDurationFrames(block.fields['BaseRegenDelay']);
+    if (baseRegenDelayFramesValue !== undefined) {
+      baseRegenDelayFrames = baseRegenDelayFramesValue;
+    }
+
+    let historicDamageLimitFrames = this.gameData?.historicDamageLimitFrames;
+    const historicDamageLimitFramesValue = extractDurationFrames(block.fields['HistoricDamageLimit']);
+    if (historicDamageLimitFramesValue !== undefined) {
+      historicDamageLimitFrames = historicDamageLimitFramesValue;
+    }
+
     // ── Solo player health bonuses (source parity: GlobalData.cpp:408-414) ──
     // m_soloPlayerHealthBonusForDifficulty[PLAYERTYPE_COUNT][DIFFICULTY_COUNT], all default 1.0.
     // INI fields: HumanSoloPlayerHealthBonus_Easy/Normal/Hard, AISoloPlayerHealthBonus_Easy/Normal/Hard.
@@ -1466,6 +1544,13 @@ export class IniDataRegistry {
       healthBonuses,
       partitionCellSize,
       sellPercentage,
+      multipleFactory,
+      minLowEnergyProductionSpeed,
+      maxLowEnergyProductionSpeed,
+      lowEnergyPenaltyModifier,
+      baseRegenHealthPercentPerSecond,
+      baseRegenDelayFrames,
+      historicDamageLimitFrames,
       soloPlayerHealthBonuses,
       vertexWaterSettings,
     };

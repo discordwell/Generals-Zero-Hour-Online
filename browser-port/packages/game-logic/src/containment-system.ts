@@ -15,7 +15,6 @@ import { isPassengerAllowedToFireFromContainingObject as isPassengerAllowedToFir
 import { buildContainedEntityIdsByContainerId } from './containment-queries.js';
 import {
   RELATIONSHIP_ENEMIES,
-  BASE_REGEN_HEALTH_PERCENT_PER_SECOND,
   LOGIC_FRAME_RATE,
   WEAPON_SET_FLAG_MASK_BY_NAME,
   calcBodyDamageState,
@@ -782,6 +781,7 @@ export function isEnclosingContainer(self: GL, container: MapEntity): boolean {
 export function updateHealing(self: GL): void {
   const LOGICFRAMES_PER_SECOND = 30;
   const BASE_REGEN_INTERVAL = 3; // BaseRegenerateUpdate heals every 3 frames
+  const baseRegenHealthPercentPerSecond = self.config.baseRegenHealthPercentPerSecond ?? 0;
 
   for (const entity of self.spawnedEntities.values()) {
     if (entity.destroyed) continue;
@@ -884,11 +884,11 @@ export function updateHealing(self: GL): void {
     if (entity.baseRegenerateUpdateProfile && !isDisabled && entity.health < entity.maxHealth
         && !entity.objectStatusFlags.has('UNDER_CONSTRUCTION')
         && !entity.objectStatusFlags.has('SOLD')
-        && BASE_REGEN_HEALTH_PERCENT_PER_SECOND > 0) {
+        && baseRegenHealthPercentPerSecond > 0) {
       if (self.frameCounter >= entity.baseRegenDelayUntilFrame) {
         if (self.frameCounter % BASE_REGEN_INTERVAL === 0) {
           const prevHealth = entity.health;
-          const amount = BASE_REGEN_INTERVAL * entity.maxHealth * BASE_REGEN_HEALTH_PERCENT_PER_SECOND / LOGICFRAMES_PER_SECOND;
+          const amount = BASE_REGEN_INTERVAL * entity.maxHealth * baseRegenHealthPercentPerSecond / LOGICFRAMES_PER_SECOND;
           entity.health = Math.min(entity.maxHealth, entity.health + amount);
           if (entity.health > prevHealth) {
             self.clearPoisonFromEntity(entity);

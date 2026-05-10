@@ -133,6 +133,68 @@ describe('IniDataRegistry', () => {
       expect(restored.getGameData()?.partitionCellSize).toBe(40);
     });
 
+    it('parses GameData production, regen, and historic-damage fields', () => {
+      registry.loadBlocks([
+        makeBlock('GameData', 'Default', {
+          MultipleFactory: 1.0,
+          MinLowEnergyProductionSpeed: 0.5,
+          MaxLowEnergyProductionSpeed: 0.8,
+          LowEnergyPenaltyModifier: 1.0,
+          BaseRegenHealthPercentPerSecond: 0.003,
+          BaseRegenDelay: 3000,
+          HistoricDamageLimit: 5000,
+        }),
+      ]);
+
+      expect(registry.getGameData()).toEqual(expect.objectContaining({
+        multipleFactory: 1.0,
+        minLowEnergyProductionSpeed: 0.5,
+        maxLowEnergyProductionSpeed: 0.8,
+        lowEnergyPenaltyModifier: 1.0,
+        baseRegenHealthPercentPerSecond: 0.003,
+        baseRegenDelayFrames: 90,
+        historicDamageLimitFrames: 150,
+      }));
+
+      const restored = new IniDataRegistry();
+      restored.loadBundle(registry.toBundle());
+      expect(restored.getGameData()).toEqual(expect.objectContaining({
+        multipleFactory: 1.0,
+        minLowEnergyProductionSpeed: 0.5,
+        maxLowEnergyProductionSpeed: 0.8,
+        lowEnergyPenaltyModifier: 1.0,
+        baseRegenHealthPercentPerSecond: 0.003,
+        baseRegenDelayFrames: 90,
+        historicDamageLimitFrames: 150,
+      }));
+    });
+
+    it('loads GameData production, regen, and historic-damage fields from parsed INI', () => {
+      const parsed = parseIni(`
+GameData
+  MultipleFactory = 1.0
+  MinLowEnergyProductionSpeed = 0.5
+  MaxLowEnergyProductionSpeed = 0.8
+  LowEnergyPenaltyModifier = 1.0
+  BaseRegenHealthPercentPerSecond = 0.3%
+  BaseRegenDelay = 3000
+  HistoricDamageLimit = 5000
+End
+`);
+
+      registry.loadBlocks(parsed.blocks);
+
+      expect(registry.getGameData()).toEqual(expect.objectContaining({
+        multipleFactory: 1.0,
+        minLowEnergyProductionSpeed: 0.5,
+        maxLowEnergyProductionSpeed: 0.8,
+        lowEnergyPenaltyModifier: 1.0,
+        baseRegenHealthPercentPerSecond: 0.003,
+        baseRegenDelayFrames: 90,
+        historicDamageLimitFrames: 150,
+      }));
+    });
+
     it('preserves numeric GameData health bonus percents already normalized by the core parser', () => {
       registry.loadBlocks([
         makeBlock('GameData', 'Default', {

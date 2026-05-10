@@ -777,17 +777,27 @@ export interface GameLogicConfig {
   /**
    * Source parity: TheGlobalData::m_MultipleFactory — multiplier applied to
    * build time per additional factory of the same type.
-   * C++ default is 0.0 (no bonus). Retail GameData.ini sets 0.85.
+   * C++ default is 0.0 (no bonus). Retail GameData.ini sets 1.0.
    * When <= 0, extra factories do not speed up production.
    */
   multipleFactory: number;
+  /** Source parity: TheGlobalData::m_MinLowEnergyProductionSpeed. */
+  minLowEnergyProductionSpeed: number;
   /**
    * Source parity: TheGlobalData::m_MaxLowEnergyProductionSpeed — upper cap
    * on production rate when energy supply is below 100%.
-   * C++ default is 0.0 (disabled). Retail GameData.ini sets ~0.5.
-   * When <= 0 the cap is not applied.
+   * C++ default is 0.0. Retail GameData.ini sets 0.8.
+
    */
   maxLowEnergyProductionSpeed: number;
+  /** Source parity: TheGlobalData::m_LowEnergyPenaltyModifier. */
+  lowEnergyPenaltyModifier: number;
+  /** Source parity: TheGlobalData::m_baseRegenHealthPercentPerSecond. */
+  baseRegenHealthPercentPerSecond: number;
+  /** Source parity: TheGlobalData::m_baseRegenDelay in logic frames. */
+  baseRegenDelayFrames: number;
+  /** Source parity: TheGlobalData::m_historicDamageLimit in logic frames. */
+  historicDamageLimitFrames: number;
   /**
    * Source parity: VictoryConditions::update() exits early when
    * `!TheRecorder->isMultiplayer()` — campaign missions use script-based

@@ -119,6 +119,12 @@ function measureProductionFrames(logic: GameLogicSubsystem, factoryId: number, m
   return maxFrames;
 }
 
+const RETAIL_LOW_ENERGY_CONFIG = {
+  minLowEnergyProductionSpeed: 0.5,
+  maxLowEnergyProductionSpeed: 0.8,
+  lowEnergyPenaltyModifier: 1.0,
+};
+
 // ── Test 1: Multiple Factory Build Speed ─────────────────────────────────────
 
 describe('parity production: MultipleFactory build speed bonus', () => {
@@ -318,7 +324,7 @@ describe('parity production: low energy production penalty', () => {
         { name: 'PowerConsumer', energyBonus: -10 },
       ],
     });
-    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const logic = new GameLogicSubsystem(new THREE.Scene(), RETAIL_LOW_ENERGY_CONFIG);
     const mapData = makeMap([
       makeMapObject('USABarracks', 50, 50),
       makeMapObject('USAPowerPlant', 80, 50),
@@ -336,13 +342,13 @@ describe('parity production: low energy production penalty', () => {
     const factoryId = logic.getRenderableEntityStates().find(e => e.templateName === 'USABarracks')!.id;
     const frames = measureProductionFrames(logic, factoryId);
 
-    // At 50% power with 0.4 penalty modifier: rate = 0.8, time = 150/0.8 = 187.5 frames.
+    // At 50% power with retail low-energy config: rate = 0.5, time = 150/0.5 = 300 frames.
     expect(frames).toBeGreaterThan(155); // Definitely slower than normal
-    expect(frames).toBeGreaterThanOrEqual(185);
-    expect(frames).toBeLessThanOrEqual(195);
+    expect(frames).toBeGreaterThanOrEqual(295);
+    expect(frames).toBeLessThanOrEqual(305);
   });
 
-  it('with 0% power supply, production rate clamps to minimum (0.2)', () => {
+  it('with 0% power supply, production rate clamps to the retail minimum', () => {
     /**
      * Setup: No power plant at all, but a structure consumes power.
      * energyPercent = 0/10 = 0.0
@@ -365,7 +371,7 @@ describe('parity production: low energy production penalty', () => {
         { name: 'PowerConsumer', energyBonus: -10 },
       ],
     });
-    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const logic = new GameLogicSubsystem(new THREE.Scene(), RETAIL_LOW_ENERGY_CONFIG);
     const mapData = makeMap([
       makeMapObject('USABarracks', 50, 50),
       makeMapObject('PowerConsumer', 80, 50),
@@ -383,11 +389,10 @@ describe('parity production: low energy production penalty', () => {
     const factoryId = logic.getRenderableEntityStates().find(e => e.templateName === 'USABarracks')!.id;
     const frames = measureProductionFrames(logic, factoryId);
 
-    // At 0% power with 0.4 modifier: rate = max(0.2, 1 - 1.0 * 0.4) = 0.6
-    // 150 / 0.6 = 250 frames.
+    // At 0% power with retail low-energy config: rate = 0.5, time = 150/0.5 = 300 frames.
     expect(frames).toBeGreaterThan(200);
-    expect(frames).toBeGreaterThanOrEqual(248);
-    expect(frames).toBeLessThanOrEqual(255);
+    expect(frames).toBeGreaterThanOrEqual(295);
+    expect(frames).toBeLessThanOrEqual(305);
   });
 
   it('with MaxLowEnergyProductionSpeed=0.5, production rate is capped at 50%', () => {
@@ -410,7 +415,10 @@ describe('parity production: low energy production penalty', () => {
         { name: 'PowerConsumer', energyBonus: -10 },
       ],
     });
-    const logic = new GameLogicSubsystem(new THREE.Scene(), { maxLowEnergyProductionSpeed: 0.5 });
+    const logic = new GameLogicSubsystem(new THREE.Scene(), {
+      ...RETAIL_LOW_ENERGY_CONFIG,
+      maxLowEnergyProductionSpeed: 0.5,
+    });
     const mapData = makeMap([
       makeMapObject('USABarracks', 50, 50),
       makeMapObject('USAPowerPlant', 80, 50),
@@ -430,21 +438,20 @@ describe('parity production: low energy production penalty', () => {
     expect(frames).toBeLessThanOrEqual(305);
   });
 
-  it('without MaxLowEnergyProductionSpeed (default 0), no cap is applied', () => {
+  it('with source default low-energy fields and no GameData, production uses the 1% floor', () => {
     /**
-     * With maxLowEnergyProductionSpeed=0 (C++ default, disabled),
-     * the cap is not applied and the rate stays at 0.96.
-     * 150 / 0.96 = ~156 frames — nearly full speed.
+     * With all source default low-energy globals at 0, the max clamp drops
+     * the rate to 0 and the source 0.01 floor keeps production alive.
      */
     const bundle = makeProductionBundle({
       factoryCount: 1,
-      unitBuildTimeSec: 5,
+      unitBuildTimeSec: 0.1,
       powerPlantEnergyBonus: 9,
       powerConsumers: [
         { name: 'PowerConsumer', energyBonus: -10 },
       ],
     });
-    // Default config: maxLowEnergyProductionSpeed = 0 (disabled)
+    // Default config mirrors GlobalData.cpp defaults when GameData.ini is absent.
     const logic = new GameLogicSubsystem(new THREE.Scene());
     const mapData = makeMap([
       makeMapObject('USABarracks', 50, 50),
@@ -459,9 +466,9 @@ describe('parity production: low energy production penalty', () => {
     const factoryId = logic.getRenderableEntityStates().find(e => e.templateName === 'USABarracks')!.id;
     const frames = measureProductionFrames(logic, factoryId);
 
-    // No cap: rate = max(0.2, 1 - 0.1*0.4) = 0.96, frames = 150/0.96 = ~156
-    expect(frames).toBeLessThan(165);
-    expect(frames).toBeGreaterThanOrEqual(153);
+    // 0.1 seconds = 3 build frames; 3 / 0.01 = 300 update frames.
+    expect(frames).toBeGreaterThanOrEqual(295);
+    expect(frames).toBeLessThanOrEqual(305);
   });
 });
 

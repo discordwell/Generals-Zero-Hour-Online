@@ -470,14 +470,17 @@ export function checkHistoricBonus(self: GL, weapon: AttackWeaponProfile, target
     self.historicDamageLog.set(key, log);
   }
 
-  // Trim old entries (outside time window).
-  // Source parity: C++ trimOldHistoricDamage uses GlobalData::m_historicDamageLimit;
-  // we approximate with the per-weapon time window.
-  const timeWindowFrames = Math.ceil(weapon.historicBonusTime * 30 / 1000);
-  const oldestThatWillCount = self.frameCounter - timeWindowFrames;
-  while (log.length > 0 && log[0]!.frame <= oldestThatWillCount) {
+  // Source parity: WeaponTemplate::trimOldHistoricDamage uses
+  // TheGlobalData->m_historicDamageLimit to bound the stored hit list.
+  const historicDamageLimitFrames = Math.max(0, Math.trunc(self.config.historicDamageLimitFrames ?? 0));
+  const expirationFrame = self.frameCounter - historicDamageLimitFrames;
+  while (log.length > 0 && log[0]!.frame <= expirationFrame) {
     log.shift();
   }
+
+  // Count hits inside the weapon's own HistoricBonusTime window.
+  const timeWindowFrames = Math.ceil(weapon.historicBonusTime * 30 / 1000);
+  const oldestThatWillCount = self.frameCounter - timeWindowFrames;
 
   // Count hits within radius and time window.
   const radiusSq = weapon.historicBonusRadius * weapon.historicBonusRadius;
