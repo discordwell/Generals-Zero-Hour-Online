@@ -1965,7 +1965,11 @@ function extractUnclampedPercentToReal(value: IniValue | undefined): number | un
   }
 
   if (typeof value === 'number') {
-    return Number.isFinite(value) ? (value > 1 ? value / 100 : value) : undefined;
+    // The core INI parser already normalizes percent tokens to real values
+    // before the registry sees them, e.g. "120%" becomes 1.2. Do not divide
+    // numeric values again or veteran/elite/heroic health bonuses collapse to
+    // 0.012/0.013/0.015.
+    return Number.isFinite(value) ? value : undefined;
   }
 
   return undefined;

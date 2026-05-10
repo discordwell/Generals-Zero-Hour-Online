@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { IniDataRegistry } from './registry.js';
-import type { IniBlock } from '@generals/core';
+import { parseIni, type IniBlock } from '@generals/core';
 
 function makeBlock(type: string, name: string, fields: Record<string, unknown> = {}, extra: Partial<IniBlock> = {}): IniBlock {
   return {
@@ -131,6 +131,60 @@ describe('IniDataRegistry', () => {
       const restored = new IniDataRegistry();
       restored.loadBundle(registry.toBundle());
       expect(restored.getGameData()?.partitionCellSize).toBe(40);
+    });
+
+    it('preserves numeric GameData health bonus percents already normalized by the core parser', () => {
+      registry.loadBlocks([
+        makeBlock('GameData', 'Default', {
+          HealthBonus_Veteran: 1.2,
+          HealthBonus_Elite: 1.3,
+          HealthBonus_Heroic: 1.5,
+          HumanSoloPlayerHealthBonus_Easy: 1.5,
+          HumanSoloPlayerHealthBonus_Normal: 1.0,
+          HumanSoloPlayerHealthBonus_Hard: 0.8,
+          AISoloPlayerHealthBonus_Easy: 1.0,
+          AISoloPlayerHealthBonus_Normal: 1.0,
+          AISoloPlayerHealthBonus_Hard: 1.0,
+        }),
+      ]);
+
+      expect(registry.getGameData()?.healthBonuses).toEqual([1, 1.2, 1.3, 1.5]);
+      expect(registry.getGameData()?.soloPlayerHealthBonuses).toEqual([
+        [1.5, 1, 0.8],
+        [1, 1, 1],
+      ]);
+
+      const restored = new IniDataRegistry();
+      restored.loadBundle(registry.toBundle());
+      expect(restored.getGameData()?.healthBonuses).toEqual([1, 1.2, 1.3, 1.5]);
+      expect(restored.getGameData()?.soloPlayerHealthBonuses).toEqual([
+        [1.5, 1, 0.8],
+        [1, 1, 1],
+      ]);
+    });
+
+    it('loads GameData health bonus percents from parsed INI without double-dividing', () => {
+      const parsed = parseIni(`
+GameData
+  HealthBonus_Veteran = 120%
+  HealthBonus_Elite = 130%
+  HealthBonus_Heroic = 150%
+  HumanSoloPlayerHealthBonus_Easy = 150%
+  HumanSoloPlayerHealthBonus_Normal = 100%
+  HumanSoloPlayerHealthBonus_Hard = 80%
+  AISoloPlayerHealthBonus_Easy = 100%
+  AISoloPlayerHealthBonus_Normal = 100%
+  AISoloPlayerHealthBonus_Hard = 100%
+End
+`);
+
+      registry.loadBlocks(parsed.blocks);
+
+      expect(registry.getGameData()?.healthBonuses).toEqual([1, 1.2, 1.3, 1.5]);
+      expect(registry.getGameData()?.soloPlayerHealthBonuses).toEqual([
+        [1.5, 1, 0.8],
+        [1, 1, 1],
+      ]);
     });
 
     it('tracks KindOf arrays', () => {
