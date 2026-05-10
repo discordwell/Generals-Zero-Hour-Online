@@ -4295,8 +4295,14 @@ export function resolveScriptEntityFlashColor(self: GL, entity: MapEntity): numb
   if (entity.customIndicatorColor !== null) {
     return entity.customIndicatorColor >>> 0;
   }
-  // Source parity gap: use per-side indicator color when UI player colors are wired.
-  return SOURCE_FLASH_COLOR_WHITE;
+  const controllingPlayerToken = self.normalizeControllingPlayerToken(entity.controllingPlayerToken ?? undefined);
+  if (controllingPlayerToken) {
+    const playerColor = self.resolveMapSidePlayerColor(controllingPlayerToken);
+    if (typeof playerColor === 'number' && Number.isFinite(playerColor)) {
+      return playerColor | 0;
+    }
+  }
+  return 0xff000000 | 0;
 }
 
 export function executeScriptNamedFlash(self: GL, entityId: number, timeInSeconds: number): boolean {
@@ -4363,7 +4369,8 @@ export function executeScriptNamedCustomColor(self: GL, entityId: number, color:
   if (!Number.isFinite(color)) {
     return false;
   }
-  entity.customIndicatorColor = Math.trunc(color) >>> 0;
+  const normalizedColor = Math.trunc(color) >>> 0;
+  entity.customIndicatorColor = normalizedColor === 0 ? null : normalizedColor;
   return true;
 }
 

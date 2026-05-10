@@ -31744,11 +31744,18 @@ describe('Script condition groundwork', () => {
     });
 
     const logic = new GameLogicSubsystem(new THREE.Scene());
+    const mapData = makeMap([
+      makeMapObject('Ranger', 10, 10, { originalOwner: 'America' }), // id 1
+      makeMapObject('Ranger', 18, 10, { originalOwner: 'America' }), // id 2
+    ], 128, 128);
+    mapData.sidesList = {
+      sides: [
+        { dict: { playerName: 'America', playerColor: 0x445566 }, buildList: [] },
+      ],
+      teams: [],
+    };
     logic.loadMapObjects(
-      makeMap([
-        makeMapObject('Ranger', 10, 10), // id 1
-        makeMapObject('Ranger', 18, 10), // id 2
-      ], 128, 128),
+      mapData,
       makeRegistry(bundle),
       makeHeightmap(128, 128),
     );
@@ -31790,7 +31797,7 @@ describe('Script condition groundwork', () => {
       params: ['FlashTeam', 1],
     })).toBe(true);
     expect(privateApi.spawnedEntities.get(1)?.scriptFlashColor).toBe(0x123456);
-    expect(privateApi.spawnedEntities.get(2)?.scriptFlashColor).toBe(0xffffff);
+    expect(privateApi.spawnedEntities.get(2)?.scriptFlashColor).toBe(0xff445566 | 0);
     expect(privateApi.spawnedEntities.get(1)?.scriptFlashCount).toBe(2);
     expect(privateApi.spawnedEntities.get(2)?.scriptFlashCount).toBe(2);
     expect(logic.executeScriptAction({
@@ -31811,7 +31818,7 @@ describe('Script condition groundwork', () => {
       params: ['FlashProto', 2],
     })).toBe(true);
     expect(privateApi.spawnedEntities.get(1)?.scriptFlashColor).toBe(0x123456);
-    expect(privateApi.spawnedEntities.get(2)?.scriptFlashColor).toBe(0xffffff);
+    expect(privateApi.spawnedEntities.get(2)?.scriptFlashColor).toBe(0xff445566 | 0);
     expect(privateApi.spawnedEntities.get(1)?.scriptFlashCount).toBe(4);
     expect(privateApi.spawnedEntities.get(2)?.scriptFlashCount).toBe(6);
     expect(logic.setScriptConditionTeamContext('FlashInstanceB')).toBe(true);
@@ -31901,6 +31908,11 @@ describe('Script condition groundwork', () => {
       params: [1, 0x12ab34],
     })).toBe(true);
     expect(privateApi.spawnedEntities.get(1)?.customIndicatorColor).toBe(0x12ab34);
+    expect(logic.executeScriptAction({
+      actionType: 453,
+      params: [1, 0],
+    })).toBe(true);
+    expect(privateApi.spawnedEntities.get(1)?.customIndicatorColor).toBeNull();
 
     expect(logic.executeScriptAction({
       actionType: 453,
