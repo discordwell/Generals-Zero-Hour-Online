@@ -44,6 +44,123 @@ describe('DecalManager', () => {
     expect(manager.decalRenderer.getActiveDecalCount()).toBeGreaterThanOrEqual(0);
   });
 
+  it('syncs source RadiusDecalUpdate render states into projected decals', () => {
+    manager.syncRadiusDecals([{
+      id: 7,
+      isOwnedByLocalPlayer: true,
+      radiusDecals: [{
+        positionX: 10,
+        positionY: 2,
+        positionZ: 20,
+        radius: 35,
+        visible: true,
+        textureName: 'SCCScudStorm_GLA',
+        shadowType: 'SHADOW_ALPHA_DECAL',
+        minOpacity: 0.25,
+        maxOpacity: 0.5,
+        opacityThrobFrames: 30,
+        color: ((255 << 24) | (33 << 16) | (255 << 8) | 67) | 0,
+        onlyVisibleToOwningPlayer: true,
+      }],
+    }]);
+
+    expect(manager.decalRenderer.getActiveDecalCount()).toBe(1);
+    const mesh = scene.children.find((child) => child.name.startsWith('decal-')) as THREE.Mesh;
+    expect(mesh).toBeDefined();
+    expect(mesh.position.toArray()).toEqual([10, 2.08, 20]);
+    expect(mesh.scale.toArray()).toEqual([70, 70, 1]);
+    const material = mesh.material as THREE.MeshBasicMaterial;
+    expect(material.color.getHex()).toBe(0x21ff43);
+    expect(material.opacity).toBe(0.5);
+
+    manager.update(0.75);
+    expect(material.opacity).toBeCloseTo(0.25, 5);
+  });
+
+  it('removes radius decals when source state disappears', () => {
+    manager.syncRadiusDecals([{
+      id: 1,
+      isOwnedByLocalPlayer: true,
+      radiusDecals: [{
+        positionX: 0,
+        positionY: 0,
+        positionZ: 0,
+        radius: 10,
+        visible: true,
+        textureName: 'Radius',
+      }],
+    }]);
+    expect(manager.decalRenderer.getActiveDecalCount()).toBe(1);
+
+    manager.syncRadiusDecals([]);
+    expect(manager.decalRenderer.getActiveDecalCount()).toBe(0);
+  });
+
+  it('recreates a radius decal if the shared decal cap evicted it', () => {
+    const cappedManager = new DecalManager(scene, 1, 50);
+    const state = {
+      id: 1,
+      isOwnedByLocalPlayer: true,
+      radiusDecals: [{
+        positionX: 0,
+        positionY: 0,
+        positionZ: 0,
+        radius: 10,
+        visible: true,
+        textureName: 'Radius',
+      }],
+    };
+
+    cappedManager.syncRadiusDecals([state]);
+    expect(cappedManager.decalRenderer.getActiveDecalCount()).toBe(1);
+    cappedManager.addScorchMark('RANDOM', 2, new THREE.Vector3(4, 0, 4));
+    expect(cappedManager.decalRenderer.getActiveDecalCount()).toBe(1);
+
+    cappedManager.syncRadiusDecals([state]);
+    expect(cappedManager.decalRenderer.getActiveDecalCount()).toBe(1);
+    const mesh = scene.children.find((child) => child.name.startsWith('decal-')) as THREE.Mesh;
+    expect(mesh.position.x).toBe(0);
+    cappedManager.dispose();
+  });
+
+  it('honors owning-player visibility for source radius decals', () => {
+    manager.syncRadiusDecals([{
+      id: 2,
+      isOwnedByLocalPlayer: false,
+      radiusDecals: [{
+        positionX: 0,
+        positionY: 0,
+        positionZ: 0,
+        radius: 10,
+        visible: true,
+        textureName: 'Radius',
+        onlyVisibleToOwningPlayer: true,
+      }],
+    }]);
+
+    expect(manager.decalRenderer.getActiveDecalCount()).toBe(0);
+  });
+
+  it('uses source owning player color when RadiusDecalTemplate color is 0', () => {
+    manager.syncRadiusDecals([{
+      id: 3,
+      isOwnedByLocalPlayer: true,
+      radiusDecals: [{
+        positionX: 0,
+        positionY: 0,
+        positionZ: 0,
+        radius: 10,
+        visible: true,
+        textureName: 'Radius',
+        color: 0,
+        ownerColor: 0xff123456 | 0,
+      }],
+    }]);
+
+    const mesh = scene.children.find((child) => child.name.startsWith('decal-')) as THREE.Mesh;
+    expect((mesh.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0x123456);
+  });
+
   it('preserves permanent scorch lifetimes for pre-placed map decals', async () => {
     manager.addScorchMark('SCORCH_4', 12, new THREE.Vector3(0, 0, 0), 0);
 

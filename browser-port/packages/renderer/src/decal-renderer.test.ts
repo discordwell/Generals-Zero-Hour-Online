@@ -47,6 +47,33 @@ describe('DecalRenderer', () => {
     expect(renderer.getActiveDecalCount()).toBe(0);
   });
 
+  it('supports source radius decal texture and opacity throb updates', () => {
+    const handle = renderer.addDecal({
+      position: [0, 0, 0],
+      sizeX: 10,
+      sizeY: 10,
+      rotation: 0,
+      blendMode: 'ALPHA',
+      opacity: 0.5,
+      color: 0xffffff,
+      opacityThrob: {
+        minOpacity: 0.25,
+        maxOpacity: 0.5,
+        periodSeconds: 1,
+      },
+      terrainConform: true,
+    });
+    const mesh = scene.children.find((c) => c.name.startsWith('decal-')) as THREE.Mesh;
+    const material = mesh.material as THREE.MeshBasicMaterial;
+    const texture = new THREE.Texture();
+
+    renderer.setDecalTexture(handle, texture);
+    expect(material.map).toBe(texture);
+
+    renderer.update(0.75);
+    expect(material.opacity).toBeCloseTo(0.25, 5);
+  });
+
   it('enforces max decal cap', () => {
     for (let i = 0; i < 15; i++) {
       renderer.addDecal({

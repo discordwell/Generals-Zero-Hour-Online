@@ -3565,7 +3565,7 @@ async function startGame(
   if (runtimeSaveLoadContext?.runtimeSave.particleSystemState) {
     particleSystemManager.restoreSaveState(runtimeSaveLoadContext.runtimeSave.particleSystemState);
   }
-  const decalManager = new DecalManager(scene, 256, 128);
+  const decalManager = new DecalManager(scene, 256, 128, ctx.assets);
   decalManager.init();
   addPreplacedMapScorchMarks(mapData, heightmap, decalManager);
 
@@ -4867,7 +4867,9 @@ async function startGame(
       syncScriptViewRuntimeBridge(gameLogic, objectVisualManager, terrainVisual, scriptSkyboxController);
       objectVisualManager.setCameraPosition(camState.targetX, camState.targetZ);
       scriptSkyboxController.update(camera);
-      objectVisualManager.sync(getCachedRenderStates(), dt);
+      const renderStates = getCachedRenderStates();
+      objectVisualManager.sync(renderStates, dt);
+      decalManager.syncRadiusDecals(renderStates);
 
       // Process visual events (explosions, muzzle flashes, etc.) and update particles.
       processVisualEvents();

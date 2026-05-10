@@ -54,6 +54,7 @@ export type { RadiusDecalConfig } from './radius-decal.js';
 export { TerrainScorchManager } from './terrain-scorch.js';
 export type { TerrainScorchConfig } from './terrain-scorch.js';
 export { DecalManager } from './decal-manager.js';
+export type { RenderableRadiusDecal, RadiusDecalEntityState } from './decal-manager.js';
 export { LODManager } from './lod-manager.js';
 export type { LODSceneInfo } from './lod-manager.js';
 export type {

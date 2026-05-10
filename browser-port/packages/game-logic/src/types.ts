@@ -164,6 +164,8 @@ export interface RenderableRadiusDecal {
   opacityThrobFrames?: number;
   /** Source parity: RadiusDecalTemplate::m_color packed as AARRGGBB, 0 = player color. */
   color?: number;
+  /** Source parity: owningPlayer->getPlayerColor() fallback when m_color is 0. */
+  ownerColor?: number | null;
   /** Source parity: RadiusDecalTemplate::m_onlyVisibleToOwningPlayer. */
   onlyVisibleToOwningPlayer?: boolean;
 }

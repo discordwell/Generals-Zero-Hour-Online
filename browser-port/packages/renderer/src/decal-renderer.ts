@@ -22,6 +22,12 @@ export interface DecalConfig {
   blendMode: DecalBlendMode;
   opacity: number;
   color: number;
+  texture?: THREE.Texture | null;
+  opacityThrob?: {
+    minOpacity: number;
+    maxOpacity: number;
+    periodSeconds: number;
+  };
   lifetime?: number;
   terrainConform: boolean;
 }
@@ -38,8 +44,10 @@ interface LiveDecal {
   id: number;
   mesh: THREE.Mesh;
   spawnTime: number;
+  elapsedSeconds: number;
   lifetime: number; // 0 = permanent
   initialOpacity: number;
+  opacityThrob: DecalConfig['opacityThrob'] | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,8 +110,10 @@ export class DecalRenderer {
       id,
       mesh,
       spawnTime: performance.now() / 1000,
+      elapsedSeconds: 0,
       lifetime: config.lifetime ?? 0,
       initialOpacity: config.opacity,
+      opacityThrob: config.opacityThrob ?? null,
     };
 
     this.decals.set(id, decal);
@@ -118,10 +128,31 @@ export class DecalRenderer {
     this.decals.delete(handle.id);
   }
 
-  update(_dt: number): void {
+  setDecalTexture(handle: DecalHandle, texture: THREE.Texture | null): void {
+    const decal = this.decals.get(handle.id);
+    if (!decal) return;
+    const material = decal.mesh.material as THREE.MeshBasicMaterial;
+    material.map = texture;
+    material.needsUpdate = true;
+  }
+
+  update(dt: number): void {
     const now = performance.now() / 1000;
 
     for (const [id, decal] of this.decals) {
+      if (Number.isFinite(dt) && dt > 0) {
+        decal.elapsedSeconds += dt;
+      }
+
+      if (decal.opacityThrob) {
+        const period = Math.max(1 / 30, decal.opacityThrob.periodSeconds);
+        const theta = 2 * Math.PI * ((decal.elapsedSeconds % period) / period);
+        const percent = 0.5 * (Math.sin(theta) + 1);
+        const material = decal.mesh.material as THREE.MeshBasicMaterial;
+        material.opacity = decal.opacityThrob.minOpacity
+          + percent * (decal.opacityThrob.maxOpacity - decal.opacityThrob.minOpacity);
+      }
+
       if (decal.lifetime <= 0) continue; // Permanent
 
       const age = now - decal.spawnTime;
@@ -135,7 +166,7 @@ export class DecalRenderer {
       if (age > fadeStart) {
         const fadeRatio = 1 - (age - fadeStart) / (decal.lifetime - fadeStart);
         const mat = decal.mesh.material as THREE.MeshBasicMaterial;
-        mat.opacity = decal.initialOpacity * Math.max(0, fadeRatio);
+        mat.opacity = Math.min(mat.opacity, decal.initialOpacity * Math.max(0, fadeRatio));
       }
     }
   }
@@ -173,6 +204,7 @@ export class DecalRenderer {
 
     return new THREE.MeshBasicMaterial({
       color: config.color,
+      map: config.texture ?? null,
       transparent: true,
       opacity: config.opacity,
       depthWrite: false,

@@ -741,6 +741,10 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
             maxOpacity: d.template?.maxOpacity,
             opacityThrobFrames: d.template?.opacityThrobFrames,
             color: d.template?.color,
+            ownerColor: (() => {
+              const normalizedSide = self.normalizeSide?.(entity.side) ?? entity.side ?? '';
+              return normalizedSide ? self.resolveMapSidePlayerColor?.(normalizedSide) ?? null : null;
+            })(),
             onlyVisibleToOwningPlayer: d.template?.onlyVisibleToOwningPlayer,
           }))
         : undefined,
