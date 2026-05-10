@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-06T12:51:50.553Z",
+  "generatedAt": "2026-05-10T07:32:45.555Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -470,6 +470,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,
@@ -986,6 +987,7 @@
         "packages/game-logic/src/entity-factory-defaults.test.ts",
         "packages/game-logic/src/entity-xfer.test.ts",
         "packages/game-logic/src/parity-lifetime-physics.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/parity-shockwave-shotsperbarrel.test.ts",
         "packages/game-logic/src/parity-zh-movement-status.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -1104,6 +1106,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/ai-update-fields.test.ts",
+        "packages/game-logic/src/can-path-through-units.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
         "packages/game-logic/src/index.test.ts",
@@ -1349,6 +1352,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/can-path-through-units.test.ts",
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
@@ -2171,6 +2175,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/aircraft-ai.test.ts",
         "packages/game-logic/src/assault-transport-save-state.test.ts",
+        "packages/game-logic/src/can-path-through-units.test.ts",
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
@@ -4615,6 +4620,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/can-path-through-units.test.ts",
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-xfer.test.ts",
@@ -8488,6 +8494,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,

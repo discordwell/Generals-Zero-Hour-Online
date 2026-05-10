@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-06T12:51:50.337Z",
+  "generatedAt": "2026-05-10T07:32:45.641Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -329,10 +329,12 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts"
+        "packages/app/src/game-shell.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P0"
@@ -1144,6 +1146,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-lifetime-physics.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/parity-shockwave-shotsperbarrel.test.ts",
         "packages/game-logic/src/parity-zh-movement-status.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -2602,6 +2605,7 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
+        "packages/game-logic/src/index.ts",
         "packages/game-logic/src/render-state-bridge.ts",
         "packages/game-logic/src/types.ts"
       ],
@@ -2610,7 +2614,8 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
-        "packages/game-logic/src/parity-float-stream.test.ts"
+        "packages/game-logic/src/parity-float-stream.test.ts",
+        "packages/game-logic/src/render-state.test.ts"
       ],
       "priority": "P0"
     },
@@ -2904,6 +2909,7 @@
         "packages/game-logic/src/parity-garrison-firepos.test.ts",
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-missing-fields.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
         "packages/game-logic/src/parity-rider-change-contain.test.ts",
         "packages/game-logic/src/parity-stealth-opacity-garrison.test.ts",
@@ -5422,10 +5428,12 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts"
+        "packages/app/src/game-shell.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P0"
@@ -6956,6 +6964,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-lifetime-physics.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/parity-zh-movement-status.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
@@ -6985,10 +6994,12 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts"
+        "packages/app/src/game-shell.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P1"
@@ -8513,7 +8524,8 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
-        "packages/game-logic/src/entity-lifecycle.test.ts"
+        "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts"
       ],
       "priority": "P1"
     },
@@ -8573,6 +8585,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-lifecycle.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/zh-behavior-runtime-fixes.test.ts"
       ],
       "priority": "P1"
@@ -8677,6 +8690,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/parity-lifetime-physics.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts"
       ],
       "priority": "P1"
@@ -15938,10 +15952,12 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts"
+        "packages/app/src/game-shell.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P1"
@@ -16067,7 +16083,8 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
+        "packages/game-logic/src/entity-factory.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
@@ -16383,7 +16400,8 @@
       "testReferenced": true,
       "testReferenceFiles": [
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
-        "packages/game-logic/src/index.test.ts"
+        "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts"
       ],
       "priority": "P2"
     },
@@ -16923,7 +16941,8 @@
       "testReferenceFiles": [
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/deterministic-crc.test.ts",
-        "packages/game-logic/src/index.test.ts"
+        "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts"
       ],
       "priority": "P2"
     },
@@ -16973,7 +16992,8 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
-        "packages/game-logic/src/index.test.ts"
+        "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts"
       ],
       "priority": "P2"
     },
@@ -17025,6 +17045,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/ini-readers.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts"
       ],
       "priority": "P2"
@@ -21271,6 +21292,7 @@
         "packages/game-logic/src/parity-garrison-firepos.test.ts",
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-missing-fields.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
         "packages/game-logic/src/parity-rider-change-contain.test.ts",
         "packages/game-logic/src/parity-stealth-opacity-garrison.test.ts",
@@ -22939,6 +22961,7 @@
         "packages/game-logic/src/parity-missile-fields.test.ts",
         "packages/game-logic/src/parity-missilelock-shroud.test.ts",
         "packages/game-logic/src/parity-ocl-continuous.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-overcharge-crate-reload.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
@@ -27103,10 +27126,13 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
+        "packages/game-logic/src/entity-factory.ts",
+        "packages/game-logic/src/index.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -27402,10 +27428,12 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts"
+        "packages/app/src/game-shell.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
@@ -31119,6 +31147,7 @@
         "packages/game-logic/src/parity-missile-fields.test.ts",
         "packages/game-logic/src/parity-missilelock-shroud.test.ts",
         "packages/game-logic/src/parity-ocl-continuous.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/parity-ocl-updates.test.ts",
         "packages/game-logic/src/parity-pipeline.test.ts",
         "packages/game-logic/src/parity-range-reload-sharing.test.ts",
@@ -35930,7 +35959,8 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
+        "packages/game-logic/src/entity-factory.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
@@ -36152,10 +36182,12 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts"
+        "packages/app/src/game-shell.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
@@ -42087,6 +42119,7 @@
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-garrison-firepos.test.ts",
         "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "packages/game-logic/src/parity-overlord-spawn.test.ts",
         "packages/game-logic/src/parity-repair-transport.test.ts",
         "packages/game-logic/src/parity-rider-change-contain.test.ts",
@@ -45648,10 +45681,12 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts"
+        "packages/app/src/game-shell.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
@@ -53081,10 +53116,12 @@
       "sourceFiles": [],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/game-shell.ts"
+        "packages/app/src/game-shell.ts",
+        "packages/game-logic/src/index.ts"
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/parity-ocl-nugget-fields.test.ts",
         "tools/module-field-coverage-report.test.ts"
       ],
       "priority": "P2"
