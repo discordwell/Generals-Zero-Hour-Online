@@ -337,6 +337,8 @@ export interface GameDataConfig {
   sellPercentage?: number;
   /** Source parity: GlobalData::m_MultipleFactory. */
   multipleFactory?: number;
+  /** Source parity: GlobalData::m_baseValuePerSupplyBox. */
+  baseValuePerSupplyBox?: number;
   /** Source parity: GlobalData::m_MinLowEnergyProductionSpeed. */
   minLowEnergyProductionSpeed?: number;
   /** Source parity: GlobalData::m_MaxLowEnergyProductionSpeed. */
@@ -704,6 +706,7 @@ export class IniDataRegistry {
           partitionCellSize: bundle.gameData.partitionCellSize,
           sellPercentage: bundle.gameData.sellPercentage,
           multipleFactory: bundle.gameData.multipleFactory,
+          baseValuePerSupplyBox: bundle.gameData.baseValuePerSupplyBox,
           minLowEnergyProductionSpeed: bundle.gameData.minLowEnergyProductionSpeed,
           maxLowEnergyProductionSpeed: bundle.gameData.maxLowEnergyProductionSpeed,
           lowEnergyPenaltyModifier: bundle.gameData.lowEnergyPenaltyModifier,
@@ -808,6 +811,7 @@ export class IniDataRegistry {
           partitionCellSize: this.gameData.partitionCellSize,
           sellPercentage: this.gameData.sellPercentage,
           multipleFactory: this.gameData.multipleFactory,
+          baseValuePerSupplyBox: this.gameData.baseValuePerSupplyBox,
           minLowEnergyProductionSpeed: this.gameData.minLowEnergyProductionSpeed,
           maxLowEnergyProductionSpeed: this.gameData.maxLowEnergyProductionSpeed,
           lowEnergyPenaltyModifier: this.gameData.lowEnergyPenaltyModifier,
@@ -1042,6 +1046,7 @@ export class IniDataRegistry {
             partitionCellSize: this.gameData.partitionCellSize,
             sellPercentage: this.gameData.sellPercentage,
             multipleFactory: this.gameData.multipleFactory,
+            baseValuePerSupplyBox: this.gameData.baseValuePerSupplyBox,
             minLowEnergyProductionSpeed: this.gameData.minLowEnergyProductionSpeed,
             maxLowEnergyProductionSpeed: this.gameData.maxLowEnergyProductionSpeed,
             lowEnergyPenaltyModifier: this.gameData.lowEnergyPenaltyModifier,
@@ -1469,6 +1474,12 @@ export class IniDataRegistry {
       multipleFactory = multipleFactoryValue;
     }
 
+    let baseValuePerSupplyBox = this.gameData?.baseValuePerSupplyBox;
+    const baseValuePerSupplyBoxValue = extractNumber(block.fields['ValuePerSupplyBox']);
+    if (baseValuePerSupplyBoxValue !== undefined) {
+      baseValuePerSupplyBox = baseValuePerSupplyBoxValue;
+    }
+
     let minLowEnergyProductionSpeed = this.gameData?.minLowEnergyProductionSpeed;
     const minLowEnergyProductionSpeedValue = extractNumber(block.fields['MinLowEnergyProductionSpeed']);
     if (minLowEnergyProductionSpeedValue !== undefined) {
@@ -1545,6 +1556,7 @@ export class IniDataRegistry {
       partitionCellSize,
       sellPercentage,
       multipleFactory,
+      baseValuePerSupplyBox,
       minLowEnergyProductionSpeed,
       maxLowEnergyProductionSpeed,
       lowEnergyPenaltyModifier,

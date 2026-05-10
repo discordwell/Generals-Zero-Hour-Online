@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-10T07:32:45.641Z",
+  "generatedAt": "2026-05-10T08:45:35.672Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -20292,6 +20292,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-collide-dock-fields.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/supply-chain-save-state.test.ts",
         "packages/game-logic/src/supply-chain.test.ts",
         "packages/game-logic/src/zh-dock-ai-runtime.test.ts"
@@ -21477,6 +21478,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-collide-dock-fields.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/supply-chain-save-state.test.ts",
         "packages/game-logic/src/supply-chain.test.ts",
         "packages/game-logic/src/zh-dock-ai-runtime.test.ts"
@@ -22649,6 +22651,7 @@
         "packages/game-logic/src/parity-thingtpl-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/stealth-detection.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/upgrade-modules.test.ts",
@@ -26478,6 +26481,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/parity-collide-dock-fields.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/supply-chain-save-state.test.ts",
         "packages/game-logic/src/supply-chain.test.ts"
       ],
@@ -27056,6 +27060,7 @@
         "packages/game-logic/src/parity-thingtpl-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/stealth-detection.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/upgrade-modules.test.ts",
@@ -27267,6 +27272,7 @@
         "packages/game-logic/src/parity-waveguide-fields.test.ts",
         "packages/game-logic/src/parity-weapon-bonus.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/skirmish-ai.test.ts",
         "packages/game-logic/src/supply-chain.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -27655,6 +27661,7 @@
         "packages/game-logic/src/parity-thingtpl-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/stealth-detection.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/upgrade-modules.test.ts",
@@ -45253,6 +45260,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-collide-dock-fields.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/supply-chain-save-state.test.ts",
         "packages/game-logic/src/supply-chain.test.ts",
         "packages/game-logic/src/zh-dock-ai-runtime.test.ts"
@@ -45313,6 +45321,7 @@
         "packages/game-logic/src/parity-collide-dock-fields.test.ts",
         "packages/game-logic/src/parity-misc.test.ts",
         "packages/game-logic/src/parity-supply-garrison.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/supply-chain-save-state.test.ts",
         "packages/game-logic/src/supply-chain.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -54906,6 +54915,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/parity-collide-dock-fields.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/supply-chain-save-state.test.ts",
         "packages/game-logic/src/supply-chain.test.ts"
       ],
@@ -56879,6 +56889,7 @@
         "packages/game-logic/src/parity-bounty-warehouse.test.ts",
         "packages/game-logic/src/parity-misc.test.ts",
         "packages/game-logic/src/parity-supply-garrison.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/supply-chain-save-state.test.ts",
         "packages/game-logic/src/supply-chain.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
@@ -60618,6 +60629,7 @@
         "packages/game-logic/src/parity-thingtpl-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/stealth-detection.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/upgrade-modules.test.ts",
@@ -61606,6 +61618,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/parity-collide-dock-fields.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/supply-chain-save-state.test.ts",
         "packages/game-logic/src/supply-chain.test.ts",
         "packages/game-logic/src/zh-dock-ai-runtime.test.ts"
@@ -61788,6 +61801,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/parity-collide-dock-fields.test.ts",
+        "packages/game-logic/src/script-supply-value.test.ts",
         "packages/game-logic/src/supply-chain-save-state.test.ts",
         "packages/game-logic/src/supply-chain.test.ts"
       ],

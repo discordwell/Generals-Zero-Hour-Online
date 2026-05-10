@@ -66,6 +66,7 @@ const bundle = JSON.parse(readFileSync(BUNDLE_PATH, 'utf-8')) as {
   gameData?: {
     weaponBonusEntries?: Array<{ condition?: string; field?: string; multiplier?: number }>;
     multipleFactory?: number;
+    baseValuePerSupplyBox?: number;
     minLowEnergyProductionSpeed?: number;
     maxLowEnergyProductionSpeed?: number;
     lowEnergyPenaltyModifier?: number;
@@ -223,6 +224,7 @@ describe('session 2026-05-04 — bundle-wide scanner over touched fields', () =>
   it('retail GameData production and base-regen values are present in the converted bundle', () => {
     expect(bundle.gameData).toEqual(expect.objectContaining({
       multipleFactory: 1,
+      baseValuePerSupplyBox: 75,
       minLowEnergyProductionSpeed: 0.5,
       maxLowEnergyProductionSpeed: 0.8,
       lowEnergyPenaltyModifier: 1,

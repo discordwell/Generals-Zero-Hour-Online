@@ -82,6 +82,11 @@ const SCRIPT_COMMAND_OPTION_NAME_TO_MASK = new Map<string, number>([
   ['MUST_BE_STOPPED', 0x00800000],
 ]);
 
+function resolveScriptSupplyBoxValue(self: GL): number {
+  const value = self.getSupplyBoxValue?.();
+  return Number.isFinite(value) ? Math.trunc(value) : DEFAULT_SUPPLY_BOX_VALUE;
+}
+
 // ---- Script action type mapping ----
 const SCRIPT_ACTION_TYPE_NUMERIC_TO_NAME = new Map<number, string>([
   [0, 'DEBUG_MESSAGE_BOX'],
@@ -8563,7 +8568,7 @@ export function executeScriptWarehouseSetValue(self: GL, warehouseEntityId: numb
 
   const warehouseState = self.supplyWarehouseStates.get(warehouse.id)
     ?? initializeWarehouseStateImpl(warehouse.supplyWarehouseProfile);
-  warehouseState.currentBoxes = Math.ceil(cashValue / DEFAULT_SUPPLY_BOX_VALUE);
+  warehouseState.currentBoxes = Math.ceil(cashValue / resolveScriptSupplyBoxValue(self));
   self.supplyWarehouseStates.set(warehouse.id, warehouseState);
   return true;
 }
@@ -12223,7 +12228,7 @@ export function findScriptSupplySourceForSide(self: GL,
 
       const warehouseState = self.supplyWarehouseStates.get(entity.id);
       if (!warehouseState) continue;
-      const availableCash = warehouseState.currentBoxes * DEFAULT_SUPPLY_BOX_VALUE;
+      const availableCash = warehouseState.currentBoxes * resolveScriptSupplyBoxValue(self);
       if (availableCash < requiredCash) continue;
 
       const entitySide = self.normalizeSide(entity.side);

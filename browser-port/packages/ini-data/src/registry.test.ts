@@ -137,6 +137,7 @@ describe('IniDataRegistry', () => {
       registry.loadBlocks([
         makeBlock('GameData', 'Default', {
           MultipleFactory: 1.0,
+          ValuePerSupplyBox: 125,
           MinLowEnergyProductionSpeed: 0.5,
           MaxLowEnergyProductionSpeed: 0.8,
           LowEnergyPenaltyModifier: 1.0,
@@ -148,6 +149,7 @@ describe('IniDataRegistry', () => {
 
       expect(registry.getGameData()).toEqual(expect.objectContaining({
         multipleFactory: 1.0,
+        baseValuePerSupplyBox: 125,
         minLowEnergyProductionSpeed: 0.5,
         maxLowEnergyProductionSpeed: 0.8,
         lowEnergyPenaltyModifier: 1.0,
@@ -160,6 +162,7 @@ describe('IniDataRegistry', () => {
       restored.loadBundle(registry.toBundle());
       expect(restored.getGameData()).toEqual(expect.objectContaining({
         multipleFactory: 1.0,
+        baseValuePerSupplyBox: 125,
         minLowEnergyProductionSpeed: 0.5,
         maxLowEnergyProductionSpeed: 0.8,
         lowEnergyPenaltyModifier: 1.0,
@@ -173,6 +176,7 @@ describe('IniDataRegistry', () => {
       const parsed = parseIni(`
 GameData
   MultipleFactory = 1.0
+  ValuePerSupplyBox = 125
   MinLowEnergyProductionSpeed = 0.5
   MaxLowEnergyProductionSpeed = 0.8
   LowEnergyPenaltyModifier = 1.0
@@ -186,6 +190,7 @@ End
 
       expect(registry.getGameData()).toEqual(expect.objectContaining({
         multipleFactory: 1.0,
+        baseValuePerSupplyBox: 125,
         minLowEnergyProductionSpeed: 0.5,
         maxLowEnergyProductionSpeed: 0.8,
         lowEnergyPenaltyModifier: 1.0,

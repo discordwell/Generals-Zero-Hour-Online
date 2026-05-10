@@ -7641,6 +7641,7 @@ const DEFAULT_GAME_LOGIC_CONFIG: Readonly<GameLogicConfig> = {
   maxTunnelCapacity: 10,
   partitionCellSize: PATHFIND_CELL_SIZE,
   multipleFactory: 0,
+  baseValuePerSupplyBox: DEFAULT_SUPPLY_BOX_VALUE,
   minLowEnergyProductionSpeed: 0,
   maxLowEnergyProductionSpeed: 0,
   lowEnergyPenaltyModifier: 0,
@@ -12067,6 +12068,10 @@ export class GameLogicSubsystem implements Subsystem {
       if (gameDataConfig.multipleFactory !== undefined
           && this.config.multipleFactory === DEFAULT_GAME_LOGIC_CONFIG.multipleFactory) {
         this.config.multipleFactory = gameDataConfig.multipleFactory;
+      }
+      if (gameDataConfig.baseValuePerSupplyBox !== undefined
+          && this.config.baseValuePerSupplyBox === DEFAULT_GAME_LOGIC_CONFIG.baseValuePerSupplyBox) {
+        this.config.baseValuePerSupplyBox = Math.trunc(gameDataConfig.baseValuePerSupplyBox);
       }
       if (gameDataConfig.minLowEnergyProductionSpeed !== undefined
           && this.config.minLowEnergyProductionSpeed === DEFAULT_GAME_LOGIC_CONFIG.minLowEnergyProductionSpeed) {
@@ -35765,7 +35770,7 @@ export class GameLogicSubsystem implements Subsystem {
       const warehouseState = this.supplyWarehouseStates.get(entity.id);
       if (!warehouseState) continue;
 
-      const value = DEFAULT_SUPPLY_BOX_VALUE * warehouseState.currentBoxes;
+      const value = this.getSupplyBoxValue() * warehouseState.currentBoxes;
       if (value > maxValue) {
         maxValue = value;
       }
@@ -46585,11 +46590,18 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
+  /** Source parity: Player::getSupplyBoxValue returns TheGlobalData->m_baseValuePerSupplyBox. */
+  /* @internal */ getSupplyBoxValue(): number {
+    return Number.isFinite(this.config.baseValuePerSupplyBox)
+      ? Math.trunc(this.config.baseValuePerSupplyBox)
+      : DEFAULT_SUPPLY_BOX_VALUE;
+  }
+
   private updateSupplyChain(): void {
     const supplyChainContext: SupplyChainContext<MapEntity> = {
       frameCounter: this.frameCounter,
       spawnedEntities: this.spawnedEntities,
-      supplyBoxValue: DEFAULT_SUPPLY_BOX_VALUE,
+      supplyBoxValue: this.getSupplyBoxValue(),
       getWarehouseProfile: (entity: MapEntity) => entity.supplyWarehouseProfile,
       getTruckProfile: (entity: MapEntity) => entity.supplyTruckProfile,
       isSupplyCenter: (entity: MapEntity) => entity.isSupplyCenter,

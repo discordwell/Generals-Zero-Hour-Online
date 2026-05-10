@@ -781,6 +781,11 @@ export interface GameLogicConfig {
    * When <= 0, extra factories do not speed up production.
    */
   multipleFactory: number;
+  /**
+   * Source parity: TheGlobalData::m_baseValuePerSupplyBox returned by
+   * Player::getSupplyBoxValue(). C++ default is 100.
+   */
+  baseValuePerSupplyBox: number;
   /** Source parity: TheGlobalData::m_MinLowEnergyProductionSpeed. */
   minLowEnergyProductionSpeed: number;
   /**

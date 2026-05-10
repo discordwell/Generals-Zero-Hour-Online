@@ -172,6 +172,12 @@ describe('supply deposit total credits', () => {
         locomotors: [
           { name: 'TruckLoco', fields: { Speed: 60 }, surfaces: ['GROUND'], surfaceMask: 1, downhillOnly: false, speed: 60 },
         ],
+        gameData: {
+          weaponBonusEntries: [],
+          healthBonuses: [1, 1, 1, 1],
+          baseValuePerSupplyBox: 125,
+          soloPlayerHealthBonuses: [[1, 1, 1], [1, 1, 1]],
+        },
       },
       mapObjects: [
         place('TestWarehouse', 20, 20),
@@ -188,14 +194,13 @@ describe('supply deposit total credits', () => {
     expect(initialCredits).toBe(0);
 
     // Run enough frames for the truck to complete at least one gather-deliver cycle.
-    // Each box = 100 credits (DEFAULT_SUPPLY_BOX_VALUE). 4 boxes = 400 credits.
+    // Source parity: Player::getSupplyBoxValue returns GameData.ValuePerSupplyBox.
     agent.step(600);
 
     const finalCredits = agent.state().credits['America'] ?? 0;
-    // The truck should have deposited at least one load of 4 boxes = 400 credits.
+    // The truck should have deposited at least one load of 4 boxes at 125 credits each.
     expect(finalCredits).toBeGreaterThan(0);
-    // Total should be a multiple of 100 (each box worth 100 credits).
-    expect(finalCredits % 100).toBe(0);
+    expect(finalCredits % 125).toBe(0);
   });
 });
 
