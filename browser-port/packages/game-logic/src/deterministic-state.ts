@@ -67,6 +67,7 @@ interface DeterministicMapEntityLike {
   pathfindGoalCell: GridCellLike | null;
   pathfindPosCell: GridCellLike | null;
   ignoredMovementObstacleId: number | null;
+  canPathThroughUnits: boolean;
   obstacleGeometry: ObstacleGeometryLike | null;
   locomotorSets: Map<string, LocomotorSetProfileLike>;
   locomotorUpgradeTriggers: Set<string>;
@@ -363,6 +364,7 @@ function writeDeterministicObjectsCrc(
     } else {
       crc.addUnsignedByte(0);
     }
+    crc.addUnsignedByte(entity.canPathThroughUnits ? 1 : 0);
 
     if (entity.obstacleGeometry) {
       crc.addUnsignedByte(1);

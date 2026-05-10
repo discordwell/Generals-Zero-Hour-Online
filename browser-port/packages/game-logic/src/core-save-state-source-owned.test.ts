@@ -2672,6 +2672,7 @@ interface SourceAIUpdateInterfaceTailForTestOptions {
   pathfindCurCell: { x: number; y: number };
   attitude: number;
   nextMoodCheckFrame: number;
+  canPathThroughUnits?: boolean;
 }
 
 function writeSourcePathSnapshotForTest(saver: XferSave): void {
@@ -2737,7 +2738,7 @@ function writeSourceAIUpdateInterfaceTailForTest(
   saver.xferBool(false);
   saver.xferBool(false);
   saver.xferBool(true);
-  saver.xferBool(false);
+  saver.xferBool(options.canPathThroughUnits ?? false);
   saver.xferBool(false);
   saver.xferObjectID(0);
   saver.xferObjectID(0);
@@ -8724,6 +8725,7 @@ describe('source-owned game-logic core save-state', () => {
           pathfindCurCell: { x: 44, y: 55 },
           attitude: 2,
           nextMoodCheckFrame: 999,
+          canPathThroughUnits: true,
         },
       }),
     }];
@@ -8745,6 +8747,7 @@ describe('source-owned game-logic core save-state', () => {
         scriptAttitude: number;
         locomotorUpgradeEnabled: boolean;
         ignoredMovementObstacleId: number | null;
+        canPathThroughUnits: boolean;
         pathfindGoalCell: { x: number; z: number } | null;
         pathfindPosCell: { x: number; z: number } | null;
         sourceAIGoalSquadObjectIds: number[] | null;
@@ -8757,6 +8760,7 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedMover.scriptAttitude).toBe(2);
     expect(importedMover.locomotorUpgradeEnabled).toBe(true);
     expect(importedMover.ignoredMovementObstacleId).toBe(777);
+    expect(importedMover.canPathThroughUnits).toBe(true);
     expect(importedMover.pathfindGoalCell).toEqual({ x: 22, z: 33 });
     expect(importedMover.pathfindPosCell).toEqual({ x: 44, z: 55 });
     expect(importedMover.sourceAIGoalSquadObjectIds).toEqual([201, 202]);

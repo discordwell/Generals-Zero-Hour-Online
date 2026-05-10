@@ -1424,8 +1424,11 @@ export function updateUnitCollisionSeparation(self: GL): void {
       // Enemy units are handled by combat engagement and crush collisions, not separation.
       if (self.getTeamRelationship(a, b) !== RELATIONSHIP_ALLIES) continue;
 
-      // Source parity: C++ canPathThroughUnits skips collision for certain units.
-      // We approximate: skip if either entity has an ignored obstacle ID pointing at the other.
+      // Source parity: AIUpdateInterface::processCollision returns false while
+      // m_canPathThroughUnits is active.
+      if (a.canPathThroughUnits || b.canPathThroughUnits) continue;
+
+      // Source parity: ignoreObstacle() tells pathing/collision to ignore one target object.
       if (a.ignoredMovementObstacleId === b.id || b.ignoredMovementObstacleId === a.id) continue;
 
       // Bounding circle radii from obstacle geometry.

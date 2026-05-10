@@ -77,6 +77,8 @@ export interface NavigationEntityLike {
   pathfindPosCell: GridCell | null;
   pathfindGoalCell: GridCell | null;
   ignoredMovementObstacleId: number | null;
+  /** Source parity: AIUpdateInterface::m_canPathThroughUnits. */
+  canPathThroughUnits?: boolean;
   locomotorSurfaceMask?: number;
   locomotorDownhillOnly?: boolean;
   attackNeedsLineOfSight: boolean;
@@ -915,6 +917,9 @@ function checkForMovement<TEntity extends NavigationEntityLike>(
         if (!unit.canMove || (considerTransient && unit.moving)) {
           result.enemyFixed = true;
           return result;
+        }
+        if (mover.canPathThroughUnits === true) {
+          continue;
         }
         if (!allies.includes(unit.id)) {
           result.allyFixedCount += 1;

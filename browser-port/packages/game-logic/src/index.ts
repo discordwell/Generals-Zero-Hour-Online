@@ -4091,6 +4091,8 @@ export interface MapEntity {
   sourceObjectFormationOffset: { x: number; y: number } | null;
   obstacleFootprint: number;
   ignoredMovementObstacleId: number | null;
+  /** Source parity: AIUpdateInterface::m_canPathThroughUnits. */
+  canPathThroughUnits: boolean;
   movePath: VectorXZ[];
   pathIndex: number;
   moving: boolean;
@@ -10146,6 +10148,7 @@ interface SourceAIUpdateInterfaceImportState {
   pathfindGoalCell: { x: number; y: number } | null;
   pathfindCurCell: { x: number; y: number } | null;
   ignoreObstacleId: number | null;
+  canPathThroughUnits: boolean;
   upgradedLocomotors: boolean | null;
   attitude: number | null;
   turretSnapshots: SourceTurretAIImportState[];
@@ -10173,6 +10176,7 @@ interface SourceAIUpdateInterfaceTailImportState {
   pathfindGoalCell: { x: number; y: number };
   pathfindCurCell: { x: number; y: number };
   ignoreObstacleId: number;
+  canPathThroughUnits: boolean;
   upgradedLocomotors: boolean;
   attitude: number;
   turretSnapshots: SourceTurretAIImportState[];
@@ -17728,7 +17732,7 @@ export class GameLogicSubsystem implements Subsystem {
     xfer.xferBool(false);
     xfer.xferBool(false);
     const upgradedLocomotors = xfer.xferBool(false);
-    xfer.xferBool(false);
+    const canPathThroughUnits = xfer.xferBool(false);
     xfer.xferBool(false);
     xfer.xferObjectID(0);
     xfer.xferObjectID(0);
@@ -17753,6 +17757,7 @@ export class GameLogicSubsystem implements Subsystem {
       pathfindGoalCell,
       pathfindCurCell,
       ignoreObstacleId,
+      canPathThroughUnits,
       upgradedLocomotors,
       attitude,
       turretSnapshots,
@@ -17817,6 +17822,7 @@ export class GameLogicSubsystem implements Subsystem {
           pathfindGoalCell: tail?.pathfindGoalCell ?? null,
           pathfindCurCell: tail?.pathfindCurCell ?? null,
           ignoreObstacleId: tail?.ignoreObstacleId ?? null,
+          canPathThroughUnits: tail?.canPathThroughUnits ?? false,
           upgradedLocomotors: tail?.upgradedLocomotors ?? null,
           attitude: tail?.attitude ?? null,
           turretSnapshots: tail?.turretSnapshots ?? [],
@@ -20625,6 +20631,7 @@ export class GameLogicSubsystem implements Subsystem {
         const ignoreObstacleId = Math.trunc(aiUpdateState.ignoreObstacleId);
         entity.ignoredMovementObstacleId = ignoreObstacleId > 0 ? ignoreObstacleId : null;
       }
+      entity.canPathThroughUnits = aiUpdateState.canPathThroughUnits;
       this.applySourceTurretAISnapshotsToEntity(entity, aiUpdateState.turretSnapshots);
       if (aiUpdateState.pathfindGoalCell !== null) {
         const { x, y } = aiUpdateState.pathfindGoalCell;
