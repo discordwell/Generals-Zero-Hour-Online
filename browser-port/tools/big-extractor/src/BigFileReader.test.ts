@@ -250,6 +250,20 @@ describe('BigFileReader', () => {
     });
   });
 
+  describe('isExtractablePath()', () => {
+    it('allows normal archive-relative file paths', () => {
+      expect(BigFileReader.isExtractablePath('Data/INI/GameData.ini')).toBe(true);
+      expect(BigFileReader.isExtractablePath('Art\\W3D\\AVAvnger.W3D')).toBe(true);
+    });
+
+    it('rejects retail wildcard/tombstone and traversal paths', () => {
+      expect(BigFileReader.isExtractablePath('Data/*')).toBe(false);
+      expect(BigFileReader.isExtractablePath('../Data/INI/GameData.ini')).toBe(false);
+      expect(BigFileReader.isExtractablePath('/Data/INI/GameData.ini')).toBe(false);
+      expect(BigFileReader.isExtractablePath('C:/Data/INI/GameData.ini')).toBe(false);
+    });
+  });
+
   describe('endianness correctness', () => {
     it('should correctly read big-endian file count, offset, and size', () => {
       // Build an archive with a single file whose offset and size

@@ -155,4 +155,29 @@ export class BigFileReader {
       e.path.toLowerCase().endsWith(lowerExt),
     );
   }
+
+  /**
+   * Returns true when an archive path can be written safely beneath an
+   * extraction directory on Windows and POSIX filesystems.
+   *
+   * Retail PatchZH.big contains a zero-byte "Data/*" tombstone/wildcard entry.
+   * The original game ignores it; the browser conversion pipeline should skip
+   * it rather than trying to create a literal wildcard file.
+   */
+  static isExtractablePath(path: string): boolean {
+    const normalized = path.replace(/\\/g, '/').trim();
+    if (!normalized || normalized.startsWith('/') || normalized.endsWith('/')) {
+      return false;
+    }
+    if (/^[A-Za-z]:/.test(normalized)) {
+      return false;
+    }
+    const segments = normalized.split('/');
+    return segments.every((segment) =>
+      segment.length > 0
+      && segment !== '.'
+      && segment !== '..'
+      && !/[<>:"|?*]/.test(segment),
+    );
+  }
 }

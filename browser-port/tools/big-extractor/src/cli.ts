@@ -152,9 +152,15 @@ function main(): void {
   // Extract mode
   const outputDir = args.output!;
   let extracted = 0;
+  let skippedUnsafe = 0;
   let totalBytes = 0;
 
   for (const entry of entries) {
+    if (!BigFileReader.isExtractablePath(entry.path)) {
+      console.warn(`Skipping unsafe BIG entry path: ${entry.path}`);
+      skippedUnsafe++;
+      continue;
+    }
     const outPath = join(outputDir, entry.path);
     const outDir = dirname(outPath);
 
@@ -172,6 +178,9 @@ function main(): void {
   console.log(
     `\nExtracted ${extracted} file(s) (${formatSize(totalBytes)}) to ${outputDir}`,
   );
+  if (skippedUnsafe > 0) {
+    console.log(`Skipped ${skippedUnsafe} unsafe/tombstone entr${skippedUnsafe === 1 ? 'y' : 'ies'}`);
+  }
 }
 
 main();
