@@ -4920,6 +4920,25 @@ describe('AutoDepositUpdate', () => {
     expect(logic.getSideCredits('gla')).toBe(startCredits + 70);
   });
 
+  it('adds UpgradedBoost from nested token arrays emitted by regenerated bundles', () => {
+    const { logic, startCredits } = makeAutoDepositSetup({
+      depositTimingMs: 1000,
+      depositAmount: 50,
+      upgradedBoost: [['UpgradeType:Upgrade_AmericaSupplyLines', 'Boost:20']],
+    });
+    const privateApi = logic as unknown as {
+      setSideUpgradeCompleted: (side: string, upgradeName: string, enabled: boolean) => void;
+    };
+
+    privateApi.setSideUpgradeCompleted('GLA', 'Upgrade_AmericaSupplyLines', true);
+
+    for (let i = 0; i < 30; i++) {
+      logic.update(1 / 30);
+    }
+
+    expect(logic.getSideCredits('gla')).toBe(startCredits + 70);
+  });
+
   it('honors ActualMoney=false by withholding periodic credit deposits', () => {
     const { logic, startCredits } = makeAutoDepositSetup({
       depositTimingMs: 100,

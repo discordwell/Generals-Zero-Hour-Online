@@ -387,6 +387,29 @@ describe('OCLUpdate ZH fields', () => {
     expect(p.factionOCLMap.get('GLA')).toBe('OCL_ReinforcementGLA');
   });
 
+  it('extracts nested FactionOCL token arrays from regenerated retail bundles', () => {
+    const objectDef = makeSimpleObjectDef('TestReinforcementPadNested', [
+      makeBlock('Behavior', 'OCLUpdate ModuleTag_OCL', {
+        MinDelay: 120000,
+        MaxDelay: 120000,
+        FactionTriggered: true,
+        FactionOCL: [
+          ['Faction:America', 'OCL:OCL_ReinforcementUSA'],
+          ['Faction:China', 'OCL:OCL_ReinforcementCHI'],
+          ['Faction:GLAStealthGeneral', 'OCL:OCL_StlthGen_ReinforcementPadGLAVehicle'],
+        ],
+      }),
+    ]);
+    const profiles = extractOCLUpdateProfiles(makeSelf(), objectDef);
+    expect(profiles).toHaveLength(1);
+    const p = profiles[0]!;
+    expect(p.factionTriggered).toBe(true);
+    expect(p.factionOCLMap.size).toBe(3);
+    expect(p.factionOCLMap.get('AMERICA')).toBe('OCL_ReinforcementUSA');
+    expect(p.factionOCLMap.get('CHINA')).toBe('OCL_ReinforcementCHI');
+    expect(p.factionOCLMap.get('GLASTEALTHGENERAL')).toBe('OCL_StlthGen_ReinforcementPadGLAVehicle');
+  });
+
   it('allows faction-only OCLUpdate with no base OCL', () => {
     const objectDef = makeSimpleObjectDef('TestReinforcementPad', [
       makeBlock('Behavior', 'OCLUpdate ModuleTag_OCL', {

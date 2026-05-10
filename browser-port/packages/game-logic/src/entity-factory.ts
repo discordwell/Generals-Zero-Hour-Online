@@ -3477,23 +3477,8 @@ export function extractOCLUpdateProfiles(self: GL, objectDef: ObjectDef | undefi
         const factionOCLMap = new Map<string, string>();
         const factionOCLRaw = block.fields['FactionOCL'];
         if (factionOCLRaw !== undefined) {
-          const rawEntries: string[] = [];
-          if (typeof factionOCLRaw === 'string') {
-            rawEntries.push(factionOCLRaw);
-          } else if (Array.isArray(factionOCLRaw)) {
-            const stringElems = factionOCLRaw.filter((v): v is string => typeof v === 'string');
-            // If each element already contains both Faction: and OCL: markers,
-            // each element is a complete entry. Otherwise the array is one
-            // entry's tokens that got split (the bundle shape).
-            const everyElementIsCompleteEntry = stringElems.length > 0
-              && stringElems.every((s) => /Faction[:\s]/i.test(s) && /OCL[:\s]/i.test(s));
-            if (everyElementIsCompleteEntry) {
-              for (const s of stringElems) rawEntries.push(s);
-            } else if (stringElems.length > 0) {
-              rawEntries.push(stringElems.join(' '));
-            }
-          }
-          for (const entry of rawEntries) {
+          for (const tokens of extractIniValueTokens(self, factionOCLRaw)) {
+            const entry = tokens.join(' ');
             // Format: "Faction:<name> OCL:<ocl_name>" or "Faction:<name>OCL:<ocl_name>"
             const factionMatch = entry.match(/Faction[:\s]+(\S+)/i);
             const oclMatch = entry.match(/OCL[:\s]+(\S+)/i);
@@ -5121,39 +5106,10 @@ export function extractCrateCollideProfile(self: GL, objectDef: ObjectDef | unde
  */
 function extractUpgradedBoosts(value: unknown): Array<{ upgradeName: string; amount: number }> {
   if (value === undefined || value === null) return [];
-  // Each entry is "UpgradeType:Name Boost:N" — multiple key:value tokens. The
-  // shipped INI bundle may emit one entry as a flat array of tokens
-  // (["UpgradeType:X", "Boost:25"]) or as a single string. Treat the entire
-  // flat array as one entry's tokens whenever any element starts with a known
-  // key prefix; otherwise each element is its own whitespace-separated entry.
-  const entriesAsTokens: string[][] = [];
-  if (typeof value === 'string') {
-    entriesAsTokens.push(value.trim().split(/\s+/).filter((t) => t.length > 0));
-  } else if (Array.isArray(value)) {
-    const stringElems = value.filter((v): v is string => typeof v === 'string').map((s) => s.trim());
-    if (stringElems.length > 0) {
-      // If each element already contains both UpgradeType: and Boost: markers,
-      // each element is a complete entry. Otherwise the array is one entry's
-      // tokens that got split (the bundle shape).
-      const everyElementIsCompleteEntry = stringElems.every(
-        (s) => /UpgradeType:/i.test(s) && /Boost:/i.test(s),
-      );
-      if (everyElementIsCompleteEntry) {
-        for (const s of stringElems) {
-          const tokens = s.split(/\s+/).filter((t) => t.length > 0);
-          if (tokens.length > 0) entriesAsTokens.push(tokens);
-        }
-      } else {
-        const tokens: string[] = [];
-        for (const s of stringElems) {
-          for (const t of s.split(/\s+/)) {
-            if (t.length > 0) tokens.push(t);
-          }
-        }
-        if (tokens.length > 0) entriesAsTokens.push(tokens);
-      }
-    }
-  }
+  // Each entry is "UpgradeType:Name Boost:N".
+  // The INI bundle can encode this as a string, a flat token array, or repeated
+  // nested token arrays.
+  const entriesAsTokens = extractIniValueTokens({} as GL, value as IniValue);
   const result: Array<{ upgradeName: string; amount: number }> = [];
   for (const tokens of entriesAsTokens) {
     let upgradeName = '';
