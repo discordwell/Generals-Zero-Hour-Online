@@ -14307,6 +14307,14 @@ describe('MissileLauncherBuildingUpdate door transitions via SpecialPowerReadyFr
 });
 
 describe('HistoricBonus weapon trigger', () => {
+  const retailHistoricDamageLimitFrames = 150;
+  const retailHistoricGameData = {
+    weaponBonusEntries: [],
+    healthBonuses: [1, 1, 1, 1],
+    soloPlayerHealthBonuses: [[1, 1, 1], [1, 1, 1]],
+    historicDamageLimitFrames: retailHistoricDamageLimitFrames,
+  };
+
   it('fires bonus weapon after enough hits within radius and time window', () => {
     const bundle = makeBundle({
       objects: [
@@ -14335,6 +14343,7 @@ describe('HistoricBonus weapon trigger', () => {
           AttackRange: 200,
         }),
       ],
+      gameData: retailHistoricGameData,
     });
 
     const scene = new THREE.Scene();
@@ -14422,6 +14431,7 @@ describe('HistoricBonus weapon trigger', () => {
           AttackRange: 200,
         }),
       ],
+      gameData: retailHistoricGameData,
     });
 
     const scene = new THREE.Scene();
@@ -14479,6 +14489,7 @@ describe('HistoricBonus weapon trigger', () => {
         ]),
       ],
       weapons: [],
+      gameData: retailHistoricGameData,
     });
 
     const scene = new THREE.Scene();
