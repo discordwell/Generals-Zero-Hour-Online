@@ -43,6 +43,7 @@ import {
   parseTsSaveGameInfoXferFields,
   parseTsSaveSnapshotBlockNames,
   parseTsSkirmishGameInfoXferFields,
+  parseTsSourceGeneratedAIStateMachineFields,
   parseTsTacticalViewXferFields,
   parseTsTeamFactoryXferFields,
   parseTsTerrainLogicXferFields,
@@ -443,6 +444,59 @@ function createEmptyTerrainLogicSaveState() {}`;
         'isChallengeCampaign',
         'challengeGameInfoSnapshot',
         'playerTemplateNum',
+      ]);
+    });
+
+    it('parses TS generated AI state machine fields through the shared tail helper', () => {
+      const source = `
+function buildGeneratedSourceAIStateMachineBlockData() {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-state-machine');
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+  saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+  saver.xferBool(false);
+  saver.xferVersion(1);
+  saver.xferUnsignedShort(sourceAIIdleInitialSleepOffset(entity));
+  saver.xferBool(true);
+  saver.xferBool(true);
+  xferGeneratedSourceAIStateMachineTail(saver, fallback, temporaryState);
+}
+
+function xferGeneratedSourceAIStateMachineTail(saver: XferSave) {
+  saver.xferObjectID(goalObjectId);
+  saver.xferCoord3D(goalPosition);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferInt(goalPath.length);
+  saver.xferAsciiString('');
+  saver.xferBool(goalSquadObjectIds.length > 0);
+  saver.xferUnsignedInt(temporaryState?.currentStateId ?? SOURCE_AI_INVALID_STATE_ID);
+  saver.xferUnsignedInt(temporaryState?.frameEnd ?? 0);
+}`;
+      const fields = parseTsSourceGeneratedAIStateMachineFields(source);
+      expect(fields).toEqual([
+        'version',
+        'stateMachine.version',
+        'sleepTill',
+        'defaultStateId',
+        'currentStateId',
+        'snapshotAllStates',
+        'stateMachine.currentState.version',
+        'stateMachine.currentState.initialSleepOffset',
+        'stateMachine.currentState.shouldLookForTargets',
+        'stateMachine.currentState.inited',
+        'goalObjectId',
+        'goalPosition',
+        'locked',
+        'defaultStateInited',
+        'goalPath.count',
+        'goalWaypointName',
+        'goalSquad.present',
+        'temporaryStateId',
+        'temporaryStateFrameEnd',
       ]);
     });
 

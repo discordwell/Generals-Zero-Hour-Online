@@ -122,6 +122,10 @@ export interface MapInfo {
   name: string;
   /** Asset path for loading (e.g., "maps/Alpine Assault.json"). */
   path: string;
+  /** Source MapMetaData::m_numPlayers when known. */
+  numPlayers?: number;
+  /** Source MapMetaData::m_isMultiplayer when known. */
+  isMultiplayer?: boolean;
 }
 
 /**
@@ -1592,29 +1596,35 @@ export class GameShell {
   }
 
   /**
-   * Populate available maps from an asset manifest.
-   * Filters output paths starting with "maps/" and ending with ".json",
-   * then strips internal extraction prefixes so only the map's display
-   * name is shown.  Non-skirmish maps (campaign, cinematics, shell maps,
-   * challenge and test maps) are excluded.
+   * Populate available maps from source-backed map metadata.
    *
-   * Source parity: SkirmishGameOptionsMenu.cpp populates the map list
-   * from the Maps/ directory, filtering by isMultiplayer flag.  We
-   * approximate this with naming-convention heuristics.
+   * Source parity: SkirmishGameOptionsMenu.cpp populates the map list from
+   * MapCache entries whose MapMetaData::m_isMultiplayer flag is true. Runtime
+   * callers should pass MapInfo objects built from converted map waypoint data.
+   * Plain output paths are still accepted for tests and legacy manifests.
    */
-  setAvailableMaps(outputPaths: string[]): void {
-    this.availableMaps = outputPaths
-      .filter(p => /^maps\//i.test(p) && p.endsWith('.json'))
-      .map(p => {
-        // Extract the basename (final path segment without extension).
-        const segments = p.replace(/\.json$/i, '').split('/');
+  setAvailableMaps(mapEntries: readonly (string | MapInfo)[]): void {
+    this.availableMaps = mapEntries
+      .map((entry): MapInfo | null => {
+        if (typeof entry !== 'string') {
+          return { ...entry };
+        }
+        if (!/^maps\//i.test(entry) || !entry.endsWith('.json')) {
+          return null;
+        }
+        const segments = entry.replace(/\.json$/i, '').split('/');
         const basename = segments[segments.length - 1] ?? '';
         return {
-          path: p,
+          path: entry,
           name: basename.replace(/_/g, ' ').trim(),
         };
       })
-      .filter(m => isSkirmishMapName(m.name))
+      .filter((entry): entry is MapInfo => entry !== null)
+      .filter((entry) => (
+        typeof entry.isMultiplayer === 'boolean'
+          ? entry.isMultiplayer
+          : isSkirmishMapName(entry.name)
+      ))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 

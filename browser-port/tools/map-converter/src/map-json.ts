@@ -1,4 +1,8 @@
-import type { MapDataJSON } from '@generals/terrain';
+import {
+  deriveMapMetadataFromWaypointNodes,
+  type MapDataJSON,
+  type WaypointNodeJSON,
+} from '@generals/terrain';
 
 import { MapParser, type ParsedMap } from './MapParser.js';
 
@@ -47,7 +51,18 @@ function stringifyMapObjectProperty(value: unknown): string {
 }
 
 export function parsedMapToJSON(parsed: ParsedMap): MapDataJSON {
+  const waypointNodes: WaypointNodeJSON[] = parsed.waypoints.nodes.map((node) => ({
+    id: node.id,
+    name: node.name,
+    position: node.position,
+    pathLabel1: node.pathLabel1,
+    pathLabel2: node.pathLabel2,
+    pathLabel3: node.pathLabel3,
+    biDirectional: node.biDirectional,
+  }));
+
   return {
+    metadata: deriveMapMetadataFromWaypointNodes(waypointNodes),
     heightmap: {
       width: parsed.heightmap.width,
       height: parsed.heightmap.height,
@@ -74,15 +89,7 @@ export function parsedMapToJSON(parsed: ParsedMap): MapDataJSON {
       points: trig.points,
     })),
     waypoints: {
-      nodes: parsed.waypoints.nodes.map((node) => ({
-        id: node.id,
-        name: node.name,
-        position: node.position,
-        pathLabel1: node.pathLabel1,
-        pathLabel2: node.pathLabel2,
-        pathLabel3: node.pathLabel3,
-        biDirectional: node.biDirectional,
-      })),
+      nodes: waypointNodes,
       links: parsed.waypoints.links.map((link) => ({
         waypoint1: link.waypoint1,
         waypoint2: link.waypoint2,

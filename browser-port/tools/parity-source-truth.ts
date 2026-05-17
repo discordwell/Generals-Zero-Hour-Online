@@ -1818,12 +1818,16 @@ export function parseTsSourceGeneratedAIStateMachineFields(source: string): stri
   const body = extractFunctionBodyAfterParams(source, 'buildGeneratedSourceAIStateMachineBlockData');
   if (!body) return [];
   const idleBranchStart = body.indexOf("saver.open('build-generated-source-ai-state-machine')");
-  const parseBody = idleBranchStart >= 0 ? body.slice(idleBranchStart) : body;
-  const hasStateMachineTailHelper = parseBody.includes('xferGeneratedSourceAIStateMachineTail');
+  const hasStateMachineTailHelper = body.includes('xferGeneratedSourceAIStateMachineTail');
+  const tailBody = hasStateMachineTailHelper
+    ? extractFunctionBodyAfterParams(source, 'xferGeneratedSourceAIStateMachineTail') ?? ''
+    : '';
+  const idleBody = idleBranchStart >= 0 ? body.slice(idleBranchStart) : body;
+  const parseBody = `${idleBody}\n${tailBody}`;
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /saver\.xferVersion\s*\(\s*1\s*\)|saver\.xferUnsignedInt\s*\(\s*(?:0|SOURCE_AI_STATE_IDLE|SOURCE_AI_INVALID_STATE_ID)\s*\)|saver\.xferBool\s*\(\s*(?:false|true)\s*\)|saver\.xferUnsignedShort\s*\(\s*sourceAIIdleInitialSleepOffset\s*\(|saver\.xferObjectID\s*\(\s*0\s*\)|saver\.xferCoord3D\s*\(\s*\{|saver\.xferInt\s*\(\s*0\s*\)|saver\.xferAsciiString\s*\(\s*''\s*\)/g;
+    /saver\.xferVersion\s*\(\s*1\s*\)|saver\.xferUnsignedInt\s*\(\s*(?:0|SOURCE_AI_STATE_IDLE|SOURCE_AI_INVALID_STATE_ID|temporaryState\?\.currentStateId\s*\?\?\s*SOURCE_AI_INVALID_STATE_ID|temporaryState\?\.frameEnd\s*\?\?\s*0)\s*\)|saver\.xferBool\s*\(\s*(?:false|true|goalSquadObjectIds\.length\s*>\s*0)\s*\)|saver\.xferUnsignedShort\s*\(\s*sourceAIIdleInitialSleepOffset\s*\(|saver\.xferObjectID\s*\(\s*(?:0|goalObjectId)\s*\)|saver\.xferCoord3D\s*\(\s*(?:\{|goalPosition)\s*\)|saver\.xferInt\s*\(\s*(?:0|goalPath\.length)\s*\)|saver\.xferAsciiString\s*\(\s*''\s*\)/g;
   let versionIndex = 0;
   let unsignedIntIndex = 0;
   let boolIndex = 0;

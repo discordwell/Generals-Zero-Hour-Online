@@ -11,6 +11,12 @@ import {
 } from '@generals/ini-data';
 import { readNumericField, readStringField } from './ini-readers.js';
 
+const caseInsensitiveLookupCache = new WeakMap<
+  ReadonlyMap<string, unknown>,
+  { size: number; entries: Map<string, unknown> }
+>();
+const promotedObjectDefCache = new WeakMap<ObjectDef, ObjectDef>();
+
 function coerceKindOfList(value: unknown): string[] | undefined {
   if (Array.isArray(value)) {
     const tokens = value.filter((entry): entry is string => typeof entry === 'string');
@@ -27,11 +33,16 @@ function promoteDisplacedObjectFields(objectDef: ObjectDef | undefined): ObjectD
   if (!objectDef) {
     return undefined;
   }
+  const cached = promotedObjectDefCache.get(objectDef);
+  if (cached) {
+    return cached;
+  }
 
   const topLevelHasKindOf = Array.isArray(objectDef.kindOf) && objectDef.kindOf.length > 0;
   const topLevelHasSide = !!objectDef.side || readStringField(objectDef.fields, ['Side']) !== null;
   const topLevelHasRootFields = Object.keys(objectDef.fields).length > 2;
   if (topLevelHasKindOf && topLevelHasSide && topLevelHasRootFields) {
+    promotedObjectDefCache.set(objectDef, objectDef);
     return objectDef;
   }
 
@@ -60,6 +71,7 @@ function promoteDisplacedObjectFields(objectDef: ObjectDef | undefined): ObjectD
 
   promoteFromBlocks(objectDef.blocks);
   if (!promoted) {
+    promotedObjectDefCache.set(objectDef, objectDef);
     return objectDef;
   }
 
@@ -68,38 +80,44 @@ function promoteDisplacedObjectFields(objectDef: ObjectDef | undefined): ObjectD
     : coerceKindOfList(promotedFields.KindOf);
   const promotedSide = objectDef.side ?? readStringField(promotedFields, ['Side']) ?? undefined;
 
-  return {
+  const promotedObjectDef = {
     ...objectDef,
     fields: promotedFields,
     kindOf: promotedKindOf,
     side: promotedSide,
   };
+  promotedObjectDefCache.set(objectDef, promotedObjectDef);
+  return promotedObjectDef;
 }
 
 function findByNameCaseInsensitive<T>(
   direct: T | undefined,
   name: string,
-  entries: Iterable<[string, T]>,
+  entries: ReadonlyMap<string, T>,
 ): T | undefined {
   if (direct) {
     return direct;
   }
 
   const normalizedName = name.toUpperCase();
-  for (const [registryName, entry] of entries) {
-    if (registryName.toUpperCase() === normalizedName) {
-      return entry;
+  let cached = caseInsensitiveLookupCache.get(entries);
+  if (!cached || cached.size !== entries.size) {
+    const normalizedEntries = new Map<string, unknown>();
+    for (const [registryName, entry] of entries) {
+      normalizedEntries.set(registryName.toUpperCase(), entry);
     }
+    cached = { size: entries.size, entries: normalizedEntries };
+    caseInsensitiveLookupCache.set(entries, cached);
   }
 
-  return undefined;
+  return cached.entries.get(normalizedName) as T | undefined;
 }
 
 export function findWeaponDefByName(iniDataRegistry: IniDataRegistry, weaponName: string): WeaponDef | undefined {
   return findByNameCaseInsensitive(
     iniDataRegistry.getWeapon(weaponName),
     weaponName,
-    iniDataRegistry.weapons.entries(),
+    iniDataRegistry.weapons,
   );
 }
 
@@ -107,7 +125,7 @@ export function findArmorDefByName(iniDataRegistry: IniDataRegistry, armorName: 
   return findByNameCaseInsensitive(
     iniDataRegistry.getArmor(armorName),
     armorName,
-    iniDataRegistry.armors.entries(),
+    iniDataRegistry.armors,
   );
 }
 
@@ -115,7 +133,7 @@ export function findObjectDefByName(iniDataRegistry: IniDataRegistry, objectName
   return promoteDisplacedObjectFields(findByNameCaseInsensitive(
     iniDataRegistry.getObject(objectName),
     objectName,
-    iniDataRegistry.objects.entries(),
+    iniDataRegistry.objects,
   ));
 }
 
@@ -123,7 +141,7 @@ export function findUpgradeDefByName(iniDataRegistry: IniDataRegistry, upgradeNa
   return findByNameCaseInsensitive(
     iniDataRegistry.getUpgrade(upgradeName),
     upgradeName,
-    iniDataRegistry.upgrades.entries(),
+    iniDataRegistry.upgrades,
   );
 }
 
@@ -134,7 +152,7 @@ export function findCommandButtonDefByName(
   return findByNameCaseInsensitive(
     iniDataRegistry.getCommandButton(commandButtonName),
     commandButtonName,
-    iniDataRegistry.commandButtons.entries(),
+    iniDataRegistry.commandButtons,
   );
 }
 
@@ -142,7 +160,7 @@ export function findCommandSetDefByName(iniDataRegistry: IniDataRegistry, comman
   return findByNameCaseInsensitive(
     iniDataRegistry.getCommandSet(commandSetName),
     commandSetName,
-    iniDataRegistry.commandSets.entries(),
+    iniDataRegistry.commandSets,
   );
 }
 
@@ -150,7 +168,7 @@ export function findScienceDefByName(iniDataRegistry: IniDataRegistry, scienceNa
   return findByNameCaseInsensitive(
     iniDataRegistry.getScience(scienceName),
     scienceName,
-    iniDataRegistry.sciences.entries(),
+    iniDataRegistry.sciences,
   );
 }
 

@@ -137,6 +137,7 @@ import {
 } from './options-screen.js';
 import { LoadGameScreen } from './load-game-screen.js';
 import { ReplayMenuScreen } from './replay-menu-screen.js';
+import { buildSourceBackedShellMapInfos } from './shell-map-metadata.js';
 import { DiplomacyScreen, type DiplomacyPlayerInfo } from './diplomacy-screen.js';
 import { GeneralsPowersPanel } from './generals-powers-panel.js';
 import { PostgameStatsScreen, type SideScoreDisplay } from './postgame-stats-screen.js';
@@ -6245,7 +6246,16 @@ async function init(): Promise<void> {
   // Populate available maps and campaigns
   const shellManifest = ctx.assets.getManifest();
   if (shellManifest) {
-    shell.setAvailableMaps(shellManifest.getOutputPaths());
+    shell.setAvailableMaps(await buildSourceBackedShellMapInfos(
+      shellManifest.getOutputPaths(),
+      async (outputPath) => {
+        const response = await fetch(`${RUNTIME_ASSET_BASE_URL}/${outputPath}`);
+        if (!response.ok) {
+          throw new Error(`Unable to load shell map metadata for ${outputPath}: HTTP ${response.status}`);
+        }
+        return await response.json() as MapDataJSON;
+      },
+    ));
   }
   shell.setCampaigns(campaignManager.getShellCampaigns());
   shell.setChallengePersonas(

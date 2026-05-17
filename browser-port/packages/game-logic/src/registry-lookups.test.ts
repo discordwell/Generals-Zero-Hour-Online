@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ObjectDef } from '@generals/ini-data';
 
 import { findObjectDefByName } from './registry-lookups.js';
-import { makeBlock, makeBundle, makeRegistry } from './test-helpers.js';
+import { makeBlock, makeBundle, makeObjectDef, makeRegistry } from './test-helpers.js';
 
 describe('registry object lookup normalization', () => {
   it('promotes misplaced root fields from draw blocks for retail child objects', () => {
@@ -35,5 +35,19 @@ describe('registry object lookup normalization', () => {
     expect(resolved!.fields.Side).toBe('America');
     expect(resolved!.fields.Locomotor).toEqual(['SET_NORMAL', 'BasicHelicopterLocomotor']);
     expect(resolved!.fields.VisionRange).toBe(300);
+  });
+
+  it('resolves case-insensitive names after the registry map grows', () => {
+    const registry = makeRegistry(makeBundle({
+      objects: [
+        makeObjectDef('AlphaTank', 'America', ['VEHICLE'], []),
+      ],
+    }));
+
+    expect(findObjectDefByName(registry, 'alphatank')?.name).toBe('AlphaTank');
+
+    registry.objects.set('BravoTank', makeObjectDef('BravoTank', 'America', ['VEHICLE'], []));
+
+    expect(findObjectDefByName(registry, 'bravotank')?.name).toBe('BravoTank');
   });
 });

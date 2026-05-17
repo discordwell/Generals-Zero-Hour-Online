@@ -206,6 +206,14 @@ export interface WaypointDataJSON {
   links: WaypointLinkJSON[];
 }
 
+/** Source MapCache metadata derived from converted waypoint data. */
+export interface MapMetadataJSON {
+  /** Source MapMetaData::m_numPlayers, derived from consecutive Player_N_Start waypoints. */
+  numPlayers: number;
+  /** Source MapMetaData::m_isMultiplayer. */
+  isMultiplayer: boolean;
+}
+
 /** A texture class definition from BlendTileData. */
 export interface BlendTileTextureClass {
   /** Texture class name (e.g. "SandType3", "CliffLargeType10"). */
@@ -218,6 +226,8 @@ export interface BlendTileTextureClass {
 
 /** Complete converted map JSON structure (matches map-converter output). */
 export interface MapDataJSON {
+  /** Source MapCache metadata used by shell map filtering and display. */
+  metadata?: MapMetadataJSON;
   heightmap: HeightmapDataJSON;
   objects: MapObjectJSON[];
   triggers: PolygonTriggerJSON[];

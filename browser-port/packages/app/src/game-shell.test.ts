@@ -535,4 +535,29 @@ describe('GameShell', () => {
       .filter(t => t !== 'Procedural Demo Terrain');
     expect(optionTexts).toEqual(['Alpine Assault', 'Tournament Desert']);
   });
+
+  it('map dropdown prefers source multiplayer metadata when present', () => {
+    const shell = new GameShell(root, { onStartGame: () => undefined });
+    shell.setAvailableMaps([
+      {
+        path: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
+        name: 'MD USA01',
+        numPlayers: 1,
+        isMultiplayer: false,
+      },
+      {
+        path: 'maps/_extracted/MapsZH/Maps/Tournament Desert/Tournament Desert.json',
+        name: 'Tournament Desert (2)',
+        numPlayers: 2,
+        isMultiplayer: true,
+      },
+    ]);
+    shell.show();
+
+    const select = root.querySelector('[data-ref="map-select"]') as HTMLSelectElement;
+    const optionTexts = [...select.options]
+      .map(o => o.textContent)
+      .filter(t => t !== 'Procedural Demo Terrain');
+    expect(optionTexts).toEqual(['Tournament Desert (2)']);
+  });
 });
