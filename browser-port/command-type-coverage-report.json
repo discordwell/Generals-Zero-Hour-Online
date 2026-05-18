@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-05-04T01:05:24.074Z",
+  "generatedAt": "2026-05-18T06:20:27.524Z",
   "bundlePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\packages\\app\\public\\assets\\data\\ini-bundle.json",
   "dispatchSourcePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\packages\\app\\src\\control-bar-dispatch.ts",
   "summary": {
-    "totalCommandButtons": 816,
-    "distinctBundleCommandTypes": 32,
-    "supportedBundleCommandTypes": 32,
+    "totalCommandButtons": 836,
+    "distinctBundleCommandTypes": 33,
+    "supportedBundleCommandTypes": 33,
     "unsupportedBundleCommandTypes": 0,
     "unknownBundleCommandTypes": 0,
     "dispatchHandledCommandTypes": 37
@@ -60,7 +60,7 @@
       "sourceCommandName": "DOZER_CONSTRUCT",
       "enumName": "GUI_COMMAND_DOZER_CONSTRUCT",
       "status": "supported",
-      "buttonCount": 192,
+      "buttonCount": 193,
       "buttonIds": [
         "AirF_Command_ConstructAmericaAirfield",
         "AirF_Command_ConstructAmericaBarracks",
@@ -105,6 +105,7 @@
         "Command_ConstructAmericaAirfield",
         "Command_ConstructAmericaBarracks",
         "Command_ConstructAmericaCommandCenter",
+        "Command_ConstructAmericaDetentionCamp",
         "Command_ConstructAmericaFireBase",
         "Command_ConstructAmericaParticleCannonUplink",
         "Command_ConstructAmericaPatriotBattery",
@@ -269,12 +270,13 @@
       "sourceCommandName": "EVACUATE",
       "enumName": "GUI_COMMAND_EVACUATE",
       "status": "supported",
-      "buttonCount": 4,
+      "buttonCount": 5,
       "buttonIds": [
         "Command_ChinookUnload",
         "Command_EmptyCrawler",
         "Command_Evacuate",
-        "Command_ScuttleCombatBike"
+        "Command_ScuttleCombatBike",
+        "Command_TunnelEvacuate"
       ]
     },
     {
@@ -370,8 +372,9 @@
       "sourceCommandName": "OBJECT_UPGRADE",
       "enumName": "GUI_COMMAND_OBJECT_UPGRADE",
       "status": "supported",
-      "buttonCount": 35,
+      "buttonCount": 37,
       "buttonIds": [
+        "AirF_Command_UpgradeAmericaSentryDroneGun",
         "Command_BecomeRealGLAArmsDealer",
         "Command_BecomeRealGLABarracks",
         "Command_BecomeRealGLABlackMarket",
@@ -397,6 +400,7 @@
         "Command_UpgradeGLACamoNetting",
         "Command_UpgradeGLAWorkerFakeCommandSet",
         "Command_UpgradeGLAWorkerRealCommandSet",
+        "Infa_Command_UpgradeChinaHelixBattleBunker",
         "Lazr_Command_ConstructAmericaVehicleBattleDrone",
         "Lazr_Command_ConstructAmericaVehicleHellfireDrone",
         "Lazr_Command_ConstructAmericaVehicleScoutDrone",
@@ -424,7 +428,7 @@
       "status": "supported",
       "buttonCount": 58,
       "buttonIds": [
-        "AirF_Command_UpgradeAmericaSentryDroneGun",
+        "AirF_Command_UpgradeAmericaLaserMissiles",
         "AirF_Command_UpgradeStealthComanche",
         "Boss_Command_UpgradeChinaNationalism",
         "Chem_Command_UpgradeGLAAnthraxGamma",
@@ -488,11 +492,12 @@
       "sourceCommandName": "PURCHASE_SCIENCE",
       "enumName": "GUI_COMMAND_PURCHASE_SCIENCE",
       "status": "supported",
-      "buttonCount": 81,
+      "buttonCount": 82,
       "buttonIds": [
         "AirF_Command_PurchaseScienceA10ThunderboltMissileStrike1",
         "AirF_Command_PurchaseScienceA10ThunderboltMissileStrike2",
         "AirF_Command_PurchaseScienceA10ThunderboltMissileStrike3",
+        "AirF_Command_PurchaseScienceCarpetBomb",
         "Chem_Command_PurchaseScienceMarauderTank",
         "Chem_Command_PurchaseScienceRebelAmbush1",
         "Chem_Command_PurchaseScienceRebelAmbush2",
@@ -716,6 +721,29 @@
       "buttonCount": 1,
       "buttonIds": [
         "Command_SneakAttackFromShortcut"
+      ]
+    },
+    {
+      "sourceCommandName": "SPECIAL_POWER_FROM_COMMAND_CENTER",
+      "enumName": "GUI_COMMAND_SPECIAL_POWER_FROM_COMMAND_CENTER",
+      "status": "supported",
+      "buttonCount": 15,
+      "buttonIds": [
+        "Command_A10ThunderboltMissileStrikeFromCommandCenter",
+        "Command_AmbushFromCommandCenter",
+        "Command_AnthraxBombFromCommandCenter",
+        "Command_ArtilleryBarrageFromCommandCenter",
+        "Command_CarpetBombFromCommandCenter",
+        "Command_CashHackFromCommandCenter",
+        "Command_ClusterMinesFromCommandCenter",
+        "Command_CrateDropFromCommandCenter",
+        "Command_DaisyCutterFromCommandCenter",
+        "Command_EmergencyRepairFromCommandCenter",
+        "Command_EMPPulseFromCommandCenter",
+        "Command_NapalmStrikeFromCommandCenter",
+        "Command_ParadropFromCommandCenter",
+        "Command_SpyDroneFromCommandCenter",
+        "Command_SpySatelliteScanFromCommandCenter"
       ]
     },
     {
@@ -1355,8 +1383,10 @@
       "enumName": "GUI_COMMAND_SPECIAL_POWER_FROM_COMMAND_CENTER",
       "enumValue": 31,
       "handledByDispatch": true,
-      "referencedByBundle": false,
-      "sourceCommandNames": []
+      "referencedByBundle": true,
+      "sourceCommandNames": [
+        "SPECIAL_POWER_FROM_COMMAND_CENTER"
+      ]
     },
     {
       "enumName": "GUI_COMMAND_SPECIAL_POWER_FROM_SHORTCUT",

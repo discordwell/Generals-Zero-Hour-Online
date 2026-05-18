@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-04T01:06:28.198Z",
+  "generatedAt": "2026-05-18T06:24:34.567Z",
   "fixturesDir": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves",
   "assetsDir": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\dist\\assets",
   "manifestPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\dist\\assets\\manifest.json",
@@ -248,7 +248,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_AirGeneral/GC_AirGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/GC_AirGeneral/GC_AirGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -301,7 +301,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_ChemGeneral/GC_ChemGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/GC_ChemGeneral/GC_ChemGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -360,7 +360,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_ChinaBoss/GC_ChinaBoss.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/GC_ChinaBoss/GC_ChinaBoss.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -415,7 +415,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_LaserGeneral/GC_LaserGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/GC_LaserGeneral/GC_LaserGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -472,7 +472,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_NukeGeneral/GC_NukeGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/GC_NukeGeneral/GC_NukeGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -529,7 +529,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_Stealth/GC_Stealth.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/GC_Stealth/GC_Stealth.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -584,7 +584,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/GC_SuperWeaponsGeneral/GC_SuperWeaponsGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -637,7 +637,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/GC_TankGeneral/GC_TankGeneral.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/GC_TankGeneral/GC_TankGeneral.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -878,7 +878,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -921,7 +921,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -964,7 +964,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1007,7 +1007,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1050,7 +1050,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1093,7 +1093,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1136,7 +1136,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA04/MD_GLA04.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_GLA04/MD_GLA04.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1179,7 +1179,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1222,7 +1222,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA02/MD_USA02.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_USA02/MD_USA02.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1265,7 +1265,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA03/MD_USA03.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_USA03/MD_USA03.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1308,7 +1308,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA04/MD_USA04.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_USA04/MD_USA04.map",
           "sourceIsMap": true,
           "sourceCompatible": true
@@ -1351,7 +1351,7 @@
           "outputPath": "maps/_extracted/MapsZH/Maps/MD_USA05/MD_USA05.json",
           "manifestEntry": true,
           "outputFileExists": true,
-          "sourceFileExists": false,
+          "sourceFileExists": true,
           "sourcePath": "_extracted/MapsZH/Maps/MD_USA05/MD_USA05.map",
           "sourceIsMap": true,
           "sourceCompatible": true
