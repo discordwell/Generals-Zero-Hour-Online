@@ -3902,6 +3902,45 @@ function extractAnimatedParticleSysBoneClientUpdateState(objectDef: ObjectDef | 
   return moduleTag ? { moduleTag, life: 0 } : null;
 }
 
+/**
+ * Source parity: BeaconClientUpdate.cpp:60-62 — RadarPulseFrequency and
+ * RadarPulseDuration are parsed as UnsignedInt durations (frames) on a
+ * ClientUpdate module attached to MultiplayerBeacon objects. The pulse cadence
+ * is consumed by BeaconClientUpdate::update (line 178-180) which fires a radar
+ * event every `framesBetweenRadarPulses` frames lasting `radarPulseDuration`
+ * logic frames. Beacons are placed via the multiplayer flow.
+ */
+export function extractBeaconClientUpdateProfile(
+  self: GL,
+  objectDef: ObjectDef | undefined,
+): { moduleTag: string; framesBetweenRadarPulses: number; radarPulseDuration: number } | null {
+  if (!objectDef) return null;
+  let profile: { moduleTag: string; framesBetweenRadarPulses: number; radarPulseDuration: number } | null = null;
+  const visitBlock = (block: IniBlock): void => {
+    if (profile !== null) return;
+    if (block.type.toUpperCase() === 'CLIENTUPDATE') {
+      const moduleType = sourceModuleTypeFromBlockName(block.name);
+      if (moduleType === 'BEACONCLIENTUPDATE') {
+        const radarPulseFreqMs = readNumericField(block.fields, ['RadarPulseFrequency']) ?? 0;
+        const radarPulseDurationMs = readNumericField(block.fields, ['RadarPulseDuration']) ?? 15;
+        profile = {
+          moduleTag: sourceModuleTagFromBlockName(block.name),
+          framesBetweenRadarPulses: self.msToLogicFrames(radarPulseFreqMs),
+          radarPulseDuration: self.msToLogicFrames(radarPulseDurationMs),
+        };
+        return;
+      }
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+  if (objectDef.blocks) {
+    for (const block of objectDef.blocks) visitBlock(block);
+  }
+  return profile;
+}
+
 function extractSwayClientUpdateState(objectDef: ObjectDef | undefined): {
   moduleTag: string;
   curValue: number;

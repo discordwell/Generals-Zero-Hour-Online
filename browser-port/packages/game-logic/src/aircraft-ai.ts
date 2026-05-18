@@ -138,6 +138,7 @@ export function extractJetAIProfile(self: GL, objectDef: ObjectDef | undefined):
   let parkingOffset = 0;
   let takeoffPauseFrames = 0;
   let takeoffDistForMaxLift = 0;
+  let takeoffSpeedForMaxLift = 1.0;
   let attackLocomotorSet = '';
   let attackLocoPersistFrames = 0;
   let returnLocomotorSet = '';
@@ -170,6 +171,10 @@ export function extractJetAIProfile(self: GL, objectDef: ObjectDef | undefined):
         const takeoffPauseMsRaw = readNumericField(block.fields, ['TakeoffPause']) ?? 0;
         takeoffPauseFrames = self.msToLogicFrames(takeoffPauseMsRaw);
         takeoffDistForMaxLift = readNumericField(block.fields, ['TakeoffDistForMaxLift']) ?? 0;
+        // Source parity: JetAIUpdate.cpp:1490 — TakeoffSpeedForMaxLift uses INI::parsePercentToReal,
+        // which divides the INI text "60%" by 100 → 0.6. The shipped bundle already stores the
+        // fraction (e.g. 0.6), so we pass it through as-is. Default per C++ is 1.0 (full speed).
+        takeoffSpeedForMaxLift = readNumericField(block.fields, ['TakeoffSpeedForMaxLift']) ?? 1.0;
         attackLocomotorSet = readStringField(block.fields, ['AttackLocomotorType'])?.trim().toUpperCase() ?? '';
         const attackLocoPersistMsRaw = readNumericField(block.fields, ['AttackLocomotorPersistTime']) ?? 0;
         attackLocoPersistFrames = self.msToLogicFrames(attackLocoPersistMsRaw);
@@ -211,6 +216,7 @@ export function extractJetAIProfile(self: GL, objectDef: ObjectDef | undefined):
     parkingOffset,
     takeoffPauseFrames,
     takeoffDistForMaxLift,
+    takeoffSpeedForMaxLift,
     attackLocomotorSet,
     attackLocoPersistFrames,
     returnLocomotorSet,

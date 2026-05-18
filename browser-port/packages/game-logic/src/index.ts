@@ -2957,6 +2957,14 @@ interface JetAIProfile {
   parkingOffset: number;
   takeoffPauseFrames: number;
   takeoffDistForMaxLift: number;
+  /**
+   * Source parity: JetAIUpdateModuleData::m_takeoffSpeedForMaxLift — percent of
+   * max speed at which the jet achieves max lift (C++ parsePercentToReal,
+   * default 1.0). Used per JetAIUpdate.cpp:693 to scale lift during takeoff:
+   *   ratio = velocity / (maxSpeed * takeoffSpeedForMaxLift), clamped [0,1]
+   *   lift = maxLift * ratio
+   */
+  takeoffSpeedForMaxLift: number;
   attackLocomotorSet: string;
   attackLocoPersistFrames: number;
   returnLocomotorSet: string;
@@ -3230,6 +3238,20 @@ interface LaserUpdateProfile {
   muzzleParticleSystemName: string;
   targetParticleSystemName: string;
   punchThroughScalar: number;
+  /**
+   * Source parity: LaserUpdateModuleData::m_parentFireBoneName (LaserUpdate.cpp:59).
+   * When non-empty and the laser has a producer, the laser start position is read
+   * from this bone on the parent rather than from the producer's translation
+   * (LaserUpdate.cpp:167-185).
+   */
+  parentFireBoneName: string;
+  /**
+   * Source parity: LaserUpdateModuleData::m_parentFireBoneOnTurret (LaserUpdate.cpp:60).
+   * Stored as INI::parseAsciiString in C++ but treated as a boolean truthy
+   * (LaserUpdate.cpp:170). When true, look up parentFireBoneName on the parent's
+   * TURRET_MAIN; otherwise use the parent's main bone group.
+   */
+  parentFireBoneOnTurret: boolean;
 }
 
 /**
@@ -38998,10 +39020,23 @@ export class GameLogicSubsystem implements Subsystem {
       if (blockType === 'CLIENTUPDATE' || blockType === 'BEHAVIOR') {
         const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
         if (moduleType === 'LASERUPDATE') {
+          // Source parity: LaserUpdate.cpp:60 stores ParentFireBoneOnTurret with
+          // parseAsciiString but LaserUpdate.cpp:170 uses it as a truthiness check.
+          // Accept either a boolean or the strings "Yes"/"true"; default false.
+          const parentFireBoneOnTurretRaw = block.fields['ParentFireBoneOnTurret'];
+          let parentFireBoneOnTurret = false;
+          if (typeof parentFireBoneOnTurretRaw === 'boolean') {
+            parentFireBoneOnTurret = parentFireBoneOnTurretRaw;
+          } else if (typeof parentFireBoneOnTurretRaw === 'string') {
+            const normalized = parentFireBoneOnTurretRaw.trim().toLowerCase();
+            parentFireBoneOnTurret = normalized === 'yes' || normalized === 'true';
+          }
           profile = {
             muzzleParticleSystemName: readStringField(block.fields, ['MuzzleParticleSystem'])?.trim() ?? '',
             targetParticleSystemName: readStringField(block.fields, ['TargetParticleSystem'])?.trim() ?? '',
             punchThroughScalar: readNumericField(block.fields, ['PunchThroughScalar']) ?? 0,
+            parentFireBoneName: readStringField(block.fields, ['ParentFireBoneName'])?.trim() ?? '',
+            parentFireBoneOnTurret,
           };
           return;
         }
