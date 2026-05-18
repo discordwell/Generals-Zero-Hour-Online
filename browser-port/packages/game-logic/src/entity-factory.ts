@@ -5008,7 +5008,9 @@ export function extractGenerateMinefieldProfile(self: GL, objectDef: ObjectDef |
         const skipUnderRaw = readNumericField(block.fields, ['SkipIfThisMuchUnderStructure']);
         profile = {
           mineName,
-          distanceAroundObject: readNumericField(block.fields, ['DistanceAroundObject']) ?? 20,
+          // Source parity: GenerateMinefieldBehavior.cpp:71 — default comes from
+          // GlobalData::m_standardMinefieldDistance (40.0 per GlobalData.cpp:862).
+          distanceAroundObject: readNumericField(block.fields, ['DistanceAroundObject']) ?? 40,
           borderOnly: readBooleanField(block.fields, ['BorderOnly']) ?? true,
           alwaysCircular: readBooleanField(block.fields, ['AlwaysCircular']) ?? false,
           generateOnlyOnDeath: readBooleanField(block.fields, ['GenerateOnlyOnDeath']) ?? false,
