@@ -5274,6 +5274,7 @@ export function extractBattlePlanProfile(self: GL, objectDef: ObjectDef | undefi
           invalidMemberKindOf: new Set(
             invalidKindOf.split(/\s+/).map((t) => t.trim().toUpperCase()).filter(Boolean),
           ),
+          visionObjectName: readStringField(block.fields, ['VisionObjectName'])?.trim() ?? '',
         };
       }
     }

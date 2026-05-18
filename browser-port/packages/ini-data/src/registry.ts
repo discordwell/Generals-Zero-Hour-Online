@@ -1945,58 +1945,6 @@ function cloneRawBlock(block: RawBlockDef): RawBlockDef {
   };
 }
 
-/**
- * Source parity: ThingFactory::parseObjectDefinition with INI_LOAD_CREATE_OVERRIDES
- * uses newOverride() to COPY the existing template and apply the new INI fields
- * as OVERRIDES on top. For module-tagged blocks (Behavior/Body/Draw/ClientUpdate
- * — those carrying a ModuleTag_X identifier), this means same-tag entries from a
- * later Object declaration MERGE their fields onto the earlier definition (the
- * Generals base) rather than replace it wholesale: the underlying ModuleData
- * defaults plus any unmodified Generals INI fields stay alive, while ZH-only
- * fields overlay on top. List-valued blocks (ArmorSet, WeaponSet, etc.) are
- * always preserved.
- */
-const MODULE_TAGGED_BLOCK_TYPES = new Set(['Behavior', 'Body', 'Draw', 'ClientUpdate']);
-
-interface MergeableBlock {
-  type: string;
-  name: string;
-  fields: Record<string, unknown>;
-  blocks?: readonly unknown[];
-}
-
-function mergeOverrideBlock<T extends MergeableBlock>(base: T, override: T): T {
-  return {
-    ...override,
-    fields: { ...base.fields, ...override.fields },
-    // Keep the override's nested blocks as-is. Nested blocks (ConditionState,
-    // TransitionState, AliasConditionState, etc.) carry positional semantics
-    // and are not module-tagged, so the override-side list is authoritative
-    // for the merged module.
-    blocks: (override.blocks ?? base.blocks) as T['blocks'],
-  } as T;
-}
-
-function dedupeNamedBlocks<T extends MergeableBlock>(blocks: readonly T[]): T[] {
-  const result: T[] = [];
-  const indexByKey = new Map<string, number>();
-  for (const block of blocks) {
-    if (!MODULE_TAGGED_BLOCK_TYPES.has(block.type) || !block.name || block.name.length === 0) {
-      result.push(block);
-      continue;
-    }
-    const key = `${block.type}|${block.name}`;
-    const existingIndex = indexByKey.get(key);
-    if (existingIndex === undefined) {
-      indexByKey.set(key, result.length);
-      result.push(block);
-      continue;
-    }
-    result[existingIndex] = mergeOverrideBlock(result[existingIndex]!, block);
-  }
-  return result;
-}
-
 function cloneRawBlocks(blocks: readonly RawBlockDef[]): RawBlockDef[] {
   return blocks.map((block) => cloneRawBlock(block));
 }

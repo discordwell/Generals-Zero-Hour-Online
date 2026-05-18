@@ -5665,6 +5665,13 @@ interface BattlePlanProfile {
   searchAndDestroyAnnouncementName: string;
   validMemberKindOf: Set<string>;
   invalidMemberKindOf: Set<string>;
+  /**
+   * Source parity: BattlePlanUpdateModuleData::m_visionObjectName
+   * (BattlePlanUpdate.cpp:148 — parseAsciiString). Template name for the
+   * neutral-owned object spawned at the strategy center's center while a plan
+   * is active. Used to extend line-of-sight per BattlePlanUpdate.cpp:setStatus.
+   */
+  visionObjectName: string;
 }
 
 type BattlePlanType = 'NONE' | 'BOMBARDMENT' | 'HOLDTHELINE' | 'SEARCHANDDESTROY';
