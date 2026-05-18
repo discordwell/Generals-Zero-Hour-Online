@@ -313,7 +313,12 @@ function buildRoundTripSaveData(data: ArrayBuffer): ArrayBuffer | null {
     preservePassthroughBlockBytes: true,
     campaign: parsed.campaign,
     browserRuntimeState: parsed.gameLogicState ?? { version: 1 },
-    includeBrowserRuntimeCoreState: parsed.gameLogicCoreState !== null,
+    // Only re-emit the BROWSER_RUNTIME_STATE_BLOCK if the source actually had
+    // one. parsed.gameLogicCoreState may be populated by falling back to the
+    // source CHUNK_GameLogic, so it can be non-null even when the source save
+    // did not include the browser runtime block — using it here would add a
+    // chunk that wasn't present in the source and break the round-trip.
+    includeBrowserRuntimeCoreState: parsed.hasBrowserRuntimeCoreState === true,
     mapDrawableIdCounter: parsed.mapDrawableIdCounter,
     gameLogic: {
       captureSourceTerrainLogicRuntimeSaveState: () => parsed.gameLogicTerrainLogicState ?? {
