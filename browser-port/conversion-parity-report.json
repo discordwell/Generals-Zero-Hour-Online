@@ -1,18 +1,31 @@
 {
-  "generatedAt": "2026-05-10T08:45:34.639Z",
+  "generatedAt": "2026-05-18T06:25:47.463Z",
   "bundlePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\packages\\app\\public\\assets\\data\\ini-bundle.json",
   "summary": {
-    "objects": 2113,
-    "commandButtons": 816,
-    "commandSets": 471,
-    "upgrades": 80,
-    "specialPowers": 79,
-    "sciences": 95,
-    "unsupportedBlockTypes": 0,
+    "objects": 2130,
+    "commandButtons": 836,
+    "commandSets": 473,
+    "upgrades": 82,
+    "specialPowers": 81,
+    "sciences": 96,
+    "unsupportedBlockTypes": 4,
     "unresolvedRegistryErrors": 0,
-    "missingReferences": 0
+    "missingReferences": 1
   },
   "unresolvedRegistryErrors": [],
-  "unsupportedBlockTypes": [],
-  "missingReferences": []
+  "unsupportedBlockTypes": [
+    "BenchProfile",
+    "BenchProfile",
+    "Rank",
+    "Rank"
+  ],
+  "missingReferences": [
+    {
+      "ownerType": "Object",
+      "ownerName": "GLAVehicleDozer",
+      "referenceType": "CommandSet",
+      "referenceName": "GLADOZERCOMMANDSET",
+      "detail": "Object field CommandSet points to a missing CommandSet."
+    }
+  ]
 }
