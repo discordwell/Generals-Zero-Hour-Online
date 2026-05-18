@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-18T06:16:23.480Z",
+  "generatedAt": "2026-05-18T18:27:01.845Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -213,7 +213,8 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/replay-menu-screen.ts"
+        "packages/app/src/replay-menu-screen.ts",
+        "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
       "testReferenceFiles": [],
@@ -60766,7 +60767,8 @@
       ],
       "gameplayReferenced": true,
       "gameplayReferenceFiles": [
-        "packages/app/src/replay-menu-screen.ts"
+        "packages/app/src/replay-menu-screen.ts",
+        "packages/game-logic/src/entity-factory.ts"
       ],
       "testReferenced": false,
       "testReferenceFiles": [],
