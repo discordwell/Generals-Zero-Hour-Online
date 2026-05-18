@@ -535,7 +535,7 @@ export class IniDataRegistry {
       this.objects.set(object.name, {
         ...object,
         fields: { ...object.fields },
-        blocks: [...object.blocks],
+        blocks: dedupeNamedBlocks(object.blocks),
         kindOf: object.kindOf ? [...object.kindOf] : undefined,
         resolved: object.resolved ?? !object.parent,
         hasUnresolvedParent: object.hasUnresolvedParent ?? false,
@@ -1943,6 +1943,38 @@ function cloneRawBlock(block: RawBlockDef): RawBlockDef {
     fields: { ...block.fields },
     blocks: [...block.blocks],
   };
+}
+
+/**
+ * Source parity: ThingFactory::parseObjectDefinition with INI_LOAD_CREATE_OVERRIDES
+ * uses newOverride() to copy the existing template and apply the new INI as overrides.
+ * Module-tagged blocks (Behavior, Body, Draw, ClientUpdate — those carrying a
+ * ModuleTag_X identifier) are unique by tag within an object: when the same
+ * type+tag pair reappears (because both Generals and ZH define the object),
+ * the later definition replaces the earlier one (ThingTemplate.cpp:759-773
+ * removeModuleInfo path). List-valued blocks (ArmorSet, WeaponSet, etc.) are
+ * preserved as-is.
+ */
+const MODULE_TAGGED_BLOCK_TYPES = new Set(['Behavior', 'Body', 'Draw', 'ClientUpdate']);
+
+function dedupeNamedBlocks<T extends { type: string; name: string }>(blocks: readonly T[]): T[] {
+  const lastIndexByKey = new Map<string, number>();
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]!;
+    if (MODULE_TAGGED_BLOCK_TYPES.has(block.type) && block.name && block.name.length > 0) {
+      lastIndexByKey.set(`${block.type}|${block.name}`, i);
+    }
+  }
+  const result: T[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]!;
+    if (MODULE_TAGGED_BLOCK_TYPES.has(block.type) && block.name && block.name.length > 0) {
+      const key = `${block.type}|${block.name}`;
+      if (lastIndexByKey.get(key) !== i) continue;
+    }
+    result.push(block);
+  }
+  return result;
 }
 
 function cloneRawBlocks(blocks: readonly RawBlockDef[]): RawBlockDef[] {
