@@ -57737,8 +57737,9 @@ export class GameLogicSubsystem implements Subsystem {
           deliverPayloadDropOffsetZ: dropOffset.y,
           deliverPayloadDropVarianceX: Math.max(0, dropVariance.x),
           deliverPayloadDropVarianceZ: Math.max(0, dropVariance.y),
-          exitTargetX: Number.NaN,
-          exitTargetZ: Number.NaN,
+          // Set to 0 until exitMoveIssued flips; see note in script-actions.ts.
+          exitTargetX: 0,
+          exitTargetZ: 0,
           transportsExit: true,
           evacuationIssued: false,
           exitMoveIssued: false,

@@ -10019,8 +10019,11 @@ export function materializeScriptReinforcementMembers(self: GL,
           deliverPayloadDropOffsetZ: transportDeliverPayloadProfile?.dropOffsetZ ?? 0,
           deliverPayloadDropVarianceX: transportDeliverPayloadProfile?.dropVarianceX ?? 0,
           deliverPayloadDropVarianceZ: transportDeliverPayloadProfile?.dropVarianceZ ?? 0,
-          exitTargetX: Number.NaN,
-          exitTargetZ: Number.NaN,
+          // Set to 0 until exitMoveIssued flips; the boolean is the source of
+          // truth for whether exit movement has been triggered. NaN sentinels
+          // here break deterministic CRC writers that require finite floats.
+          exitTargetX: 0,
+          exitTargetZ: 0,
           // Source parity: ScriptActions::doCreateReinforcements always routes
           // DeliverPayloadAIUpdate transports through deliverPayloadViaModuleData(),
           // which exits/deletes regardless of TeamTemplate::m_transportsExit.

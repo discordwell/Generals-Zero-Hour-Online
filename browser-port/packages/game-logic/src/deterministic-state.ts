@@ -484,7 +484,7 @@ function writeDeterministicAiCrc(
   const aiSnapshot = context.gameLogic.getAiOwnerSnapshot();
   crc.addUnsignedInt(aiSnapshot.frameCounter >>> 0);
   crc.addUnsignedInt(aiSnapshot.nextId >>> 0);
-  addFloat32Crc(context, crc, aiSnapshot.animationTime);
+  addFloat32Crc(context, crc, aiSnapshot.animationTime, 'aiSnapshot.animationTime');
   crc.addUnsignedByte(aiSnapshot.isAttackMoveToMode ? 1 : 0);
   crc.addUnsignedByte(aiSnapshot.previousAttackMoveToggleDown ? 1 : 0);
   crc.addUnsignedByte(aiSnapshot.scriptInputDisabled ? 1 : 0);
@@ -494,7 +494,7 @@ function writeDeterministicAiCrc(
   writeOrderedStringListCrc(crc, aiSnapshot.scriptCompletedVideos);
   writeOrderedStringListCrc(crc, aiSnapshot.scriptCompletedSpeech);
   writeOrderedStringListCrc(crc, aiSnapshot.scriptCompletedAudio);
-  writeNamedRealMapCrc(context, crc, aiSnapshot.scriptAudioLengthMsByName);
+  writeNamedRealMapCrc(context, crc, aiSnapshot.scriptAudioLengthMsByName, 'scriptAudioLengthMsByName');
   writeNamedFrameMapCrc(context, crc, aiSnapshot.scriptTestingSpeechCompletionFrameByName);
   writeNamedFrameMapCrc(context, crc, aiSnapshot.scriptTestingAudioCompletionFrameByName);
   writeScriptCompletedMusicCrc(context, crc, aiSnapshot.scriptCompletedMusic);
@@ -517,21 +517,21 @@ function writeDeterministicAiCrc(
 
   crc.addUnsignedByte(aiSnapshot.config.renderUnknownObjects ? 1 : 0);
   crc.addUnsignedByte(aiSnapshot.config.attackUsesLineOfSight ? 1 : 0);
-  addFloat32Crc(context, crc, aiSnapshot.config.defaultMoveSpeed);
-  addFloat32Crc(context, crc, aiSnapshot.config.terrainSnapSpeed);
-  addFloat32Crc(context, crc, aiSnapshot.config.sellPercentage);
+  addFloat32Crc(context, crc, aiSnapshot.config.defaultMoveSpeed, 'config.defaultMoveSpeed');
+  addFloat32Crc(context, crc, aiSnapshot.config.terrainSnapSpeed, 'config.terrainSnapSpeed');
+  addFloat32Crc(context, crc, aiSnapshot.config.sellPercentage, 'config.sellPercentage');
   crc.addUnsignedInt(Math.trunc(aiSnapshot.runtimeAiConfig.resourcesPoor) >>> 0);
   crc.addUnsignedInt(Math.trunc(aiSnapshot.runtimeAiConfig.resourcesWealthy) >>> 0);
-  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.guardInnerModifierAI);
-  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.guardOuterModifierAI);
-  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.guardInnerModifierHuman);
-  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.guardOuterModifierHuman);
+  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.guardInnerModifierAI, 'guardInnerModifierAI');
+  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.guardOuterModifierAI, 'guardOuterModifierAI');
+  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.guardInnerModifierHuman, 'guardInnerModifierHuman');
+  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.guardOuterModifierHuman, 'guardOuterModifierHuman');
   crc.addUnsignedInt(Math.trunc(aiSnapshot.runtimeAiConfig.guardChaseUnitFrames) >>> 0);
   crc.addUnsignedInt(Math.trunc(aiSnapshot.runtimeAiConfig.guardEnemyScanRateFrames) >>> 0);
   crc.addUnsignedInt(Math.trunc(aiSnapshot.runtimeAiConfig.guardEnemyReturnScanRateFrames) >>> 0);
-  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.skirmishBaseDefenseExtraDistance);
-  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.maxRetaliationDistance);
-  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.retaliationFriendsRadius);
+  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.skirmishBaseDefenseExtraDistance, 'skirmishBaseDefenseExtraDistance');
+  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.maxRetaliationDistance, 'maxRetaliationDistance');
+  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.retaliationFriendsRadius, 'retaliationFriendsRadius');
 
   crc.addUnsignedInt(aiSnapshot.commandQueue.length >>> 0);
   for (const command of aiSnapshot.commandQueue) {
@@ -849,12 +849,13 @@ function writeNamedRealMapCrc(
   context: DeterministicWriterContext,
   crc: XferCrcAccumulator,
   values: ReadonlyMap<string, number>,
+  label?: string,
 ): void {
   const entries = Array.from(values.entries()).sort(([left], [right]) => left.localeCompare(right));
   crc.addUnsignedInt(entries.length >>> 0);
   for (const [name, value] of entries) {
     crc.addAsciiString(name);
-    addFloat32Crc(context, crc, value);
+    addFloat32Crc(context, crc, value, label ? `${label}[${name}]` : `namedRealMap[${name}]`);
   }
 }
 
@@ -958,15 +959,16 @@ function writePendingScriptReinforcementTransportArrivalCrc(
   crc.addUnsignedInt(entries.length >>> 0);
   for (const [entityId, pending] of entries) {
     addSignedIntCrc(context, crc, entityId);
-    addFloat32Crc(context, crc, pending.targetX);
-    addFloat32Crc(context, crc, pending.targetZ);
-    addFloat32Crc(context, crc, pending.deliverPayloadMoveToX);
-    addFloat32Crc(context, crc, pending.deliverPayloadMoveToZ);
-    addFloat32Crc(context, crc, pending.originX);
-    addFloat32Crc(context, crc, pending.originZ);
-    addFloat32Crc(context, crc, pending.deliveryDistance);
-    addFloat32Crc(context, crc, pending.deliverPayloadPreOpenDistance);
-    addFloat32Crc(context, crc, pending.deliverPayloadPreviousDistanceSqr);
+    const tag = `pendingReinforcementTransport[id=${entityId}]`;
+    addFloat32Crc(context, crc, pending.targetX, `${tag}.targetX`);
+    addFloat32Crc(context, crc, pending.targetZ, `${tag}.targetZ`);
+    addFloat32Crc(context, crc, pending.deliverPayloadMoveToX, `${tag}.deliverPayloadMoveToX`);
+    addFloat32Crc(context, crc, pending.deliverPayloadMoveToZ, `${tag}.deliverPayloadMoveToZ`);
+    addFloat32Crc(context, crc, pending.originX, `${tag}.originX`);
+    addFloat32Crc(context, crc, pending.originZ, `${tag}.originZ`);
+    addFloat32Crc(context, crc, pending.deliveryDistance, `${tag}.deliveryDistance`);
+    addFloat32Crc(context, crc, pending.deliverPayloadPreOpenDistance, `${tag}.deliverPayloadPreOpenDistance`);
+    addFloat32Crc(context, crc, pending.deliverPayloadPreviousDistanceSqr, `${tag}.deliverPayloadPreviousDistanceSqr`);
     crc.addUnsignedByte(pending.deliverPayloadFireWeapon ? 1 : 0);
     crc.addUnsignedByte(pending.deliverPayloadInheritTransportVelocity ? 1 : 0);
     crc.addUnsignedByte(pending.deliverPayloadSelfDestructObject ? 1 : 0);
@@ -974,12 +976,12 @@ function writePendingScriptReinforcementTransportArrivalCrc(
     addSignedIntCrc(context, crc, pending.deliverPayloadDoorDelayFrames);
     addSignedIntCrc(context, crc, pending.deliverPayloadDropDelayFrames);
     addSignedIntCrc(context, crc, pending.deliverPayloadNextDropFrame);
-    addFloat32Crc(context, crc, pending.deliverPayloadDropOffsetX);
-    addFloat32Crc(context, crc, pending.deliverPayloadDropOffsetZ);
-    addFloat32Crc(context, crc, pending.deliverPayloadDropVarianceX);
-    addFloat32Crc(context, crc, pending.deliverPayloadDropVarianceZ);
-    addFloat32Crc(context, crc, pending.exitTargetX);
-    addFloat32Crc(context, crc, pending.exitTargetZ);
+    addFloat32Crc(context, crc, pending.deliverPayloadDropOffsetX, `${tag}.deliverPayloadDropOffsetX`);
+    addFloat32Crc(context, crc, pending.deliverPayloadDropOffsetZ, `${tag}.deliverPayloadDropOffsetZ`);
+    addFloat32Crc(context, crc, pending.deliverPayloadDropVarianceX, `${tag}.deliverPayloadDropVarianceX`);
+    addFloat32Crc(context, crc, pending.deliverPayloadDropVarianceZ, `${tag}.deliverPayloadDropVarianceZ`);
+    addFloat32Crc(context, crc, pending.exitTargetX, `${tag}.exitTargetX`);
+    addFloat32Crc(context, crc, pending.exitTargetZ, `${tag}.exitTargetZ`);
     crc.addUnsignedByte(pending.transportsExit ? 1 : 0);
     crc.addUnsignedByte(pending.evacuationIssued ? 1 : 0);
     crc.addUnsignedByte(pending.exitMoveIssued ? 1 : 0);
@@ -1072,9 +1074,11 @@ function addFloat32Crc(
   context: DeterministicWriterContext,
   crc: XferCrcAccumulator,
   value: number,
+  label?: string,
 ): void {
   if (!Number.isFinite(value)) {
-    throw new Error(`deterministic CRC value must be finite, got ${value}`);
+    const where = label ? ` (${label})` : '';
+    throw new Error(`deterministic CRC value must be finite, got ${value}${where}`);
   }
   context.floatScratch.setFloat32(0, Math.fround(value), true);
   crc.addUnsignedInt(context.floatScratch.getUint32(0, true));
