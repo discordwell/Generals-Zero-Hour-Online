@@ -18803,12 +18803,13 @@ describe('Script condition groundwork', () => {
       params: ['America', 'EQUAL', 375],
     })).toBe(true);
 
+    // Source parity: retail Rank.ini — ranks 1..5 at 0/800/1500/2500/5000 SP.
     expect(logic.executeScriptAction({
       actionType: 272, // PLAYER_ADD_SKILLPOINTS
-      params: ['America', 500],
+      params: ['America', 1500],
     })).toBe(true);
     expect(privateApi.getSideRankStateMap('america').rankLevel).toBe(3);
-    expect(privateApi.getSideRankStateMap('america').skillPoints).toBe(500);
+    expect(privateApi.getSideRankStateMap('america').skillPoints).toBe(1500);
     expect(logic.executeScriptAction({
       actionType: 273, // PLAYER_ADD_RANKLEVEL
       params: ['America', 1],
@@ -18819,7 +18820,7 @@ describe('Script condition groundwork', () => {
       params: ['America', 2],
     })).toBe(true);
     expect(privateApi.getSideRankStateMap('america').rankLevel).toBe(2);
-    expect(privateApi.getSideRankStateMap('america').skillPoints).toBe(200);
+    expect(privateApi.getSideRankStateMap('america').skillPoints).toBe(800);
     expect(logic.executeScriptAction({
       actionType: 275, // PLAYER_SET_RANKLEVELLIMIT
       params: [2],
@@ -18829,7 +18830,9 @@ describe('Script condition groundwork', () => {
       params: ['America', 5000],
     })).toBe(true);
     expect(privateApi.getSideRankStateMap('america').rankLevel).toBe(2);
-    expect(privateApi.getSideRankStateMap('america').skillPoints).toBe(200);
+    // Source parity: rank-level cap clamps skill points to the rank-2 threshold
+    // (800 per retail Rank.ini).
+    expect(privateApi.getSideRankStateMap('america').skillPoints).toBe(800);
 
     expect(logic.executeScriptAction({
       actionType: 6, // SET_TIMER
@@ -19043,12 +19046,14 @@ describe('Script condition groundwork', () => {
       };
     };
 
+    // Source parity: retail Rank.ini thresholds — 0/800/1500/2500/5000 SP for
+    // ranks 1..5. 1500 SP crosses the rank-3 threshold.
     expect(logic.executeScriptAction({
       actionType: 477, // PLAYER_ADD_SKILLPOINTS (offset id)
-      params: ['America', 500],
+      params: ['America', 1500],
     })).toBe(true);
     expect(privateApi.getSideRankStateMap('america').rankLevel).toBe(3);
-    expect(privateApi.getSideRankStateMap('america').skillPoints).toBe(500);
+    expect(privateApi.getSideRankStateMap('america').skillPoints).toBe(1500);
 
     expect(logic.executeScriptAction({
       actionType: 478, // PLAYER_ADD_RANKLEVEL (offset id)

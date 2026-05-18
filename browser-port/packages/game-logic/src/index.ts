@@ -2460,16 +2460,18 @@ interface RankInfoEntry {
   sciencePurchasePointsGranted: number;
 }
 
-/** Default Generals/ZH rank table (8 ranks). */
+/**
+ * Source parity: retail `Rank.ini` (identical between Generals and ZH).
+ * RankInfoStore parses these into RankInfo records consumed by Player::skill
+ * progression (Player.cpp:2113). Five ranks: 0/800/1500/2500/5000 SP, with
+ * SciencePurchasePointsGranted 1/1/1/1/3.
+ */
 export const RANK_TABLE: readonly RankInfoEntry[] = [
-  { skillPointsNeeded: 0, sciencePurchasePointsGranted: 1 },     // Rank 1 (start)
-  { skillPointsNeeded: 200, sciencePurchasePointsGranted: 0 },   // Rank 2
-  { skillPointsNeeded: 500, sciencePurchasePointsGranted: 1 },   // Rank 3
-  { skillPointsNeeded: 800, sciencePurchasePointsGranted: 0 },   // Rank 4
-  { skillPointsNeeded: 1500, sciencePurchasePointsGranted: 1 },  // Rank 5
-  { skillPointsNeeded: 3000, sciencePurchasePointsGranted: 0 },  // Rank 6
-  { skillPointsNeeded: 5000, sciencePurchasePointsGranted: 0 },  // Rank 7
-  { skillPointsNeeded: 8000, sciencePurchasePointsGranted: 1 },  // Rank 8
+  { skillPointsNeeded: 0, sciencePurchasePointsGranted: 1 },     // Rank 1
+  { skillPointsNeeded: 800, sciencePurchasePointsGranted: 1 },   // Rank 2
+  { skillPointsNeeded: 1500, sciencePurchasePointsGranted: 1 },  // Rank 3
+  { skillPointsNeeded: 2500, sciencePurchasePointsGranted: 1 },  // Rank 4
+  { skillPointsNeeded: 5000, sciencePurchasePointsGranted: 3 },  // Rank 5
 ];
 
 interface ProductionProfile {
