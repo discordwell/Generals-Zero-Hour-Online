@@ -29766,8 +29766,42 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
     this.playerSideByIndex.set(normalizedPlayerIndex, normalizedSide);
+    this.grantIntrinsicSciencesForSide(normalizedSide);
     if (normalizedPlayerIndex === this.localPlayerIndex) {
       this.synchronizeLocalPlayerScienceAvailability();
+    }
+  }
+
+  /**
+   * Source parity: Player::resetSciences (Player.cpp:2510-2531) starts with the
+   * PlayerTemplate::m_intrinsicSciences before adding any rank-granted sciences.
+   * SCIENCE_AMERICA/SCIENCE_CHINA/SCIENCE_GLA gate faction-specific units and
+   * sciences, so a fresh America player needs SCIENCE_AMERICA from the start.
+   */
+  private grantIntrinsicSciencesForSide(normalizedSide: string): void {
+    const registry = this.iniDataRegistry;
+    if (!registry) {
+      return;
+    }
+    const factionDef = this.resolveFactionDefForSide(normalizedSide, registry);
+    if (!factionDef) {
+      return;
+    }
+    const raw = factionDef.fields['IntrinsicSciences'];
+    const tokens: string[] = [];
+    if (typeof raw === 'string') {
+      tokens.push(...raw.split(/\s+/).filter(Boolean));
+    } else if (Array.isArray(raw)) {
+      for (const entry of raw) {
+        if (typeof entry === 'string') {
+          tokens.push(...entry.split(/\s+/).filter(Boolean));
+        }
+      }
+    }
+    for (const token of tokens) {
+      const normalized = token.trim().toUpperCase();
+      if (!normalized || normalized === 'NONE') continue;
+      this.grantSideScience(normalizedSide, normalized);
     }
   }
 
