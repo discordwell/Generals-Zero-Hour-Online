@@ -110,14 +110,24 @@ describe('runtime guardrails', () => {
     expect(() => assertIniBundleConsistency(bundle)).toThrow('unresolved inheritance');
   });
 
-  it('fails when object command sets are missing', () => {
+  it('warns when object command sets are missing (retail tolerates this)', () => {
     const bundle = makeBundle({
       objects: [makeObject('RuntimeTank', 'MissingCommandSet')],
       commandButtons: [makeCommandButton('Command_BuildRuntimeTank', { Command: 'UNIT_BUILD', Object: 'RuntimeTank' })],
       commandSets: [makeCommandSet('CommandSet_Valid', 'Command_BuildRuntimeTank')],
     });
 
-    expect(() => assertIniBundleConsistency(bundle)).toThrow('missing CommandSet references');
+    // Retail INI keeps legacy objects like GLAVehicleDozer with CommandSet
+    // references that no longer resolve (GLA has Workers in ZH). Don't throw.
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(' ')); };
+    try {
+      expect(() => assertIniBundleConsistency(bundle)).not.toThrow();
+    } finally {
+      console.warn = originalWarn;
+    }
+    expect(warnings.some((line) => line.includes('missing CommandSet references'))).toBe(true);
   });
 
   it('fails when command sets reference missing command buttons', () => {
