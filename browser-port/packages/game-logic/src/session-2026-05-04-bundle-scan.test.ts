@@ -61,7 +61,7 @@ interface BundleBlock {
   fields?: Record<string, unknown>;
   blocks?: BundleBlock[];
 }
-const bundle = JSON.parse(readFileSync(BUNDLE_PATH, 'utf-8')) as {
+const rawBundle = JSON.parse(readFileSync(BUNDLE_PATH, 'utf-8')) as {
   objects?: BundleObject[];
   gameData?: {
     weaponBonusEntries?: Array<{ condition?: string; field?: string; multiplier?: number }>;
@@ -76,6 +76,44 @@ const bundle = JSON.parse(readFileSync(BUNDLE_PATH, 'utf-8')) as {
   };
 };
 
+// Source parity: ThingFactory::parseObjectDefinition with INI_LOAD_CREATE_OVERRIDES
+// uses newOverride() so that a later Object declaration (e.g. ZH redefining a
+// Generals object) replaces same-tag modules. The shipped bundle preserves both
+// sets of blocks; dedupe module-tagged blocks (Behavior/Body/Draw/ClientUpdate)
+// by type+name keeping the last occurrence to match the runtime registry's view.
+const MODULE_TAGGED_BLOCK_TYPES_FOR_DEDUPE = new Set(['Behavior', 'Body', 'Draw', 'ClientUpdate']);
+
+function dedupeNamedBlocks(blocks: BundleBlock[] | undefined): BundleBlock[] {
+  if (!blocks) return [];
+  const lastIndexByKey = new Map<string, number>();
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]!;
+    if (block.type && MODULE_TAGGED_BLOCK_TYPES_FOR_DEDUPE.has(block.type)
+        && block.name && block.name.length > 0) {
+      lastIndexByKey.set(`${block.type}|${block.name}`, i);
+    }
+  }
+  const result: BundleBlock[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]!;
+    if (block.type && MODULE_TAGGED_BLOCK_TYPES_FOR_DEDUPE.has(block.type)
+        && block.name && block.name.length > 0) {
+      const key = `${block.type}|${block.name}`;
+      if (lastIndexByKey.get(key) !== i) continue;
+    }
+    result.push(block);
+  }
+  return result;
+}
+
+const bundle = {
+  ...rawBundle,
+  objects: rawBundle.objects?.map((obj) => ({
+    ...obj,
+    blocks: dedupeNamedBlocks(obj.blocks),
+  })),
+};
+
 function moduleTagOf(block: BundleBlock): string | null {
   return (block.name ?? '').split(/\s+/)[1]?.trim().toUpperCase() ?? null;
 }
@@ -86,7 +124,7 @@ function splitTokens(value: unknown): string[] {
   }
   if (Array.isArray(value)) {
     return value
-      .flatMap((entry) => (typeof entry === 'string' ? entry.trim().split(/\s+/) : []))
+      .flatMap((entry) => splitTokens(entry))
       .filter((s) => s.length > 0);
   }
   return [];
@@ -887,19 +925,34 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
         if (moduleType !== 'StructureCollapseUpdate') continue;
         const fields = block.fields ?? {};
         const ocl = fields['OCL'];
-        if (!Array.isArray(ocl) || ocl.length !== 2) continue;
-        if (typeof ocl[0] !== 'string' || typeof ocl[1] !== 'string') continue;
-        const phase = (ocl[0] as string).trim().toUpperCase();
-        const oclName = (ocl[1] as string).trim();
-        if (!['INITIAL', 'DELAY', 'BURST', 'FINAL'].includes(phase)) continue;
-        userCount++;
+        if (!Array.isArray(ocl)) continue;
+        // The bundle may store as a flat ['INITIAL', 'OCL_X'] or as a nested
+        // array of pairs [[INITIAL, OCL_X], [DELAY, OCL_Y], ...].
+        const pairs: Array<[string, string]> = [];
+        if (ocl.length === 2 && typeof ocl[0] === 'string' && typeof ocl[1] === 'string') {
+          pairs.push([ocl[0] as string, ocl[1] as string]);
+        } else {
+          for (const entry of ocl) {
+            if (Array.isArray(entry) && entry.length === 2
+                && typeof entry[0] === 'string' && typeof entry[1] === 'string') {
+              pairs.push([entry[0] as string, entry[1] as string]);
+            }
+          }
+        }
+        if (pairs.length === 0) continue;
         const profile = extractStructureCollapseProfile(makeSelfStub(), obj as never);
         expect(profile, `StructureCollapseProfile null for ${obj.name}`).not.toBeNull();
-        const phaseIdx = ['INITIAL', 'DELAY', 'BURST', 'FINAL'].indexOf(phase);
-        expect(profile!.phaseOCLs[phaseIdx], `Phase ${phase} OCL missing on ${obj.name} (bundle=${JSON.stringify(ocl)})`).toContain(oclName);
+        for (const [rawPhase, rawOcl] of pairs) {
+          const phase = rawPhase.trim().toUpperCase();
+          const oclName = rawOcl.trim();
+          if (!['INITIAL', 'DELAY', 'BURST', 'FINAL'].includes(phase)) continue;
+          userCount++;
+          const phaseIdx = ['INITIAL', 'DELAY', 'BURST', 'FINAL'].indexOf(phase);
+          expect(profile!.phaseOCLs[phaseIdx], `Phase ${phase} OCL missing on ${obj.name} (bundle=${JSON.stringify(ocl)})`).toContain(oclName);
+        }
       }
     }
-    expect(userCount, 'expected StructureCollapseUpdate OCL with [phase, ocl] array shape').toBeGreaterThan(0);
+    expect(userCount, 'expected StructureCollapseUpdate OCL [phase, ocl] pairs in retail data').toBeGreaterThan(0);
   });
 
   it('MoneyCrateCollide UpgradedBoost decodes for every retail user (was silently dropped)', () => {
@@ -961,9 +1014,18 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
     }
     expect(fields).toBeDefined();
     expect(Array.isArray(fields!['FactionOCL'])).toBe(true);
-    // Verify the public bundle shape we expect to support.
-    const arr = fields!['FactionOCL'] as string[];
-    expect(arr).toEqual(['Faction:GLAStealthGeneral', 'OCL:OCL_StlthGen_ReinforcementPadGLAVehicle']);
+    // The bundle stores repeated FactionOCL lines as a nested array of pairs:
+    //   [[Faction:X, OCL:OCL_X], [Faction:Y, OCL:OCL_Y], ...]
+    const factionEntries = fields!['FactionOCL'] as unknown[];
+    // Confirm the StealthGeneral row is preserved (it was the regression
+    // target that motivated the parser fix).
+    const stlthRow = factionEntries.find((entry): entry is [string, string] =>
+      Array.isArray(entry) && entry.length === 2
+        && typeof entry[0] === 'string' && /StealthGeneral/i.test(entry[0])
+        && typeof entry[1] === 'string',
+    );
+    expect(stlthRow, 'expected GLAStealthGeneral FactionOCL row').toBeDefined();
+    expect(stlthRow!).toEqual(['Faction:GLAStealthGeneral', 'OCL:OCL_StlthGen_ReinforcementPadGLAVehicle']);
     // Now exercise the parser via the public runtime path.
     // (We can't call extractOCLUpdateProfile directly without more wiring;
     //  the regression value of this case is verified by the
@@ -1358,7 +1420,8 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
         ).toBe(true);
       }
     }
-    expect(transitionCount, 'expected retail TransitionState users inheriting default model').toBeGreaterThan(800);
+    // Post-dedupe threshold; actual is ~789 after same-tag module collapse.
+    expect(transitionCount, 'expected retail TransitionState users inheriting default model').toBeGreaterThan(700);
   });
 
   it('ConditionState Animation metadata does not become render clip names', () => {
@@ -1555,8 +1618,11 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
         ).toBe(true);
       }
     }
-    expect(boneFieldUsers, 'expected retail Turret/TurretPitch draw users').toBeGreaterThan(800);
-    expect(artAngleUsers, 'expected retail TurretArtAngle draw users').toBeGreaterThan(30);
+    // Thresholds are post-dedupe (registry.loadBundle now collapses same-tag
+    // module blocks from the Generals + ZH override pair). The retail counts are
+    // ~789 and ~24 respectively after dedupe; choose floors with headroom.
+    expect(boneFieldUsers, 'expected retail Turret/TurretPitch draw users').toBeGreaterThan(700);
+    expect(artAngleUsers, 'expected retail TurretArtAngle draw users').toBeGreaterThan(20);
   });
 
   it('Weapon*Bone source draw fields flow into model and transition condition profiles for every retail user', () => {
@@ -1658,8 +1724,9 @@ describe('session 2026-05-04 — bundle-wide scanner over slice 1 array-vs-strin
       }
     }
 
-    expect(conditionUsers, 'expected retail Weapon*Bone condition users').toBeGreaterThan(3000);
-    expect(transitionUsers, 'expected retail Weapon*Bone transition users').toBeGreaterThan(50);
+    // Post-dedupe threshold; actual is ~2218 conditions / ~50+ transitions.
+    expect(conditionUsers, 'expected retail Weapon*Bone condition users').toBeGreaterThan(2000);
+    expect(transitionUsers, 'expected retail Weapon*Bone transition users').toBeGreaterThan(40);
   });
 
   it('ProjectileBoneFeedbackEnabledSlots parses source weapon-slot bitstrings for every retail user', () => {

@@ -123,21 +123,16 @@ describe('Dozer repair rate (C++ parity)', () => {
     }
 
     const healthAfter = logic.getEntityState(1)!.health;
-    // Expected healing sources:
-    //   1. Dozer repair: repairHealthPercentPerSecond(0.10) * maxHealth(1000) = 100 HP/sec
-    //   2. Base structure regen: BASE_REGEN_HEALTH_PERCENT_PER_SECOND(0.02) * 1000 = 20 HP/sec
-    //      (C++ also has BaseRegenerateUpdate on structures — this is correct parity)
-    //   Total: ~120 HP over 30 frames (1 second)
+    // Dozer repair: repairHealthPercentPerSecond(0.10) * maxHealth(1000) = 100 HP/sec
+    //   Per-frame heal = 0.10 / 30 * 1000 = 3.333 HP/frame, 30 frames = ~100 HP.
     //
-    // Document actual repair rate:
-    // Dozer per-frame heal = 0.10 / 30 * 1000 = 3.333 HP/frame
-    // Base regen per-frame = 0.02 / 30 * 1000 * (3/30) interval ≈ 0.667 HP/frame effective
-    // Combined over 30 frames ≈ 120 HP total
+    // Base regen is gated by GameData::m_baseRegenHealthPercentPerSecond. The C++
+    // default is 0.0; this test does not configure a non-zero GameData value, so
+    // BaseRegenerateUpdate is disabled (matches BaseRenerateUpdate.cpp:76).
     const healedAmount = healthAfter - 500;
     expect(healedAmount).toBeGreaterThan(0);
-    // Verify approximately correct combined amount (dozer + base regen).
-    expect(healedAmount).toBeGreaterThanOrEqual(110);
-    expect(healedAmount).toBeLessThanOrEqual(130);
+    expect(healedAmount).toBeGreaterThanOrEqual(99);
+    expect(healedAmount).toBeLessThanOrEqual(101);
   });
 
   it('dozer does not repair a building at full health', () => {

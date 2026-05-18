@@ -105,8 +105,8 @@ describe('save generated module coverage report', () => {
       generatedAt: 'fixed',
     });
 
-    expect(report.totalSourceModuleTypes).toBe(195);
-    expect(report.coveredSourceModuleTypes).toBe(195);
+    expect(report.totalSourceModuleTypes).toBe(198);
+    expect(report.coveredSourceModuleTypes).toBe(198);
     expect(report.missingSourceModuleTypes).toEqual([]);
   });
 });

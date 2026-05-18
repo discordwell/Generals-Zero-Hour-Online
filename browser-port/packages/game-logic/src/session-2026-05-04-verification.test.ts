@@ -375,13 +375,14 @@ describe('session 2026-05-04 — slice 1 against real retail data', () => {
       expect(profile).not.toBeNull();
       const dieFX = profile!.bridgeDieFX;
       expect(dieFX.length).toBeGreaterThan(0);
+      // The retail data lists 8 BridgeDieFX slots; per BridgeBehavior.cpp parseFX
+      // each line is push_back'd in order. Verify the Splash06 entry (delay 9160ms).
       // Delay:9160ms at 30Hz logic frame rate = 275 frames (9160 / (1000/30)).
-      // Round-half-to-even can yield 275; allow either rounding.
-      const splash = dieFX.find((entry) => entry.effectName === 'FX_TrainWreckSplash');
+      const splash = dieFX.find((entry) => entry.boneName === 'Splash06');
       expect(splash).toBeDefined();
+      expect(splash!.effectName).toBe('FX_TrainWreckSplash');
       expect(splash!.delayFrames).toBeGreaterThanOrEqual(274);
       expect(splash!.delayFrames).toBeLessThanOrEqual(275);
-      expect(splash!.boneName).toBe('Splash06');
     });
 
     it('parses BridgeDieOCL with OCL:/Delay:/Bone: tokens on TsingMaLandmarkBridge', () => {
@@ -389,11 +390,13 @@ describe('session 2026-05-04 — slice 1 against real retail data', () => {
       const profile = extractBridgeBehaviorProfile(makeSelfStub(), obj as never);
       expect(profile).not.toBeNull();
       const dieOCL = profile!.bridgeDieOCL;
-      const explosion = dieOCL.find((entry) => entry.effectName === 'OCL_TsingMaExplosion');
+      // The retail data lists 9 BridgeDieOCL slots (2 zero-delay OCL columns + 7
+      // staggered explosions). Verify the Explosion07 slot (delay 50000ms).
+      const explosion = dieOCL.find((entry) => entry.boneName === 'Explosion07');
       expect(explosion).toBeDefined();
+      expect(explosion!.effectName).toBe('OCL_TsingMaExplosion');
       // Delay:50000ms = 1500 frames at 30Hz.
       expect(explosion!.delayFrames).toBe(1500);
-      expect(explosion!.boneName).toBe('Explosion07');
     });
   });
 

@@ -17,7 +17,7 @@ describe('patch-mapped-images output', () => {
 
   it('should have a non-zero number of MappedImage entries', () => {
     expect(mappedImages.length).toBeGreaterThan(0);
-    expect(mappedImages.length).toBe(1186);
+    expect(mappedImages.length).toBe(1325);
   });
 
   it('should have entries sorted by name', () => {
@@ -89,12 +89,12 @@ describe('patch-mapped-images output', () => {
 
   it('should have mappedImages count in stats', () => {
     expect(bundle.stats).toBeDefined();
-    expect((bundle.stats as Record<string, number>).mappedImages).toBe(1186);
+    expect((bundle.stats as Record<string, number>).mappedImages).toBe(1325);
   });
 
   it('should have totalBlocks updated to include mappedImages', () => {
     expect(bundle.stats).toBeDefined();
-    // totalBlocks should include the 1186 mapped images
-    expect(bundle.stats.totalBlocks).toBeGreaterThanOrEqual(1186);
+    // totalBlocks should include the 1325 mapped images
+    expect(bundle.stats.totalBlocks).toBeGreaterThanOrEqual(1325);
   });
 });
