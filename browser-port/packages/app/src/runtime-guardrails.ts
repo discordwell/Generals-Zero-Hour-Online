@@ -129,7 +129,11 @@ export function assertIniBundleConsistency(bundle: IniDataBundle): void {
     }
   }
   if (missingCommandSets.length > 0) {
-    throw new Error(`INI bundle has missing CommandSet references: ${missingCommandSets.join(', ')}`);
+    // Retail INI data has objects with CommandSet references to sets that were
+    // dropped in ZH (e.g. GLAVehicleDozer->GLADozerCommandSet — GLA uses Workers
+    // in ZH but the legacy object is kept). The C++ engine tolerates this; downgrade
+    // to a warning so startup proceeds.
+    console.warn(`INI bundle has missing CommandSet references (${missingCommandSets.length}): ${missingCommandSets.join(', ')}`);
   }
 
   const missingCommandButtons: string[] = [];
