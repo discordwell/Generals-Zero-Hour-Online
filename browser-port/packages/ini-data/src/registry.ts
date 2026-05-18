@@ -535,7 +535,7 @@ export class IniDataRegistry {
       this.objects.set(object.name, {
         ...object,
         fields: { ...object.fields },
-        blocks: dedupeNamedBlocks(object.blocks),
+        blocks: [...object.blocks],
         kindOf: object.kindOf ? [...object.kindOf] : undefined,
         resolved: object.resolved ?? !object.parent,
         hasUnresolvedParent: object.hasUnresolvedParent ?? false,
@@ -1947,32 +1947,52 @@ function cloneRawBlock(block: RawBlockDef): RawBlockDef {
 
 /**
  * Source parity: ThingFactory::parseObjectDefinition with INI_LOAD_CREATE_OVERRIDES
- * uses newOverride() to copy the existing template and apply the new INI as overrides.
- * Module-tagged blocks (Behavior, Body, Draw, ClientUpdate — those carrying a
- * ModuleTag_X identifier) are unique by tag within an object: when the same
- * type+tag pair reappears (because both Generals and ZH define the object),
- * the later definition replaces the earlier one (ThingTemplate.cpp:759-773
- * removeModuleInfo path). List-valued blocks (ArmorSet, WeaponSet, etc.) are
- * preserved as-is.
+ * uses newOverride() to COPY the existing template and apply the new INI fields
+ * as OVERRIDES on top. For module-tagged blocks (Behavior/Body/Draw/ClientUpdate
+ * — those carrying a ModuleTag_X identifier), this means same-tag entries from a
+ * later Object declaration MERGE their fields onto the earlier definition (the
+ * Generals base) rather than replace it wholesale: the underlying ModuleData
+ * defaults plus any unmodified Generals INI fields stay alive, while ZH-only
+ * fields overlay on top. List-valued blocks (ArmorSet, WeaponSet, etc.) are
+ * always preserved.
  */
 const MODULE_TAGGED_BLOCK_TYPES = new Set(['Behavior', 'Body', 'Draw', 'ClientUpdate']);
 
-function dedupeNamedBlocks<T extends { type: string; name: string }>(blocks: readonly T[]): T[] {
-  const lastIndexByKey = new Map<string, number>();
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i]!;
-    if (MODULE_TAGGED_BLOCK_TYPES.has(block.type) && block.name && block.name.length > 0) {
-      lastIndexByKey.set(`${block.type}|${block.name}`, i);
-    }
-  }
+interface MergeableBlock {
+  type: string;
+  name: string;
+  fields: Record<string, unknown>;
+  blocks?: readonly unknown[];
+}
+
+function mergeOverrideBlock<T extends MergeableBlock>(base: T, override: T): T {
+  return {
+    ...override,
+    fields: { ...base.fields, ...override.fields },
+    // Keep the override's nested blocks as-is. Nested blocks (ConditionState,
+    // TransitionState, AliasConditionState, etc.) carry positional semantics
+    // and are not module-tagged, so the override-side list is authoritative
+    // for the merged module.
+    blocks: (override.blocks ?? base.blocks) as T['blocks'],
+  } as T;
+}
+
+function dedupeNamedBlocks<T extends MergeableBlock>(blocks: readonly T[]): T[] {
   const result: T[] = [];
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i]!;
-    if (MODULE_TAGGED_BLOCK_TYPES.has(block.type) && block.name && block.name.length > 0) {
-      const key = `${block.type}|${block.name}`;
-      if (lastIndexByKey.get(key) !== i) continue;
+  const indexByKey = new Map<string, number>();
+  for (const block of blocks) {
+    if (!MODULE_TAGGED_BLOCK_TYPES.has(block.type) || !block.name || block.name.length === 0) {
+      result.push(block);
+      continue;
     }
-    result.push(block);
+    const key = `${block.type}|${block.name}`;
+    const existingIndex = indexByKey.get(key);
+    if (existingIndex === undefined) {
+      indexByKey.set(key, result.length);
+      result.push(block);
+      continue;
+    }
+    result[existingIndex] = mergeOverrideBlock(result[existingIndex]!, block);
   }
   return result;
 }
