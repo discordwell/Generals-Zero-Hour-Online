@@ -2458,6 +2458,12 @@ interface SideRankState {
 interface RankInfoEntry {
   skillPointsNeeded: number;
   sciencePurchasePointsGranted: number;
+  /**
+   * Source parity: RankInfo::m_sciencesGranted (RankInfo.h:50). Sciences
+   * automatically granted to the player when they reach this rank, applied
+   * by Player::setRankLevel (Player.cpp).
+   */
+  sciencesGranted: readonly string[];
 }
 
 /**
@@ -2467,11 +2473,11 @@ interface RankInfoEntry {
  * SciencePurchasePointsGranted 1/1/1/1/3.
  */
 export const RANK_TABLE: readonly RankInfoEntry[] = [
-  { skillPointsNeeded: 0, sciencePurchasePointsGranted: 1 },     // Rank 1
-  { skillPointsNeeded: 800, sciencePurchasePointsGranted: 1 },   // Rank 2
-  { skillPointsNeeded: 1500, sciencePurchasePointsGranted: 1 },  // Rank 3
-  { skillPointsNeeded: 2500, sciencePurchasePointsGranted: 1 },  // Rank 4
-  { skillPointsNeeded: 5000, sciencePurchasePointsGranted: 3 },  // Rank 5
+  { skillPointsNeeded: 0, sciencePurchasePointsGranted: 1, sciencesGranted: ['SCIENCE_RANK1'] },
+  { skillPointsNeeded: 800, sciencePurchasePointsGranted: 1, sciencesGranted: ['SCIENCE_RANK2'] },
+  { skillPointsNeeded: 1500, sciencePurchasePointsGranted: 1, sciencesGranted: ['SCIENCE_RANK3'] },
+  { skillPointsNeeded: 2500, sciencePurchasePointsGranted: 1, sciencesGranted: ['SCIENCE_RANK4'] },
+  { skillPointsNeeded: 5000, sciencePurchasePointsGranted: 3, sciencesGranted: ['SCIENCE_RANK5'] },
 ];
 
 interface ProductionProfile {
@@ -37998,6 +38004,11 @@ export class GameLogicSubsystem implements Subsystem {
       );
       if (rankState.skillPoints < rankInfo.skillPointsNeeded) {
         rankState.skillPoints = rankInfo.skillPointsNeeded;
+      }
+      // Source parity: Player::setRankLevel (Player.cpp) — grant each science
+      // listed in RankInfo::m_sciencesGranted when the rank is reached.
+      for (const scienceName of rankInfo.sciencesGranted) {
+        this.grantSideScience(normalizedSide, scienceName);
       }
     }
 
