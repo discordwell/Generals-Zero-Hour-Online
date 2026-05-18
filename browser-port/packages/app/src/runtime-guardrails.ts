@@ -151,10 +151,12 @@ export function assertIniBundleConsistency(bundle: IniDataBundle): void {
     GUICommandType.GUI_COMMAND_SPECIAL_POWER_CONSTRUCT,
     GUICommandType.GUI_COMMAND_SPECIAL_POWER_CONSTRUCT_FROM_SHORTCUT,
   ]);
+  // CANCEL_UPGRADE buttons do not reference a specific Upgrade in INI; the
+  // upgrade to cancel is resolved at click time from the queue slot's
+  // PRODUCTION_UPGRADE entry (ControlBarCommandProcessing.cpp:591-625).
   const upgradeRefCommands = new Set<GUICommandType>([
     GUICommandType.GUI_COMMAND_OBJECT_UPGRADE,
     GUICommandType.GUI_COMMAND_PLAYER_UPGRADE,
-    GUICommandType.GUI_COMMAND_CANCEL_UPGRADE,
   ]);
   const specialPowerRefCommands = new Set<GUICommandType>([
     GUICommandType.GUI_COMMAND_SPECIAL_POWER,
