@@ -53740,8 +53740,12 @@ export class GameLogicSubsystem implements Subsystem {
   /**
    * Source parity: ToppleUpdate::applyTopplingForce() — initiate topple on an entity.
    * Called from crush collisions or damage application for topple-enabled entities.
+   *
+   * Options bits (ToppleUpdate.h:48-50):
+   *   0x01 = TOPPLE_OPTIONS_NO_BOUNCE — stop on first ground hit instead of bouncing
+   *   0x02 = TOPPLE_OPTIONS_NO_FX     — suppress bounce FX
    */
-  private applyTopplingForce(entity: MapEntity, dirX: number, dirZ: number, speed: number): void {
+  private applyTopplingForce(entity: MapEntity, dirX: number, dirZ: number, speed: number, options: number = 0): void {
     const profile = entity.toppleProfile;
     if (!profile) return;
     if (entity.toppleState !== 'NONE') return; // already toppling
@@ -53789,7 +53793,7 @@ export class GameLogicSubsystem implements Subsystem {
     entity.toppleAngleDeltaX = 0;
     entity.toppleNumAngleDeltaX = 0;
     entity.toppleDoBounceFx = false;
-    entity.toppleOptions = 0;
+    entity.toppleOptions = options >>> 0;
     entity.toppleStumpId = 0;
     entity.toppleState = 'TOPPLING';
     this.applyW3DTreeBufferTopplingForce(entity, normDirX, normDirZ, speed, 0);
@@ -56677,9 +56681,10 @@ export class GameLogicSubsystem implements Subsystem {
       const dy = other.y - missile.y;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-      // Source parity: topple with NO_BOUNCE | NO_FX (simplified — our topple doesn't have options).
+      // Source parity: NeutronMissileSlowDeathUpdate.cpp:338 — topple with
+      // TOPPLE_OPTIONS_NO_BOUNCE | TOPPLE_OPTIONS_NO_FX (= 0x03).
       if (blast.toppleSpeed > 0) {
-        this.applyTopplingForce(other, dx, dz, blast.toppleSpeed);
+        this.applyTopplingForce(other, dx, dz, blast.toppleSpeed, 0x03);
       }
 
       // Source parity: damage falloff — full maxDamage inside innerRadius,

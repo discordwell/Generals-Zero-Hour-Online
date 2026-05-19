@@ -1125,7 +1125,7 @@ describe('ToppleUpdate', () => {
         toppleOptions: number;
         blocksPath: boolean;
       }>;
-      applyTopplingForce(entity: unknown, dirX: number, dirZ: number, speed: number): void;
+      applyTopplingForce(entity: unknown, dirX: number, dirZ: number, speed: number, options?: number): void;
     }).spawnedEntities;
 
     let tree: (typeof entities extends Map<number, infer V> ? V : never) | undefined;
@@ -1134,7 +1134,7 @@ describe('ToppleUpdate', () => {
     }
 
     const applyTopple = (logic as unknown as {
-      applyTopplingForce(entity: unknown, dirX: number, dirZ: number, speed: number): void;
+      applyTopplingForce(entity: unknown, dirX: number, dirZ: number, speed: number, options?: number): void;
     }).applyTopplingForce.bind(logic);
 
     return { logic, tree: tree!, entities, applyTopple };
@@ -1193,6 +1193,21 @@ describe('ToppleUpdate', () => {
     expect(sawBounceFX).toBe(true);
   });
 
+  it('propagates topple options from applyTopplingForce call site to entity.toppleOptions', () => {
+    // Source parity: NeutronMissileSlowDeathUpdate.cpp:338 passes
+    // TOPPLE_OPTIONS_NO_BOUNCE | TOPPLE_OPTIONS_NO_FX (= 0x03). The crush-collision
+    // path (entity-movement.ts:1640) and ToppleUpdate::onCollide pass 0.
+    const { tree, applyTopple } = makeToppleSetup({ killWhenFinished: false });
+    applyTopple(tree, 1, 0, 5.0, 0x03);
+    expect(tree.toppleOptions).toBe(0x03);
+  });
+
+  it('defaults toppleOptions to 0 when applyTopplingForce omits the options argument', () => {
+    const { tree, applyTopple } = makeToppleSetup({ killWhenFinished: false });
+    applyTopple(tree, 1, 0, 5.0);
+    expect(tree.toppleOptions).toBe(0);
+  });
+
   it('suppresses BounceFX when toppling options include NO_FX', () => {
     const { logic, tree, applyTopple } = makeToppleSetup({
       killWhenFinished: false,
@@ -1200,8 +1215,7 @@ describe('ToppleUpdate', () => {
       bounceVelocityPercent: 50,
       bounceFXName: 'FX_TreeBounce',
     });
-    applyTopple(tree, 1, 0, 1.0);
-    tree.toppleOptions = 0x00000002;
+    applyTopple(tree, 1, 0, 1.0, 0x02);
     logic.drainVisualEvents();
 
     for (let i = 0; i < 20; i++) {
