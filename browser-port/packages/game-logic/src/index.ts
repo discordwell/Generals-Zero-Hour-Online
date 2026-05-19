@@ -53796,7 +53796,8 @@ export class GameLogicSubsystem implements Subsystem {
     entity.toppleOptions = options >>> 0;
     entity.toppleStumpId = 0;
     entity.toppleState = 'TOPPLING';
-    this.applyW3DTreeBufferTopplingForce(entity, normDirX, normDirZ, speed, 0);
+    // Source parity: tree-buffer topple shares the same options bitmask.
+    this.applyW3DTreeBufferTopplingForce(entity, normDirX, normDirZ, speed, entity.toppleOptions);
 
     // Source parity: KillWhenStartToppling — instant death.
     if (profile.killWhenStartToppling) {
