@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-18T06:17:08.795Z",
+  "generatedAt": "2026-05-19T10:58:36.294Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -68,6 +68,7 @@
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
         "packages/game-logic/src/render-state.test.ts",
+        "packages/game-logic/src/upgrade-production.test.ts",
         "tools/module-field-coverage-report.test.ts",
         "tools/module-runtime-coverage-report.test.ts",
         "tools/parity-source-truth.test.ts",
@@ -584,6 +585,7 @@
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
         "packages/game-logic/src/render-state.test.ts",
+        "packages/game-logic/src/upgrade-production.test.ts",
         "tools/module-field-coverage-report.test.ts",
         "tools/module-runtime-coverage-report.test.ts",
         "tools/parity-source-truth.test.ts",
@@ -3180,6 +3182,7 @@
         "packages/game-logic/src/aircraft-ai.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/zh-ai-guard-damage-fixes.test.ts",
         "packages/game-logic/src/zh-ai-niche-fixes.test.ts",
         "tools/convert-all/src/convert-all.test.ts",
@@ -3634,6 +3637,7 @@
       "testReferenceFiles": [
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
         "tools/parity-source-truth.test.ts"
@@ -7203,6 +7207,7 @@
         "packages/app/src/runtime-save-game.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/entity-factory-missing-fields.test.ts",
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
@@ -7899,6 +7904,7 @@
       ],
       "testReferenced": true,
       "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts",
         "tools/parity-source-truth.test.ts"
       ],
       "saveCovered": true,

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-19T08:32:55.789Z",
+  "generatedAt": "2026-05-19T10:58:34.613Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -26751,6 +26751,7 @@
         "packages/game-logic/src/script-actions.ts",
         "packages/game-logic/src/script-conditions.ts",
         "packages/game-logic/src/skirmish-ai.ts",
+        "packages/game-logic/src/stealth-detection.ts",
         "packages/game-logic/src/supply-chain.ts",
         "packages/game-logic/src/test-helpers.ts"
       ],
