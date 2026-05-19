@@ -11603,6 +11603,22 @@ export function resolveScriptPlayerConditionSelector(self: GL, playerInput: stri
   explicitNamedPlayer: boolean;
 } {
   const trimmed = playerInput.trim();
+  // Source parity: GeneralsMD ScriptEngine.cpp:5832-5839 — in Generals Challenge,
+  // "ThePlayer" is a dummy placeholder; getPlayerFromAsciiString redirects it to
+  // the local player.  The map's Win/Loss scripts test PLAYER_ALL_DESTROYED on
+  // "ThePlayer" expecting to count units owned by the local human player.
+  const aliasesToLocalPlayer = trimmed === SCRIPT_LOCAL_PLAYER
+    || (trimmed === SCRIPT_THE_PLAYER && self.config.isChallengeContext);
+  if (aliasesToLocalPlayer) {
+    const normalizedSide = self.resolveLocalPlayerSide();
+    return {
+      normalizedSide,
+      controllingPlayerToken: normalizedSide
+        ? self.normalizeControllingPlayerToken(normalizedSide)
+        : null,
+      explicitNamedPlayer: false,
+    };
+  }
   const explicitNamedPlayer = trimmed.length > 0 && self.scriptPlayerSideByName.has(trimmed.toUpperCase());
   const normalizedSide = resolveScriptPlayerSideFromInput(self, playerInput);
   const controllingPlayerToken = explicitNamedPlayer

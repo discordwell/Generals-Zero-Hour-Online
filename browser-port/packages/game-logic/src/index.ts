@@ -7686,6 +7686,7 @@ const DEFAULT_GAME_LOGIC_CONFIG: Readonly<GameLogicConfig> = {
   baseRegenDelayFrames: BASE_REGEN_DELAY_FRAMES,
   historicDamageLimitFrames: 0,
   isCampaignMode: false, // Source parity: VictoryConditions::update() skips for non-multiplayer
+  isChallengeContext: false,
 };
 
 const OBJECT_DONT_RENDER_FLAG = 0x100;

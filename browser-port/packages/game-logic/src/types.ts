@@ -810,4 +810,12 @@ export interface GameLogicConfig {
    * destroyed = defeat" check in checkVictoryConditions is suppressed.
    */
   isCampaignMode: boolean;
+  /**
+   * Source parity: Generals Challenge mode flag.  When true, the script
+   * resolvers treat the literal name "ThePlayer" as an alias for the local
+   * player — see GeneralsMD ScriptEngine.cpp:5814 ("In generals challenge,
+   * ThePlayer is a dummy player") and GameLogic.cpp:3517-3563 which copies
+   * "ThePlayer" enemy relationships onto the actual local player.
+   */
+  isChallengeContext: boolean;
 }
