@@ -30115,10 +30115,11 @@ export function buildRuntimeSaveFile(params: {
       );
     }
   }
-  if (
-    shouldWriteBrowserRuntimeStateBlock(browserGameLogicState)
-    || includeBrowserRuntimeCoreState
-  ) {
+  // Source parity: default saves emit only source-format chunks so the file
+  // round-trips through the C++ engine.  The browser runtime block is only
+  // written when the caller opts in (round-trip preservation) — otherwise
+  // CHUNK_GameLogic + CHUNK_Players + CHUNK_TeamFactory carry the entity state.
+  if (includeBrowserRuntimeCoreState) {
     state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot(runtimePayload));
   }
   const saveResult = state.saveGame(params.description);
