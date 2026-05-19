@@ -1344,8 +1344,12 @@ function findBestAreaTarget<TEntity extends AIEntity>(
 
   if (enemies.length === 0) return null;
 
-  // Find the centroid of the largest cluster (simplified: average position of
-  // enemies near the enemy base, or overall centroid if no base known).
+  // Port-side fallback: in retail Generals, area special-power targets are
+  // chosen by AI scripts (SkirmishScripts.scb) via waypoint/team aliases,
+  // not by the C++ engine itself.  This centroid heuristic lets the TS AI
+  // fire area abilities when no script picks a target — averaged position
+  // of enemies within clusterRadius of the enemy base, falling back to the
+  // base itself when no cluster is found.
   let sumX = 0;
   let sumZ = 0;
   let count = 0;
