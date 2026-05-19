@@ -439,6 +439,66 @@ describe('Parity: stealth disguise state machine (StealthUpdate.cpp:97-150)', ()
     expect(postAttackFlags).not.toContain('DISGUISED');
     expect(truck!.disguiseTemplateName).toBeNull();
   });
+
+  it('disguiseEntityAsTarget routes the player-selected target through StealthUpdate disguiseAsObject', () => {
+    // Source parity: SpecialAbilityUpdate.cpp:1596-1610 → StealthUpdate::disguiseAsObject
+    // — when the player invokes SPECIAL_DISGUISE_AS_VEHICLE with a chosen target,
+    // the entity should disguise as THAT target's template, not whichever enemy
+    // happens to be nearest.
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Disguiser', 'GLA', ['VEHICLE', 'DISGUISER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+          makeBlock('Behavior', 'StealthUpdate ModuleTag_Stealth', {
+            StealthDelay: 100,
+            InnateStealth: 'Yes',
+            DisguisesAsTeam: 'Yes',
+            DisguiseTransitionTime: 0,
+          }),
+        ]),
+        makeObjectDef('NearbyTank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+        makeObjectDef('FarawayTank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+      ],
+    });
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Disguiser', 50, 50),
+        makeMapObject('NearbyTank', 55, 50),
+        makeMapObject('FarawayTank', 100, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    setupEnemyRelationships(logic, 'GLA', 'America');
+
+    // Drive stealth + auto-pick to completion — the disguiser ends up looking
+    // like the nearer tank (auto-pick fallback).
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, {
+        disguiseTemplateName: string | null;
+        stealthDisguisePlayerIndex: number;
+      }>;
+      disguiseEntityAsTarget(
+        entity: { id: number },
+        target: { id: number },
+      ): void;
+    };
+    const disguiser = privateApi.spawnedEntities.get(1)!;
+    expect(disguiser.disguiseTemplateName).toBe('NearbyTank');
+
+    // Player issues SPECIAL_DISGUISE_AS_VEHICLE with the far-away tank — the
+    // entity should re-disguise as that target.
+    const far = privateApi.spawnedEntities.get(3)!;
+    privateApi.disguiseEntityAsTarget(disguiser, far);
+
+    expect(disguiser.disguiseTemplateName).toBe('FarawayTank');
+  });
 });
 
 // ── Test 2: DynamicShroudClearingRangeUpdate State Machine ──────────────────

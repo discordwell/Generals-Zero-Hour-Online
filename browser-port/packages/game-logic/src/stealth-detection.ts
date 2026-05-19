@@ -627,6 +627,52 @@ function beginDisguiseGain(
   }
 }
 
+/**
+ * Source parity: StealthUpdate::disguiseAsObject(target) — called when the
+ * player issues SPECIAL_DISGUISE_AS_VEHICLE with a target unit.  Captures
+ * the target's template (or its current disguise template if the target is
+ * itself stealth-disguised) and player index, then starts a transition.
+ *
+ * Exported so the special-power dispatcher can call it directly when the
+ * BombTruck / Stealth-General BattleBus trigger their disguise ability.
+ */
+export function disguiseEntityAsTarget(
+  self: GL,
+  entity: MapEntity,
+  target: MapEntity,
+): void {
+  const profile = entity.stealthProfile;
+  if (!profile) return;
+  // Source parity: only DisguisesAsTeam units accept disguiseAsObject().
+  if (!profile.disguisesAsTeam) return;
+  // Source parity: target without a controlling player → noop (StealthUpdate.cpp:943).
+  if (!target.side) return;
+  // Source parity: if target is itself disguised, copy ITS disguise template
+  // and player index instead of the target's underlying identity.
+  let templateName: string = target.templateName;
+  let playerSide: string = target.side;
+  if (target.stealthProfile?.disguisesAsTeam
+    && target.objectStatusFlags.has('DISGUISED')
+    && target.disguiseTemplateName) {
+    templateName = target.disguiseTemplateName;
+    const disguisedPlayerIndex = target.stealthDisguisePlayerIndex;
+    const resolvedSide = self.getSideForPlayerIndex
+      ? self.getSideForPlayerIndex(disguisedPlayerIndex)
+      : null;
+    if (resolvedSide) playerSide = resolvedSide;
+  }
+  // Synthesize a minimal target-like record carrying the resolved template &
+  // side so beginDisguiseGain's identity-capture path stays a single function.
+  const surrogate = {
+    templateName,
+    side: playerSide,
+  } as unknown as MapEntity;
+  beginDisguiseGain(self, entity, surrogate, profile);
+  // Source parity: special-power-driven disguise re-enables stealth even if
+  // it was previously disabled (m_enabled = true at StealthUpdate.cpp:957).
+  entity.stealthEnabled = true;
+}
+
 function beginDisguiseReveal(entity: MapEntity, profile: StealthProfile | null): void {
   if (!entity.objectStatusFlags.has('DISGUISED')) return;
   const revealFrames = Math.max(0, profile?.disguiseRevealTransitionFrames ?? 0);

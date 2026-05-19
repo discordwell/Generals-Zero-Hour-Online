@@ -2114,6 +2114,17 @@ export function triggerSpecialAbilityEffect(self: GL,
             // Clear capture progress on the target.
             target.capturePercent = -1;
           }
+          // Source parity: SpecialAbilityUpdate.cpp:1596-1610 — when the
+          // player triggers SPECIAL_DISGUISE_AS_VEHICLE with a target, the
+          // unit's StealthUpdate::disguiseAsObject(target) is called, which
+          // copies the target's template (or its disguise template if the
+          // target itself is disguised) and player index, then starts the
+          // disguise transition.  Our port previously relied on the stealth
+          // auto-pick fallback; the player-driven trigger now updates the
+          // entity to disguise as the selected target.
+          if (spEnum === 'SPECIAL_DISGUISE_AS_VEHICLE') {
+            self.disguiseEntityAsTarget(entity, target);
+          }
           break;
         }
       }

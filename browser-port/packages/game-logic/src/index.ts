@@ -900,6 +900,7 @@ import {
   updateGrantStealth as updateGrantStealthImpl,
   grantStealthToEntity as grantStealthToEntityImpl,
   updateDetection as updateDetectionImpl,
+  disguiseEntityAsTarget as disguiseEntityAsTargetImpl,
 } from './stealth-detection.js';
 import {
   resetBridgeDamageStateChanges as resetBridgeDamageStateChangesImpl,
@@ -29829,6 +29830,17 @@ export class GameLogicSubsystem implements Subsystem {
     return this.sidePlayerIndex.get(normalizedSide) ?? null;
   }
 
+  /**
+   * Source parity: PlayerList::getNthPlayer(index) → Player → getSide().  Used
+   * by StealthUpdate::disguiseAsObject when copying the disguise template from
+   * an already-disguised target whose underlying side is known only by index.
+   */
+  getSideForPlayerIndex(playerIndex: number): string | null {
+    if (!Number.isFinite(playerIndex) || playerIndex < 0) return null;
+    const side = this.playerSideByIndex.get(Math.trunc(playerIndex));
+    return typeof side === 'string' && side.length > 0 ? side : null;
+  }
+
   getResolvedFactionSide(side: string): string | null {
     return this.resolveFactionSideForSide(side);
   }
@@ -32535,6 +32547,7 @@ export class GameLogicSubsystem implements Subsystem {
   private updateGrantStealth(...args: any[]) { return (updateGrantStealthImpl as any)(this, ...args); }
   /* @internal */ grantStealthToEntity(...args: any[]) { return (grantStealthToEntityImpl as any)(this, ...args); }
   private updateDetection(...args: any[]) { return (updateDetectionImpl as any)(this, ...args); }
+  /* @internal */ disguiseEntityAsTarget(...args: any[]) { return (disguiseEntityAsTargetImpl as any)(this, ...args); }
 
   // ---- Status effects facades (delegate to status-effects.ts) ----
 
