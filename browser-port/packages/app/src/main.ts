@@ -1556,6 +1556,10 @@ async function startGame(
     // Source parity: VictoryConditions::update() skips for non-multiplayer.
     // Campaign missions use script-based victory/defeat exclusively.
     isCampaignMode: !!campaignContext,
+    // Source parity: GeneralsMD GameLogic.cpp:1174 / ScriptEngine.cpp:5814 — Generals
+    // Challenge mode runs against the same skirmish defaults but with "ThePlayer"
+    // treated as a dummy placeholder for the local player.
+    isChallengeContext: campaignContext?.settings.gameMode === 'CHALLENGE',
   });
   const maybeSetDeterministicGameLogicCrcSectionWriters = (
     networkManager as unknown as {
@@ -2041,6 +2045,35 @@ async function startGame(
         gameLogic.setTeamRelationship(target.runtimeSide, source.runtimeSide, relationship);
       }
     }
+  } else if (
+    campaignContext?.settings.gameMode === 'CHALLENGE'
+    && !runtimeSaveLoadContext
+  ) {
+    // Source parity: GeneralsMD/GameLogic.cpp:3517-3563 — for challenges, SkirmishScripts.scb
+    // runs by default (SidesList::parseInScripts loads it when the map has no own scripts),
+    // spawning each skirmish slot's CC + Dozer at Player_N_Start.  Register the AI
+    // general as player slot 1 (with the faction declared on the map's SkirmishGLA side)
+    // and spawn starting entities for both slots.  Without this the map's Win/Loss
+    // scripts trip PLAYER_ALL_DESTROYED("ThePlayer") and
+    // PLAYER_ALL_BUILDFACILITIES_DESTROYED("SkirmishGLA") immediately because neither
+    // the local player nor the AI has a buildable.
+    const aiPlayerNames = ['SkirmishGLA', 'SkirmishChina', 'SkirmishUSA'];
+    let aiSlotIndex = 1;
+    for (const aiPlayerName of aiPlayerNames) {
+      const aiSide = (gameLogic as unknown as {
+        scriptPlayerSideByName: Map<string, string>;
+      }).scriptPlayerSideByName.get(aiPlayerName.toUpperCase());
+      if (!aiSide) continue;
+      gameLogic.setPlayerSide(aiSlotIndex, aiSide);
+      gameLogic.enableSkirmishAI(aiSide);
+      const humanSide = gameLogic.getPlayerSide(0);
+      if (humanSide) {
+        gameLogic.setTeamRelationship(humanSide, aiSide, 0);
+        gameLogic.setTeamRelationship(aiSide, humanSide, 0);
+      }
+      aiSlotIndex += 1;
+    }
+    gameLogic.spawnSkirmishStartingEntities();
   }
 
   // Fresh maps need one bootstrap update so fog-of-war registers entity
@@ -5692,7 +5725,11 @@ async function startGame(
       gameClientBriefingLines: scriptMessageRuntimeBridge.getBriefingHistory(),
       passthroughBlocks: runtimeSaveLoadContext?.runtimeSave.passthroughBlocks ?? [],
       mapDrawableIdCounter: runtimeSaveLoadContext?.runtimeSave.mapDrawableIdCounter ?? null,
-      includeBrowserRuntimeCoreState: true,
+      // Source parity: default saves emit only source-format chunks so the file
+      // round-trips through the C++ engine.  Browser-only state (camera, runtime
+      // bridge fixtures) is captured in CHUNK_TS_RuntimeState only when the
+      // caller explicitly opts in for strict TS-to-TS round-trip preservation.
+      includeBrowserRuntimeCoreState: false,
       campaign: activeCampaign && activeMission
         ? {
             version: runtimeSaveLoadContext?.runtimeSave.campaign?.version,
