@@ -1947,7 +1947,7 @@ describe('FlightDeckBehavior', () => {
 });
 
 describe('SpectreGunshipUpdate', () => {
-  function makeGunshipDef(options: { templateName?: string; locomotorName?: string } = {}): ObjectDef {
+  function makeGunshipDef(options: { templateName?: string; locomotorName?: string; panicLocomotorName?: string } = {}): ObjectDef {
     const blocks = [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
       makeBlock('Behavior', 'SpectreGunshipUpdate ModuleTag_Spectre', {
@@ -1968,6 +1968,9 @@ describe('SpectreGunshipUpdate', () => {
     ];
     if (options.locomotorName) {
       blocks.push(makeBlock('LocomotorSet', `SET_NORMAL ${options.locomotorName}`, {}));
+    }
+    if (options.panicLocomotorName) {
+      blocks.push(makeBlock('LocomotorSet', `SET_PANIC ${options.panicLocomotorName}`, {}));
     }
     return makeObjectDef(options.templateName ?? 'TestGunship', 'America', ['VEHICLE', 'AIRCRAFT'], blocks, { Speed: 5 });
   }
@@ -2053,8 +2056,14 @@ describe('SpectreGunshipUpdate', () => {
   });
 
   it('transitions gunship through INSERTING -> ORBITING -> DEPARTING lifecycle', () => {
+    // Source parity: SpectreGunshipUpdate.cpp:441-444 routes the gunship through
+    // shipAI->aiMoveToPosition every frame, so the locomotor's Speed/Accel/
+    // TurnRate drive the inbound trajectory.  Wire a realistic locomotor here
+    // so the test exercises the same code paths the retail gunship uses
+    // (rather than the no-locomotor fallback's 18 dist/sec default).
     const bundle = makeBundle({
-      objects: [makeGunshipDef()],
+      objects: [makeGunshipDef({ locomotorName: 'SpectreLifecycleLoco' })],
+      locomotors: [makeLocomotorDef('SpectreLifecycleLoco', 300, { PreferredHeight: 130 })],
       weapons: [makeWeaponDef('TestHowitzer', { Damage: 50, DamageRadius: 20, DamageType: 'EXPLOSION' })],
     });
     const scene = new THREE.Scene();
@@ -2105,8 +2114,10 @@ describe('SpectreGunshipUpdate', () => {
     // Entity starts far from target — should be INSERTING
     expect(entity.spectreGunshipState!.status).toBe('INSERTING');
 
-    // Run frames until it reaches orbit radius
-    for (let i = 0; i < 500; i++) {
+    // Run frames until it reaches orbit radius.  With Speed=300 dist/sec and
+    // dt=1/30, the gunship needs ~90 frames to traverse ~890 units; allow a
+    // generous budget to absorb accel/brake/turn-rate ramp-up.
+    for (let i = 0; i < 1500; i++) {
       logic.update(1 / 30);
       if (entity.spectreGunshipState!.status !== 'INSERTING') break;
     }
@@ -2117,7 +2128,7 @@ describe('SpectreGunshipUpdate', () => {
 
     // Run past orbit escape frame
     const escapeFrame = entity.spectreGunshipState!.orbitEscapeFrame;
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < 2000; i++) {
       logic.update(1 / 30);
       if (entity.spectreGunshipState!.status === 'DEPARTING') break;
     }
@@ -2126,7 +2137,7 @@ describe('SpectreGunshipUpdate', () => {
     expect(entity.spectreGunshipState!.status).toBe('DEPARTING');
 
     // Run until off map and destroyed
-    for (let i = 0; i < 2000; i++) {
+    for (let i = 0; i < 3000; i++) {
       if (entity.destroyed) break;
       logic.update(1 / 30);
     }
@@ -2427,6 +2438,101 @@ describe('SpectreGunshipUpdate', () => {
     expect(gunship.selected).toBe(true);
   });
 
+  it('switches gunship locomotor SET_PANIC -> SET_NORMAL at INSERTING -> ORBITING transition', () => {
+    // Source parity: SpectreGunshipUpdate.cpp:223 selects LOCOMOTORSET_PANIC for
+    // the inbound transit, and line 483 switches to LOCOMOTORSET_NORMAL on
+    // orbit insertion.  This test verifies both transitions fire when the
+    // gunship has the two locomotor sets defined (as the retail
+    // AmericaJetSpectreGunship does).
+    const bundle = makeBundle({
+      objects: [
+        makeCommandCenterDef('LocoSwitchGunship'),
+        makeGunshipDef({
+          templateName: 'LocoSwitchGunship',
+          locomotorName: 'SpectreOrbitLoco',
+          panicLocomotorName: 'SpectreTransitLoco',
+        }),
+      ],
+      locomotors: [
+        makeLocomotorDef('SpectreOrbitLoco', 240, { PreferredHeight: 130 }),
+        makeLocomotorDef('SpectreTransitLoco', 360, { PreferredHeight: 130 }),
+      ],
+      specialPowers: [makeSpecialPowerDef('SPECIAL_SPECTRE_GUNSHIP', {
+        ReloadTime: 0,
+        Enum: 'SPECIAL_SPECTRE_GUNSHIP',
+      })],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestCommandCenter', 64, 64)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as any;
+    expect(priv.initiateSpectreGunshipDeployment(1, 640, 640)).toBe(true);
+
+    const gunship = Array.from(priv.spawnedEntities.values())
+      .find((e: any) => e.templateName === 'LocoSwitchGunship') as any;
+    expect(gunship).toBeDefined();
+    // Deployment immediately picks PANIC for transit.
+    expect(gunship.activeLocomotorSet).toBe('SET_PANIC');
+    expect(gunship.spectreGunshipState.status).toBe('INSERTING');
+
+    // Drive simulation until ORBIT.
+    for (let i = 0; i < 1500; i++) {
+      logic.update(1 / 30);
+      if (gunship.spectreGunshipState.status !== 'INSERTING') break;
+    }
+    expect(gunship.spectreGunshipState.status).toBe('ORBITING');
+    // Source parity: chooseLocomotorSet(LOCOMOTORSET_NORMAL) on orbit transition.
+    expect(gunship.activeLocomotorSet).toBe('SET_NORMAL');
+  });
+
+  it('maintains gunship cruise altitude via locomotor PreferredHeight during INSERTING and ORBITING', () => {
+    // Source parity: SpectreGunshipUpdate has no explicit altitude code — the
+    // Locomotor's ZAxisBehavior=SURFACE_RELATIVE_HEIGHT (Locomotor.cpp:1410)
+    // keeps the gunship at PreferredHeight above terrain.  We mirror this in
+    // updateEntityVerticalPosition for entities with active spectreGunshipState.
+    const bundle = makeBundle({
+      objects: [
+        makeCommandCenterDef('AltitudeGunship'),
+        makeGunshipDef({ templateName: 'AltitudeGunship', locomotorName: 'AltitudeLoco' }),
+      ],
+      locomotors: [makeLocomotorDef('AltitudeLoco', 300, { PreferredHeight: 130 })],
+      specialPowers: [makeSpecialPowerDef('SPECIAL_SPECTRE_GUNSHIP', {
+        ReloadTime: 0,
+        Enum: 'SPECIAL_SPECTRE_GUNSHIP',
+      })],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestCommandCenter', 64, 64)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as any;
+    expect(priv.initiateSpectreGunshipDeployment(1, 640, 640)).toBe(true);
+
+    const gunship = Array.from(priv.spawnedEntities.values())
+      .find((e: any) => e.templateName === 'AltitudeGunship') as any;
+    expect(gunship).toBeDefined();
+    // Initial spawn sets y to preferredHeight (130) before terrain damping kicks in.
+    expect(gunship.y).toBe(130);
+
+    // After many frames the altitude should settle to (ground + baseHeight) +
+    // preferredHeight.  baseHeight is the object's half-height; the same
+    // offset is added to ground height in updateEntityVerticalPosition.
+    for (let i = 0; i < 60; i++) logic.update(1 / 30);
+    const groundY = priv.resolveGroundHeight(gunship.x, gunship.z) + gunship.baseHeight;
+    expect(gunship.y - groundY).toBeCloseTo(130, 0);
+    // And the AIRBORNE_TARGET flag must be set so AA weapons can target it.
+    expect(gunship.objectStatusFlags.has('AIRBORNE_TARGET')).toBe(true);
+  });
+
   it('gunship with no spectreGunshipProfile gets null profile', () => {
     const bundle = makeBundle({
       objects: [makeObjectDef('Tank', 'America', ['VEHICLE'], [
@@ -2496,8 +2602,15 @@ describe('SpectreGunshipUpdate', () => {
   });
 
   it('gattling entity is enabled (DISABLED_PARALYZED cleared) on transition to ORBITING', () => {
+    // Source parity: gunship needs a real transit locomotor so issueMoveTo
+    // moves it at the same per-second cadence the live game uses; the
+    // no-locomotor fallback only reaches 18 dist/sec (defaultMoveSpeed).
     const bundle = makeBundle({
-      objects: [makeGunshipDef(), makeGattlingDef()],
+      objects: [
+        makeGunshipDef({ locomotorName: 'SpectreGattlingLoco' }),
+        makeGattlingDef(),
+      ],
+      locomotors: [makeLocomotorDef('SpectreGattlingLoco', 300, { PreferredHeight: 130 })],
       weapons: [makeWeaponDef('TestHowitzer', { Damage: 50, DamageRadius: 20, DamageType: 'EXPLOSION' })],
     });
     const scene = new THREE.Scene();
@@ -2535,8 +2648,8 @@ describe('SpectreGunshipUpdate', () => {
     const gattling = priv.spawnedEntities.get(gattlingId);
     expect(gattling.objectStatusFlags.has('DISABLED_PARALYZED')).toBe(true);
 
-    // Run frames until ORBITING
-    for (let i = 0; i < 500; i++) {
+    // Run frames until ORBITING (allow generous budget for locomotor traversal).
+    for (let i = 0; i < 1500; i++) {
       logic.update(1 / 30);
       if (gunship.spectreGunshipState.status !== 'INSERTING') break;
     }

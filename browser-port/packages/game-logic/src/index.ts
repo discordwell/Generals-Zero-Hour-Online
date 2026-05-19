@@ -58516,6 +58516,30 @@ export class GameLogicSubsystem implements Subsystem {
       entity.objectStatusFlags.delete('AIRBORNE_TARGET');
     }
 
+    // Source parity: SpectreGunshipUpdate.cpp — the gunship is a special-power
+    // owned aircraft with KindOf=AIRCRAFT but no JetAIUpdate / ChinookAIUpdate.
+    // The C++ engine relies on Locomotor::moveTowardsPosition + ZAxisBehavior =
+    // SURFACE_RELATIVE_HEIGHT (Locomotor.cpp:1410-1444) to maintain preferred
+    // height during INSERTING / ORBITING.  We mirror that here by snapping
+    // toward groundY + preferredHeight while the gunship is active, and
+    // fall through to ground snap once it transitions to IDLE (post-DEPARTING).
+    const gunshipState = entity.spectreGunshipState;
+    if (gunshipState && gunshipState.status !== 'IDLE') {
+      entity.objectStatusFlags.add('AIRBORNE_TARGET');
+      const active = entity.locomotorSets.get(entity.activeLocomotorSet);
+      const fallback = entity.locomotorSets.get(LOCOMOTORSET_NORMAL);
+      const preferredHeight = Math.max(
+        0,
+        active?.preferredHeight ?? fallback?.preferredHeight ?? 0,
+      );
+      const targetYGunship = groundY + preferredHeight;
+      // Use a fixed exponential approach with terrainSnapSpeed so the gunship
+      // settles into cruise height without the visual snap of a hard set.
+      const snapAlphaGunship = 1 - Math.exp(-this.config.terrainSnapSpeed * dt);
+      entity.y += (targetYGunship - entity.y) * snapAlphaGunship;
+      return;
+    }
+
     // Ground snap for non-aircraft or parked/reloading aircraft.
     const targetY = groundY;
     const snapAlpha = 1 - Math.exp(-this.config.terrainSnapSpeed * dt);

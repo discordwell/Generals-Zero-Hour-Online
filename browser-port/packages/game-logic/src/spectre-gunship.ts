@@ -182,6 +182,17 @@ export function initiateSpectreGunshipDeployment(self: GL,
       gattlingEntityId: -1,
     };
 
+    // Source parity: SpectreGunshipUpdate::initiateIntentToDoSpecialPower
+    // (SpectreGunshipUpdate.cpp:223) — switch to LOCOMOTORSET_PANIC for the
+    // inbound transit, matching `shipAI->chooseLocomotorSet(LOCOMOTORSET_PANIC)`.
+    // The gunship's LOCOMOTORSET_PANIC binds the SpectreGunshipTransitLocomotor;
+    // when the unit transitions to ORBITING we switch back to LOCOMOTORSET_NORMAL
+    // (SpectreGunshipOrbitLocomotor) per SpectreGunshipUpdate.cpp:483.
+    if (typeof self.setEntityLocomotorSet === 'function'
+      && gunshipEntity.locomotorSets?.has?.('SET_PANIC')) {
+      self.setEntityLocomotorSet(gunshipEntity.id, 'SET_PANIC');
+    }
+
     // Source parity: SpectreGunshipUpdate::initiateIntentToDoSpecialPower —
     // spawn a gattling entity, add it to the gunship's contain module, and disable it
     // until orbit insertion is complete. C++ creates the entity from m_gattlingTemplateName,
@@ -273,19 +284,37 @@ export function updateSpectreGunship(self: GL): void {
       state.satelliteX = state.initialTargetX + declX * orbitalRadius;
       state.satelliteZ = state.initialTargetZ + declZ * orbitalRadius;
 
-      // Move toward satellite position (simplified — source uses locomotor AI)
-      const moveSpeed = entity.speed > 0 ? entity.speed : 3.0;
-      const dxMove = state.satelliteX - entity.x;
-      const dzMove = state.satelliteZ - entity.z;
-      const moveDist = Math.sqrt(dxMove * dxMove + dzMove * dzMove);
-      if (moveDist > moveSpeed) {
-        entity.x += (dxMove / moveDist) * moveSpeed;
-        entity.z += (dzMove / moveDist) * moveSpeed;
+      // Source parity: SpectreGunshipUpdate.cpp:441-444 —
+      //   shipAI->aiMoveToPosition(&m_satellitePosition, CMD_FROM_AI);
+      // Re-issues the AI move command every frame so the locomotor curves toward
+      // the satellite position (which rotates around the target as the gunship
+      // closes in).  The airborne issueMoveTo fast path skips A* pathfinding for
+      // category='air' entities and writes the destination straight into the
+      // entity's movePath, so the locomotor physics in updateEntityMovement
+      // takes over: accel/brake ramps, turn-rate limited rotation, and
+      // banking-style lateral velocity all come from the unit's locomotor INI.
+      //
+      // We use allowNoPathMove=true so satellite positions that fall just off
+      // the playable area (common when the player targets near the map edge)
+      // don't get rejected.  CMD_FROM_AI keeps the move privately scoped to
+      // AIUpdate state (matching the C++ `AICommandParms::m_cmdSource` arg).
+      if (typeof self.issueMoveTo === 'function') {
+        self.issueMoveTo(entity.id, state.satelliteX, state.satelliteZ, 0, true, 'AI');
       } else {
-        entity.x = state.satelliteX;
-        entity.z = state.satelliteZ;
+        // Fallback for tests with minimal GL stubs that don't wire issueMoveTo.
+        const moveSpeed = entity.speed > 0 ? entity.speed : 3.0;
+        const dxMove = state.satelliteX - entity.x;
+        const dzMove = state.satelliteZ - entity.z;
+        const moveDist = Math.sqrt(dxMove * dxMove + dzMove * dzMove);
+        if (moveDist > moveSpeed) {
+          entity.x += (dxMove / moveDist) * moveSpeed;
+          entity.z += (dzMove / moveDist) * moveSpeed;
+        } else {
+          entity.x = state.satelliteX;
+          entity.z = state.satelliteZ;
+        }
+        entity.rotationY = Math.atan2(dzMove, dxMove);
       }
-      entity.rotationY = Math.atan2(dzMove, dxMove);
 
       // Source parity: constrain target override within attack radius
       const constraintRadius = profile.attackAreaRadius - profile.targetingReticleRadius;
@@ -309,6 +338,17 @@ export function updateSpectreGunship(self: GL): void {
         const gattlingInsert = self.spawnedEntities.get(state.gattlingEntityId);
         if (gattlingInsert && !gattlingInsert.destroyed) {
           gattlingInsert.objectStatusFlags.delete('DISABLED_PARALYZED');
+        }
+
+        // Source parity: SpectreGunshipUpdate.cpp:483 —
+        //   shipAI->chooseLocomotorSet(LOCOMOTORSET_NORMAL);
+        // Switches from the transit (PANIC) locomotor to the orbit (NORMAL)
+        // locomotor.  In retail this matters: SpectreGunshipOrbitLocomotor has
+        // a higher TurnRate (50 vs 30) and lower MaxSpeed (120 vs ~240) to keep
+        // the gunship circling tightly while the howitzer/gattling fire.
+        if (typeof self.setEntityLocomotorSet === 'function'
+          && entity.locomotorSets?.has?.('SET_NORMAL')) {
+          self.setEntityLocomotorSet(entity.id, 'SET_NORMAL');
         }
       }
 
