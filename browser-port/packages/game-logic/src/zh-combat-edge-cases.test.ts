@@ -18,7 +18,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { GameLogicSubsystem } from './index.js';
-import { HeightmapGrid } from '@generals/terrain';
+import { HeightmapGrid, MAP_XY_FACTOR } from '@generals/terrain';
 import {
   makeBlock,
   makeObjectDef,
@@ -353,6 +353,74 @@ describe('Sneak attack structure flattening', () => {
     // Since we have a hill in the center, flattening should reduce the center point or
     // equalize surrounding points.
     expect(postCenter).toBeLessThanOrEqual(preFlattenCenter);
+  });
+
+  it('flattens BOX-geometry building footprint as an oriented rectangle, not a circle', () => {
+    // Source parity: TerrainLogic.cpp:2653-2767 — GEOMETRY_BOX uses an oriented
+    // rectangle defined by the rotated four corners (Point_In_Triangle_2D test
+    // against two triangles forming the quad).  The TS port previously used a
+    // circular radius check regardless of geometry type; this test verifies the
+    // rotated-rectangle test now correctly excludes points outside the box's
+    // narrow axis but within the major-radius circle.
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('LongBoxStructure', 'GLA', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ], { GeometryMajorRadius: 60, GeometryMinorRadius: 10, GeometryType: 'BOX' }),
+      ],
+      armors: [makeArmorDef('DefaultArmor', { Default: 1 })],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const hmWidth = 128;
+    const hmHeight = 128;
+    // Set up a sloped terrain so cells inside vs outside the footprint will
+    // have distinct heights — the building's box footprint must average those
+    // cells and clamp to center height (BOX-only behavior, TerrainLogic.cpp:2720).
+    const rawData = new Uint8Array(hmWidth * hmHeight);
+    for (let z = 0; z < hmHeight; z++) {
+      for (let x = 0; x < hmWidth; x++) {
+        // Higher terrain at cells with larger Z — gives the building's footprint
+        // (centered at cell ~64,64) a clear "averaging" range.
+        rawData[z * hmWidth + x] = 80 + (z > 64 ? 20 : 0);
+      }
+    }
+    const heightmap = new HeightmapGrid(hmWidth, hmHeight, 0, rawData);
+
+    const mapData = makeMap([], hmWidth, hmHeight);
+    mapData.waypoints = { nodes: [{ id: 1, name: 'Player_1_Start', position: { x: 50, y: 50, z: 0 } }], links: [] };
+    logic.loadMapObjects(mapData, makeRegistry(bundle), heightmap);
+    logic.setPlayerSide(0, 'GLA');
+    logic.update(0);
+
+    const privateApi = logic as unknown as {
+      flattenTerrainForStructure(entity: any): void;
+      spawnEntityFromTemplate(name: string, x: number, z: number, rot: number, side: string): any;
+    };
+
+    // Place the building at world (640, 640) so its major axis spans cells
+    // 58..70 on X (radius 60 units = ~6 cells) and minor axis spans cells
+    // 63..65 on Z (radius 10 units = ~1 cell).  With MAP_XY_FACTOR=10.
+    const spawnX = 640;
+    const spawnZ = 640;
+    const structure = privateApi.spawnEntityFromTemplate('LongBoxStructure', spawnX, spawnZ, 0, 'GLA');
+    expect(structure).not.toBeNull();
+    structure.rotationY = 0;
+
+    // Sample a cell ~30 units along world-Z (outside the box's narrow Z axis)
+    // before flatten.  With the OLD circular logic this cell would be flattened
+    // because it is within the majorRadius=60 circle.
+    const outsideBoxCellX = Math.floor(spawnX / MAP_XY_FACTOR);
+    const outsideBoxCellZ = Math.floor((spawnZ + 30) / MAP_XY_FACTOR);
+    const outsideBoxIdx = outsideBoxCellZ * hmWidth + outsideBoxCellX;
+    const beforeOutsideBox = heightmap.rawData[outsideBoxIdx];
+
+    privateApi.flattenTerrainForStructure(structure);
+
+    // After flatten: the cell well outside the box's minor extent must NOT
+    // have been overwritten by the flatten — preserves the pre-flatten height.
+    // (The new box test confines flatten to localZ in [-10, +10].)
+    expect(heightmap.rawData[outsideBoxIdx]).toBe(beforeOutsideBox);
   });
 
   it('OCL-created structure triggers navigation grid refresh', () => {

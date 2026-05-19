@@ -43788,10 +43788,15 @@ export class GameLogicSubsystem implements Subsystem {
   /**
    * Source parity: TerrainLogic::flattenTerrain — flatten the terrain beneath a structure.
    * C++ computes the average height under the building's footprint and sets all covered
-   * heightmap cells to that average. We use a simplified circular footprint (geometry
-   * major radius) to flatten the area under the structure.
+   * heightmap cells to that average, then writes a 3x3 cell square around each matched
+   * cell so neighboring corners get smoothed.
    *
-   * C++ reference: TerrainLogic.cpp:2644-2788
+   * Branches on the entity's geometry type:
+   *   - BOX:    oriented rectangle (rotated by entity.rotationY) — uses two triangles
+   *             to point-in-shape test, matching C++ Point_In_Triangle_2D loop.
+   *   - SPHERE / CYLINDER: circular footprint (majorRadius squared distance check).
+   *
+   * C++ reference: TerrainLogic.cpp:2644-2856
    */
   /* @internal */ flattenTerrainForStructure(entity: MapEntity): void {
     const heightmap = this.mapHeightmap;
@@ -43808,49 +43813,94 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
 
-    // First pass: compute the average terrain height under the footprint.
-    const minCellX = Math.max(0, Math.floor((entity.x - radius) / MAP_XY_FACTOR));
-    const maxCellX = Math.min(heightmap.width - 1, Math.floor((entity.x + radius) / MAP_XY_FACTOR));
-    const minCellZ = Math.max(0, Math.floor((entity.z - radius) / MAP_XY_FACTOR));
-    const maxCellZ = Math.min(heightmap.height - 1, Math.floor((entity.z + radius) / MAP_XY_FACTOR));
+    // Source parity: select footprint test by geometry type.  Box geometries
+    // use an oriented bounding rectangle; circles/spheres/cylinders fall back
+    // to a radius-squared check.
+    const geometryShape = entity.geometryInfo?.shape
+      ?? entity.obstacleGeometry?.shape
+      ?? 'circle';
+    const isBox = geometryShape === 'box';
+    const minorRadius = isBox
+      ? (entity.geometryInfo?.minorRadius ?? entity.obstacleGeometry?.minorRadius ?? radius)
+      : radius;
+    const cosYaw = isBox ? Math.cos(entity.rotationY) : 1;
+    const sinYaw = isBox ? Math.sin(entity.rotationY) : 0;
 
+    // Source parity (BOX): TerrainLogic.cpp:2664-2691 — compute the axis-aligned
+    // bounding box of the rotated rectangle, then sample every cell inside.
+    // Source parity (CIRCLE): TerrainLogic.cpp:2779-2782 — bounding box is just
+    // entity center ± majorRadius along each axis.
+    const halfDiag = isBox ? Math.hypot(radius, minorRadius) : radius;
+    const minCellX = Math.max(0, Math.floor((entity.x - halfDiag) / MAP_XY_FACTOR));
+    const maxCellX = Math.min(heightmap.width - 1, Math.floor((entity.x + halfDiag) / MAP_XY_FACTOR));
+    const minCellZ = Math.max(0, Math.floor((entity.z - halfDiag) / MAP_XY_FACTOR));
+    const maxCellZ = Math.min(heightmap.height - 1, Math.floor((entity.z + halfDiag) / MAP_XY_FACTOR));
+
+    // Source parity: in C++ the box test uses Point_In_Triangle_2D on the two
+    // triangles forming the oriented quad.  An equivalent and cheaper TS check
+    // is to rotate the test point back into the box's local frame and compare
+    // against [-major, +major] x [-minor, +minor].
+    const cellInFootprint = (worldX: number, worldZ: number): boolean => {
+      const dx = worldX - entity.x;
+      const dz = worldZ - entity.z;
+      if (isBox) {
+        // Inverse rotation: localX = dx*cos + dz*sin, localZ = -dx*sin + dz*cos.
+        const localX = dx * cosYaw + dz * sinYaw;
+        const localZ = -dx * sinYaw + dz * cosYaw;
+        return Math.abs(localX) <= radius && Math.abs(localZ) <= minorRadius;
+      }
+      return dx * dx + dz * dz <= radius * radius;
+    };
+
+    // First pass: average terrain height under the footprint.
     let totalHeight = 0;
     let numSamples = 0;
-
     for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
       for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ++) {
         const worldX = cellX * MAP_XY_FACTOR;
         const worldZ = cellZ * MAP_XY_FACTOR;
-        const dx = worldX - entity.x;
-        const dz = worldZ - entity.z;
-        if (dx * dx + dz * dz > radius * radius) continue;
-
+        if (!cellInFootprint(worldX, worldZ)) continue;
         const idx = cellZ * heightmap.width + cellX;
         totalHeight += heightmap.worldHeights[idx] ?? 0;
         numSamples++;
       }
     }
-
     if (numSamples === 0) return;
 
     const avgHeight = totalHeight / numSamples;
-    // C++ clamps to center height: rawDataHeight = min(avgHeight, centerHeight).
-    const centerHeight = heightmap.getInterpolatedHeight(entity.x, entity.z) ?? 0;
-    const targetHeight = Math.min(avgHeight, centerHeight);
+    // Source parity (BOX): TerrainLogic.cpp:2719-2720 — clamp the flatten height
+    // to the height at the building's origin so the flatten only LOWERS terrain,
+    // never raises it.  Source parity (CIRCLE): no clamp applied (line 2803-2804).
+    let targetHeight: number;
+    if (isBox) {
+      const centerHeight = heightmap.getInterpolatedHeight(entity.x, entity.z) ?? 0;
+      targetHeight = Math.min(avgHeight, centerHeight);
+    } else {
+      targetHeight = avgHeight;
+    }
     const targetRaw = Math.max(1, Math.round(targetHeight / MAP_HEIGHT_SCALE));
 
-    // Second pass: set all cells under the footprint to the target height.
+    // Second pass: write target height into every matched cell AND its 3x3
+    // neighbourhood.  Source parity: TerrainLogic.cpp:2733-2767 (BOX) and
+    // 2818-2841 (CIRCLE) both write the matched cell plus its 8 neighbours.
+    const setCellHeight = (cellX: number, cellZ: number): void => {
+      if (cellX < 0 || cellX >= heightmap.width) return;
+      if (cellZ < 0 || cellZ >= heightmap.height) return;
+      const idx = cellZ * heightmap.width + cellX;
+      heightmap.rawData[idx] = targetRaw;
+      heightmap.worldHeights[idx] = targetRaw * MAP_HEIGHT_SCALE;
+    };
+
     for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
       for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ++) {
         const worldX = cellX * MAP_XY_FACTOR;
         const worldZ = cellZ * MAP_XY_FACTOR;
-        const dx = worldX - entity.x;
-        const dz = worldZ - entity.z;
-        if (dx * dx + dz * dz > radius * radius) continue;
-
-        const idx = cellZ * heightmap.width + cellX;
-        heightmap.rawData[idx] = targetRaw;
-        heightmap.worldHeights[idx] = targetRaw * MAP_HEIGHT_SCALE;
+        if (!cellInFootprint(worldX, worldZ)) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            setCellHeight(cellX + dx, cellZ + dz);
+          }
+        }
       }
     }
 
