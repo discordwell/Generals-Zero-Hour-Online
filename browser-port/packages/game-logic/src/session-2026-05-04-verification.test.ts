@@ -465,4 +465,52 @@ describe('session 2026-05-04 — slice 1 against real retail data', () => {
       expect(readBundleField(obj, 'JetSlowDeathBehavior', 'FXHitGround')).toBe('FX_JetDeathHitGround');
     });
   });
+
+  describe('JetAIUpdate TakeoffSpeedForMaxLift on retail jet templates', () => {
+    // Source parity: JetAIUpdate.cpp:1490 — parseAsciiPercentToReal; default 1.0.
+    // The bundle stores the parsed fraction directly (e.g., 60% → 0.6).
+    it('parses TakeoffSpeedForMaxLift from AmericaJetAurora as a fractional speed', () => {
+      const obj = findObjectDef('AmericaJetAurora');
+      expect(readBundleField(obj, 'JetAIUpdate', 'TakeoffSpeedForMaxLift')).toBe(1);
+    });
+  });
+
+  describe('LaserUpdate ParentFireBone fields on retail laser templates', () => {
+    // Source parity: LaserUpdate.cpp:59-60 — ParentFireBoneName + ParentFireBoneOnTurret
+    // route the laser origin from a specific producer bone instead of the producer's
+    // translation.
+    it('parses ParentFireBoneName on LaserBeam (Muzzle01)', () => {
+      const obj = findObjectDef('LaserBeam');
+      const value = readBundleField(obj, 'LaserUpdate', 'ParentFireBoneName');
+      expect(value).toBe('Muzzle01');
+    });
+    it('parses ParentFireBoneOnTurret on PointDefenseLaserBeam', () => {
+      const obj = findObjectDef('PointDefenseLaserBeam');
+      const value = readBundleField(obj, 'LaserUpdate', 'ParentFireBoneOnTurret');
+      // C++ stores via INI::parseAsciiString but treats it as a boolean truthy.
+      expect(value === 'Yes' || value === 'yes' || value === true || value === 'True').toBe(true);
+    });
+  });
+
+  describe('BeaconClientUpdate RadarPulse fields on MultiplayerBeacon', () => {
+    // Source parity: BeaconClientUpdate.cpp:60-62 — RadarPulseFrequency +
+    // RadarPulseDuration drive the beacon's periodic radar pulse cadence.
+    const obj = findObjectDef('MultiplayerBeacon');
+    it('parses RadarPulseFrequency from MultiplayerBeacon (1000ms)', () => {
+      expect(readBundleField(obj, 'BeaconClientUpdate', 'RadarPulseFrequency')).toBe(1000);
+    });
+    it('parses RadarPulseDuration from MultiplayerBeacon (500ms)', () => {
+      expect(readBundleField(obj, 'BeaconClientUpdate', 'RadarPulseDuration')).toBe(500);
+    });
+  });
+
+  describe('BattlePlanUpdate VisionObjectName on strategy center retail templates', () => {
+    // Source parity: BattlePlanUpdate.cpp:148 — VisionObjectName names the
+    // neutral object spawned at the strategy center's center while a plan is
+    // active, used to extend line-of-sight per BattlePlanUpdate.cpp:setStatus.
+    it('parses VisionObjectName from AmericaStrategyCenter', () => {
+      const obj = findObjectDef('AmericaStrategyCenter');
+      expect(readBundleField(obj, 'BattlePlanUpdate', 'VisionObjectName')).toBe('VisionObject');
+    });
+  });
 });

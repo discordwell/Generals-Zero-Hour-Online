@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-18T18:27:01.845Z",
+  "generatedAt": "2026-05-19T08:32:55.789Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -30,232 +30,11 @@
     "sourceKnownGameplayReferencedIniModuleFields": 1131,
     "sourceKnownFieldGaps": 0,
     "sourceUnknownIniModuleFields": 0,
-    "sourceKnownUntestedRuntimeFields": 6
+    "sourceKnownUntestedRuntimeFields": 0
   },
   "sourceKnownFieldGaps": [],
   "sourceUnknownIniModuleFields": [],
-  "untestedRuntimeFieldSignals": [
-    {
-      "moduleType": "JETAIUPDATE",
-      "fieldName": "TakeoffSpeedForMaxLift",
-      "normalizedFieldName": "TAKEOFFSPEEDFORMAXLIFT",
-      "iniUsageCount": 9,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_06",
-        "ModuleTag_07",
-        "ModuleTag_09"
-      ],
-      "exampleObjectNames": [
-        "AmericaJetAurora",
-        "AmericaJetRaptor",
-        "AmericaJetStealthFighter",
-        "ChinaJetMIG",
-        "ChinaJetMIG_CinematicVersion"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "JetAIUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/JetAIUpdate.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate/JetAIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BehaviorModule.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/JetAIUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/UpdateModule.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate/JetAIUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/aircraft-ai.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "BEACONCLIENTUPDATE",
-      "fieldName": "RadarPulseDuration",
-      "normalizedFieldName": "RADARPULSEDURATION",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "CLIENTUPDATE"
-      ],
-      "moduleTags": [
-        "ModuleTag_02"
-      ],
-      "exampleObjectNames": [
-        "MultiplayerBeacon"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "BeaconClientUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/GameClient/Module/BeaconClientUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameClient/Drawable/Update/BeaconClientUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/GameClient/Module/BeaconClientUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameClient/Drawable/Update/BeaconClientUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "BEACONCLIENTUPDATE",
-      "fieldName": "RadarPulseFrequency",
-      "normalizedFieldName": "RADARPULSEFREQUENCY",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "CLIENTUPDATE"
-      ],
-      "moduleTags": [
-        "ModuleTag_02"
-      ],
-      "exampleObjectNames": [
-        "MultiplayerBeacon"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "BeaconClientUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/GameClient/Module/BeaconClientUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameClient/Drawable/Update/BeaconClientUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/GameClient/Module/BeaconClientUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameClient/Drawable/Update/BeaconClientUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "LASERUPDATE",
-      "fieldName": "ParentFireBoneName",
-      "normalizedFieldName": "PARENTFIREBONENAME",
-      "iniUsageCount": 2,
-      "iniBlockTypes": [
-        "CLIENTUPDATE"
-      ],
-      "moduleTags": [
-        "ModuleTag_02"
-      ],
-      "exampleObjectNames": [
-        "LaserBeam",
-        "PointDefenseLaserBeam"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "LaserUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/LaserUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/LaserUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/LaserUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/LaserUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/index.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "BATTLEPLANUPDATE",
-      "fieldName": "VisionObjectName",
-      "normalizedFieldName": "VISIONOBJECTNAME",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "BEHAVIOR"
-      ],
-      "moduleTags": [
-        "ModuleTag_14"
-      ],
-      "exampleObjectNames": [
-        "AmericaStrategyCenter"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "BattlePlanUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/BattlePlanUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/BattlePlanUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/BattlePlanUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/BattlePlanUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/app/src/replay-menu-screen.ts",
-        "packages/game-logic/src/entity-factory.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    },
-    {
-      "moduleType": "LASERUPDATE",
-      "fieldName": "ParentFireBoneOnTurret",
-      "normalizedFieldName": "PARENTFIREBONEONTURRET",
-      "iniUsageCount": 1,
-      "iniBlockTypes": [
-        "CLIENTUPDATE"
-      ],
-      "moduleTags": [
-        "ModuleTag_02"
-      ],
-      "exampleObjectNames": [
-        "PointDefenseLaserBeam"
-      ],
-      "sourceDeclared": true,
-      "sourceKnown": true,
-      "sourceDataClasses": [
-        "LaserUpdateModuleData"
-      ],
-      "sourceFiles": [
-        "../Generals/Code/GameEngine/Include/Common/Module.h",
-        "../Generals/Code/GameEngine/Include/GameLogic/Module/LaserUpdate.h",
-        "../Generals/Code/GameEngine/Source/GameLogic/Object/Update/LaserUpdate.cpp",
-        "../GeneralsMD/Code/GameEngine/Include/Common/Module.h",
-        "../GeneralsMD/Code/GameEngine/Include/GameLogic/Module/LaserUpdate.h",
-        "../GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/LaserUpdate.cpp"
-      ],
-      "gameplayReferenced": true,
-      "gameplayReferenceFiles": [
-        "packages/game-logic/src/index.ts"
-      ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
-      "priority": "P2"
-    }
-  ],
+  "untestedRuntimeFieldSignals": [],
   "rows": [
     {
       "moduleType": "SLOWDEATHBEHAVIOR",
@@ -34000,8 +33779,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/aircraft-ai.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58559,8 +58340,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -58592,8 +58375,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -59314,8 +59099,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/index.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -60770,8 +60557,10 @@
         "packages/app/src/replay-menu-screen.ts",
         "packages/game-logic/src/entity-factory.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
@@ -62781,8 +62570,10 @@
       "gameplayReferenceFiles": [
         "packages/game-logic/src/index.ts"
       ],
-      "testReferenced": false,
-      "testReferenceFiles": [],
+      "testReferenced": true,
+      "testReferenceFiles": [
+        "packages/game-logic/src/session-2026-05-04-verification.test.ts"
+      ],
       "priority": "P2"
     },
     {
