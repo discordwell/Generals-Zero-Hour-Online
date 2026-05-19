@@ -1106,11 +1106,21 @@ export function queueWeaponDamageEvent(
   const targetX = target.x;
   const targetZ = target.z;
 
-  // Source parity (ZH): AIStates.cpp:4931, WeaponSet.cpp:656 — when the attacker is inside
-  // an enclosing container, fire from the container's position (offset toward the target).
-  // C++ checks contain->isEnclosingContainerFor(source) to determine this.
-  // Garrison containers use FIREPOINT bones; we approximate by offsetting the fire origin
-  // toward the target by a fraction of the container's geometry radius.
+  // Source parity (ZH): AIStates.cpp:4931, WeaponSet.cpp:656 — when the attacker
+  // is inside an enclosing container, fire from the container's FIREPOINT bones
+  // (GarrisonContain.cpp:1336-1394 loads them into m_garrisonPoint[]) rather
+  // than from the attacker's interior position.
+  //
+  // Bone resolution: garrisonFirepointBoneCache stores model-local FIREPOINT
+  // positions for the container's GARRISONED model variant.  We pick the bone
+  // whose world-space position is closest to the bullet-line from container
+  // center to target — same intent as findClosestFreeGarrisonPointIndex but
+  // re-evaluated at fire time (cheaper than tracking per-passenger slot
+  // assignments while producing the same visual result for the closest bone).
+  //
+  // Fallback (no bones available — e.g., HelixContain transports or building
+  // variants without baked-in firepoints): offset by 80% of the major radius
+  // toward the target.  Gameplay outcomes (damage, range) match either way.
   const enclosingContainerId = attacker.garrisonContainerId
     ?? (attacker.transportContainerId !== null && self.isEntityInEnclosingContainer(attacker)
       ? attacker.transportContainerId : null)
@@ -1122,7 +1132,40 @@ export function queueWeaponDamageEvent(
       const dx = targetX - container.x;
       const dz = targetZ - container.z;
       const dist = Math.hypot(dx, dz);
-      if (dist > 0) {
+      const firepointBones = typeof self.resolveContainerGarrisonFirepointBones === 'function'
+        ? self.resolveContainerGarrisonFirepointBones(container)
+        : null;
+      if (firepointBones && firepointBones.length > 0 && dist > 0) {
+        // Rotate bones by container yaw, translate to world, pick the one with
+        // smallest distance to the bullet line (container → target).
+        const cosYaw = Math.cos(container.rotationY);
+        const sinYaw = Math.sin(container.rotationY);
+        const dirX = dx / dist;
+        const dirZ = dz / dist;
+        let bestBoneX = container.x;
+        let bestBoneZ = container.z;
+        let bestProjection = -Infinity;
+        for (const bone of firepointBones) {
+          // Bone is in model-local (x, y, z); world Z corresponds to model Y in
+          // GenZH's left-handed coord frame.  Same convention as SpawnPoint
+          // bones — see spectre-gunship-style rotation in entity-factory.ts.
+          const worldX = container.x + cosYaw * bone.x - sinYaw * bone.y;
+          const worldZ = container.z + sinYaw * bone.x + cosYaw * bone.y;
+          // Project the bone-relative offset onto the bullet line and pick the
+          // bone with the largest forward component (closest to the line of
+          // fire).  This mirrors the "closest free point to target" intent.
+          const boneOffsetX = worldX - container.x;
+          const boneOffsetZ = worldZ - container.z;
+          const projection = boneOffsetX * dirX + boneOffsetZ * dirZ;
+          if (projection > bestProjection) {
+            bestProjection = projection;
+            bestBoneX = worldX;
+            bestBoneZ = worldZ;
+          }
+        }
+        sourceX = bestBoneX;
+        sourceZ = bestBoneZ;
+      } else if (dist > 0) {
         const offset = container.geometryMajorRadius * 0.8;
         sourceX = container.x + (dx / dist) * offset;
         sourceZ = container.z + (dz / dist) * offset;

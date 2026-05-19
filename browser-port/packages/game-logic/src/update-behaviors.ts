@@ -1262,7 +1262,10 @@ export function updateEnemyNear(self: GL): void {
       entity.enemyNearNextScanCountdown = entity.enemyNearScanDelayFrames;
 
       // Source parity: TheAI->findClosestEnemy(getObject(), visionRange, AI::CAN_SEE).
-      // Simplified: scan for any enemy entity within vision range.
+      // Implementation: linear scan over spawnedEntities filtered by team
+      // relationship and distance, equivalent to C++ but without the partition
+      // manager's spatial-index acceleration.  Result is identical — only the
+      // perf characteristics differ (O(n) vs O(k) where k = nearby cells).
       const visionRange = entity.visionRange;
       if (visionRange <= 0) {
         entity.enemyNearDetected = false;

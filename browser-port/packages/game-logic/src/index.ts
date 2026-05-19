@@ -23,6 +23,7 @@ import {
   type CommandSetDef,
   type FactionDef,
   type SpecialPowerDef,
+  type ModelBoneRecord,
   type ObjectDef,
   type ScienceDef,
   type UpgradeDef,
@@ -834,6 +835,7 @@ import {
   extractUpgradeModules as extractUpgradeModulesImpl,
   extractSpecialPowerModules as extractSpecialPowerModulesImpl,
   spawnEntityFromTemplate as spawnEntityFromTemplateImpl,
+  resolveObjectGarrisonedModelName,
 } from './entity-factory.js';
 import {
   extractSpectreGunshipUpdateProfile as extractSpectreGunshipUpdateProfileImpl,
@@ -1166,6 +1168,8 @@ export const DRAWABLE_FRAMES_PER_FLASH = Math.max(1, Math.trunc(LOGIC_FRAME_RATE
 const SOURCE_FRAMES_TO_ALLOW_SCAFFOLD = LOGIC_FRAME_RATE * 1.5;
 const SOURCE_TOTAL_FRAMES_TO_SELL_OBJECT = LOGIC_FRAME_RATE * 3;
 const SOURCE_DEFAULT_SELL_PERCENTAGE = 1.0;
+/** Shared empty bone array — avoids per-call allocations when caching misses. */
+const EMPTY_BONE_ARRAY: readonly ModelBoneRecord[] = [];
 /** Source parity: Object.h CONSTRUCTION_COMPLETE sentinel — indicates fully built. */
 export const CONSTRUCTION_COMPLETE = -1;
 export const SOURCE_HACK_FALLBACK_CASH_AMOUNT = 1;
@@ -11471,6 +11475,14 @@ export class GameLogicSubsystem implements Subsystem {
   private mapHeightmap: HeightmapGrid | null = null;
   private navigationGrid: NavigationGrid | null = null;
   private iniDataRegistry: IniDataRegistry | null = null;
+  /**
+   * Source parity: GarrisonContain caches m_garrisonPoint[conditionIndex][] of
+   * FIREPOINT bone positions per damage state.  We cache the GARRISONED
+   * variant's bones per container templateName since (a) we always use one
+   * variant, (b) recomputing them on every passenger shot would walk the
+   * entire object def + bone table.
+   */
+  private readonly garrisonFirepointBoneCache = new Map<string, readonly ModelBoneRecord[]>();
   /**
    * Source parity bridge: active KindOf bit-name layout (retail or ALLOW_SURRENDER variant)
    * used when map script KIND_OF parameters are numeric.
@@ -47355,6 +47367,51 @@ export class GameLogicSubsystem implements Subsystem {
       return null;
     }
     return findObjectDefByName(registry, templateName) ?? null;
+  }
+
+  /**
+   * Source parity: GarrisonContain::loadGarrisonPoints (GarrisonContain.cpp:1336-1394).
+   * Retail loads FIREPOINT bones from the building's GARRISONED model condition
+   * variant and uses them as firing origins for contained units (one bone per
+   * passenger, picked via findClosestFreeGarrisonPointIndex).
+   *
+   * This helper resolves the bones at the container's templateName.  Returned
+   * bones are in model-local coordinates; callers must rotate by the container's
+   * yaw and translate by its world position to get the firing origin.
+   *
+   * Returns an empty array when:
+   *   - The object has no GARRISONED condition-state model variant.
+   *   - The garrisoned model has no FIREPOINT bones (e.g., a fixed-defense like
+   *     UBStingerSite which uses SPAWNPOINT bones instead).
+   *   - The bones haven't been baked into the bundle (model-bones extraction
+   *     missed the variant).
+   *
+   * The result is cached per templateName on `garrisonFirepointBoneCache`
+   * so we only pay the lookup cost once per container template.
+   */
+  /* @internal */ resolveContainerGarrisonFirepointBones(container: MapEntity): readonly ModelBoneRecord[] {
+    const cached = this.garrisonFirepointBoneCache.get(container.templateName);
+    if (cached !== undefined) return cached;
+
+    const registry = this.iniDataRegistry;
+    if (!registry?.getPristineBonePositions) {
+      this.garrisonFirepointBoneCache.set(container.templateName, EMPTY_BONE_ARRAY);
+      return EMPTY_BONE_ARRAY;
+    }
+    const objectDef = this.resolveObjectDefByTemplateName(container.templateName);
+    if (!objectDef) {
+      this.garrisonFirepointBoneCache.set(container.templateName, EMPTY_BONE_ARRAY);
+      return EMPTY_BONE_ARRAY;
+    }
+    const garrisonedModelName = resolveObjectGarrisonedModelName(objectDef);
+    if (!garrisonedModelName) {
+      this.garrisonFirepointBoneCache.set(container.templateName, EMPTY_BONE_ARRAY);
+      return EMPTY_BONE_ARRAY;
+    }
+    const bones = registry.getPristineBonePositions(garrisonedModelName, 'FIREPOINT', 1);
+    const result = bones.length > 0 ? bones : EMPTY_BONE_ARRAY;
+    this.garrisonFirepointBoneCache.set(container.templateName, result);
+    return result;
   }
 
   private hasBehaviorModuleType(objectDef: ObjectDef, moduleTypeName: string): boolean {

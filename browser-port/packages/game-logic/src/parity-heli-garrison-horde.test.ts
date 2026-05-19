@@ -1123,3 +1123,116 @@ describe('Parity: HordeUpdate Action and FlagSubObjectNames fields', () => {
     }
   });
 });
+
+// ── Parity: GarrisonContain FIREPOINT bones ────────────────────────────────
+describe('Parity: garrison FIREPOINT bones from GARRISONED model variant', () => {
+  /**
+   * C++ source: GarrisonContain.cpp:1336-1394 — loadGarrisonPoints temporarily
+   * sets MODELCONDITION_GARRISONED on the structure's drawable, then queries
+   * Drawable::getMultiLogicalBonePosition("FIREPOINT", ...) to populate
+   * m_garrisonPoint[GARRISON_POINT_PRISTINE].  Each garrisoned passenger fires
+   * from the bone closest to its target (findClosestFreeGarrisonPointIndex).
+   *
+   * This test verifies the TS port:
+   *   - Reads FIREPOINT bones from the GARRISONED model variant (not the
+   *     pristine default), via resolveObjectGarrisonedModelName +
+   *     modelBones lookup.
+   *   - Returns those bones via resolveContainerGarrisonFirepointBones.
+   *   - The cache returns the same array on repeated calls.
+   */
+  it('resolves FIREPOINT bones from the GARRISONED model variant when a passenger fires', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TestGarrison', 'GLA', ['STRUCTURE', 'GARRISONABLE_UNTIL_DESTROYED'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Garrison', {
+            ContainMax: 5,
+            PassengersAllowedToFire: true,
+          }),
+          makeBlock('Draw', 'W3DModelDraw ModuleTag_Draw', {}, [
+            makeBlock('DefaultConditionState', '', { Model: 'TestPristine' }),
+            makeBlock('ConditionState', 'GARRISONED', { Model: 'TestGarrisoned' }),
+          ]),
+        ], { GeometryMajorRadius: 30, GeometryMinorRadius: 30, GeometryType: 'BOX' }),
+      ],
+    });
+    // Inject FIREPOINT bones onto the GARRISONED variant only — the pristine
+    // model deliberately has no bones to confirm we look up the right variant.
+    bundle.modelBones = {
+      testgarrisoned: [
+        { name: 'FIREPOINT01', x: 20, y: 0, z: 10, angle: 0 },
+        { name: 'FIREPOINT02', x: -20, y: 0, z: 10, angle: Math.PI },
+        { name: 'FIREPOINT03', x: 0, y: 20, z: 10, angle: Math.PI / 2 },
+      ],
+    };
+
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestGarrison', 100, 100, 0)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        id: number; templateName: string; x: number; z: number; rotationY: number;
+        destroyed: boolean;
+      }>;
+      resolveContainerGarrisonFirepointBones(container: { templateName: string }): readonly {
+        name: string; x: number; y: number; z: number; angle: number;
+      }[];
+    };
+    const garrison = priv.spawnedEntities.get(1)!;
+    expect(garrison).toBeDefined();
+
+    // First call walks the object def + looks up bones.
+    const bones1 = priv.resolveContainerGarrisonFirepointBones(garrison);
+    expect(bones1).toHaveLength(3);
+    expect(bones1[0]!.name).toBe('FIREPOINT01');
+    expect(bones1[1]!.name).toBe('FIREPOINT02');
+    expect(bones1[2]!.name).toBe('FIREPOINT03');
+
+    // Second call returns the cached array — same identity.
+    const bones2 = priv.resolveContainerGarrisonFirepointBones(garrison);
+    expect(bones2).toBe(bones1);
+  });
+
+  it('returns empty bones for containers with no GARRISONED condition state', () => {
+    // OpenContain / HelixContain transports don't have a garrisoned variant —
+    // resolveObjectGarrisonedModelName returns null and the helper falls back
+    // to the 80% offset path in combat-targeting.
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('NormalTransport', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('Behavior', 'OpenContain ModuleTag_Cont', {
+            ContainMax: 4,
+            PassengersAllowedToFire: true,
+          }),
+          // Only DefaultConditionState — no GARRISONED variant.
+          makeBlock('Draw', 'W3DModelDraw ModuleTag_Draw', {}, [
+            makeBlock('DefaultConditionState', '', { Model: 'TransportPristine' }),
+          ]),
+        ]),
+      ],
+    });
+    bundle.modelBones = {
+      transportpristine: [
+        { name: 'FIREPOINT01', x: 5, y: 0, z: 5, angle: 0 },
+      ],
+    };
+
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([makeMapObject('NormalTransport', 50, 50)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { id: number; templateName: string }>;
+      resolveContainerGarrisonFirepointBones(container: { templateName: string }): readonly unknown[];
+    };
+    const transport = priv.spawnedEntities.get(1)!;
+    expect(priv.resolveContainerGarrisonFirepointBones(transport)).toHaveLength(0);
+  });
+});

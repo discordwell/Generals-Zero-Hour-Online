@@ -1935,6 +1935,39 @@ export function extractProductionProfile(self: GL, objectDef: ObjectDef | undefi
 }
 
 /**
+ * Source parity: find the Model used by the first W3DModelDraw module whose
+ * ConditionState name contains GARRISONED.  C++ GarrisonContain::loadGarrisonPoints
+ * (GarrisonContain.cpp:1340-1391) reads FIREPOINT bones AFTER calling
+ * `clearAndSetModelConditionFlags({}, {GARRISONED})`, so the bones we need
+ * live on the garrisoned variant, not the default pristine model.
+ *
+ * Returns null when the object has no garrisoned model variant.
+ */
+export function resolveObjectGarrisonedModelName(objectDef: ObjectDef): string | null {
+  const walk = (blocks: IniBlock[]): string | null => {
+    for (const block of blocks) {
+      const blockType = block.type.toUpperCase();
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      const isDrawModule = blockType === 'DRAW' && moduleType.startsWith('W3D');
+      if (isDrawModule) {
+        for (const child of block.blocks) {
+          const childType = child.type.toUpperCase();
+          if (childType !== 'CONDITIONSTATE') continue;
+          const stateTokens = (child.name ?? '').toUpperCase().trim().split(/\s+/);
+          if (!stateTokens.includes('GARRISONED')) continue;
+          const model = readStringField(child.fields, ['Model']);
+          if (model && model.toUpperCase() !== 'NONE') return model;
+        }
+      }
+      const nested = walk(block.blocks);
+      if (nested) return nested;
+    }
+    return null;
+  };
+  return walk(objectDef.blocks);
+}
+
+/**
  * Source parity: find the "pristine" model name for an object — the Model
  * field on the first W3DModelDraw module's NONE/DefaultConditionState, which
  * is what Drawable::getPristineBonePositions reads against.

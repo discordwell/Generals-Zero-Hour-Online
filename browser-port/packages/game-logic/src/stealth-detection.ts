@@ -114,7 +114,12 @@ export function extractStealthProfile(self: GL, objectDef: ObjectDef | undefined
 
         // Source parity: StealthUpdate.cpp:111 — DisguisesAsTeam enables the disguise system.
         // When true, stealth starts disabled (m_enabled = !m_teamDisguised) and activates
-        // via disguiseAsObject(). In our simplified model, we auto-disguise on stealth enter.
+        // via disguiseAsObject(target).  Two paths into beginDisguiseGain:
+        //   1. Player-triggered SPECIAL_DISGUISE_AS_VEHICLE → disguiseEntityAsTarget()
+        //      (matches C++ exactly — see update-behaviors.ts:2117).
+        //   2. Port-side fallback: when no player target is chosen and the unit
+        //      enters stealth, findDisguiseTarget() picks the nearest enemy of
+        //      the same category so AI/scripted units don't sit un-disguised.
         const disguisesAsTeam = readBooleanField(block.fields, ['DisguisesAsTeam']) ?? false;
 
         // Source parity: StealthUpdate.h:82 — m_forbiddenStatus is an ObjectStatusMaskType
@@ -984,10 +989,16 @@ function orderIdleEnemiesToAttack(self: GL, revealedTarget: MapEntity): void {
 }
 
 /**
- * Source parity: StealthUpdate::disguiseAsObject — find the nearest enemy unit to
- * use as a disguise template. C++ picks the target passed to the special ability;
- * in our simplified model we auto-pick the nearest enemy unit of the same general
- * category (vehicle, infantry, etc.) for a plausible disguise.
+ * Port-side fallback: in retail, disguise templates are passed in by name
+ * via StealthUpdate::disguiseAsObject(target) — see disguiseEntityAsTarget
+ * for that path (matches C++ exactly).  When neither a player nor an AI
+ * script picks a target before the unit enters stealth (e.g., a BombTruck
+ * spawned and abandoned by an AI builder), this helper picks the nearest
+ * enemy of any category so the unit doesn't sit visibly un-disguised.
+ *
+ * This is the same pattern as the AI area-target centroid (skirmish-ai.ts
+ * line 1352) — a fallback for unscripted code paths.  C++ has no equivalent
+ * because the retail UI/AI always supplies a target via scripts.
  */
 function findDisguiseTarget(self: GL, entity: MapEntity): MapEntity | null {
   let bestTarget: MapEntity | null = null;
