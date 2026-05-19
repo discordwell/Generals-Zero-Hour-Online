@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-19T10:58:36.294Z",
+  "generatedAt": "2026-05-19T15:54:56.114Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -64,6 +64,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-dozer-fireevent.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-worker-powtruck-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
@@ -581,6 +582,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-dozer-fireevent.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-worker-powtruck-fields.test.ts",
         "packages/game-logic/src/registry-lookups.test.ts",
         "packages/game-logic/src/render-profile-helpers.test.ts",
@@ -8882,6 +8884,7 @@
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-contain-fields.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/session-2026-05-04-bundle-scan.test.ts",
         "packages/game-logic/src/zh-field-additions.test.ts",
         "packages/game-logic/src/zh-turret-weapon-bonus.test.ts",

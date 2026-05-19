@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-19T10:58:34.613Z",
+  "generatedAt": "2026-05-19T15:54:54.432Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -17148,6 +17148,7 @@
         "packages/game-logic/src/assault-transport-save-state.test.ts",
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-turret-weapon-bonus.test.ts"
       ],
@@ -26464,6 +26465,7 @@
         "packages/game-logic/src/parity-crush-stealth-topple.test.ts",
         "packages/game-logic/src/parity-falloff-footprint.test.ts",
         "packages/game-logic/src/parity-garrison-firepos.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-upgradecost-constructhealth.test.ts",
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/status-effects.test.ts",
@@ -26513,6 +26515,7 @@
         "packages/game-logic/src/index.test.ts",
         "packages/game-logic/src/parity-crush-stealth-topple.test.ts",
         "packages/game-logic/src/parity-falloff-footprint.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/parity-upgradecost-constructhealth.test.ts",
         "packages/game-logic/src/railed-transport-save-state.test.ts",
         "packages/game-logic/src/status-effects.test.ts",
@@ -27530,6 +27533,7 @@
         "packages/game-logic/src/assault-transport-save-state.test.ts",
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-turret-weapon-bonus.test.ts"
       ],
@@ -28753,6 +28757,7 @@
         "packages/game-logic/src/assault-transport-save-state.test.ts",
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-turret-weapon-bonus.test.ts"
       ],
@@ -54588,6 +54593,7 @@
         "packages/game-logic/src/assault-transport-save-state.test.ts",
         "packages/game-logic/src/containment.test.ts",
         "packages/game-logic/src/core-save-state-source-owned.test.ts",
+        "packages/game-logic/src/parity-heli-garrison-horde.test.ts",
         "packages/game-logic/src/update-behaviors.test.ts",
         "packages/game-logic/src/zh-turret-weapon-bonus.test.ts"
       ],
