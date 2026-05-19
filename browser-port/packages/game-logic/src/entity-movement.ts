@@ -717,8 +717,40 @@ export function handleMineCollision(self: GL, mine: MapEntity, other: MapEntity)
     mine.mineDetonators.push({ entityId: other.id, x: other.x, z: other.z });
   }
 
-  // Clip detonation point to mine footprint (simplified: use mine center for circular).
-  self.detonateMineOnce(mine, other.x, other.z);
+  // Source parity: MinefieldBehavior.cpp:446-448 — clip the detonation point
+  // to the mine's footprint via GeometryInfo::clipPointToFootprint.  For
+  // CYLINDER/SPHERE the point is projected onto the perimeter when outside
+  // the radius; for BOX it is clamped to [center ± major, center ± minor].
+  const clipped = clipPointToMineFootprint(mine, other.x, other.z);
+  self.detonateMineOnce(mine, clipped.x, clipped.z);
+}
+
+/**
+ * Source parity: GeometryInfo::clipPointToFootprint (Geometry.cpp:328) — clip
+ * a world-space point into a mine's footprint based on its obstacleGeometry.
+ * Used by mine detonation so the detonation weapon fires from the boundary
+ * closest to the colliding entity rather than from the mine's center.
+ */
+export function clipPointToMineFootprint(mine: MapEntity, ptX: number, ptZ: number): { x: number; z: number } {
+  const geom = mine.obstacleGeometry;
+  if (!geom) return { x: ptX, z: ptZ };
+  if (geom.shape === 'box') {
+    return {
+      x: Math.max(mine.x - geom.majorRadius, Math.min(mine.x + geom.majorRadius, ptX)),
+      z: Math.max(mine.z - geom.minorRadius, Math.min(mine.z + geom.minorRadius, ptZ)),
+    };
+  }
+  // Circle / cylinder — project onto perimeter when outside the radius.
+  const dx = ptX - mine.x;
+  const dz = ptZ - mine.z;
+  const distSq = dx * dx + dz * dz;
+  const radius = geom.majorRadius;
+  if (distSq <= radius * radius || radius <= 0) {
+    return { x: ptX, z: ptZ };
+  }
+  const dist = Math.sqrt(distSq);
+  const ratio = radius / dist;
+  return { x: mine.x + dx * ratio, z: mine.z + dz * ratio };
 }
 
 export function updateCrateCollisions(self: GL): void {

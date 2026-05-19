@@ -5,6 +5,7 @@ import type { ObjectDef } from '@generals/ini-data';
 import { HeightmapGrid, uint8ArrayToBase64 } from '@generals/terrain';
 
 import { GameLogicSubsystem } from './index.js';
+import { clipPointToMineFootprint } from './entity-movement.js';
 import {
   makeBlock,
   makeObjectDef,
@@ -159,6 +160,36 @@ describe('mine detonation', () => {
 
     return { registry };
   }
+
+  it('clipPointToMineFootprint mirrors GeometryInfo::clipPointToFootprint for circle and box geometries', () => {
+    // Direct unit test of the source-parity helper (Geometry.cpp:328).
+    const circleMine = {
+      x: 10,
+      z: 20,
+      obstacleGeometry: { shape: 'circle' as const, majorRadius: 5, minorRadius: 5, height: 0 },
+    } as unknown as Parameters<typeof clipPointToMineFootprint>[0];
+    // Inside the circle — unchanged.
+    expect(clipPointToMineFootprint(circleMine, 12, 21)).toEqual({ x: 12, z: 21 });
+    // Outside on +X axis — projected onto perimeter at radius 5.
+    expect(clipPointToMineFootprint(circleMine, 20, 20)).toEqual({ x: 15, z: 20 });
+    // Outside diagonally — projected onto perimeter at same direction.
+    const diag = clipPointToMineFootprint(circleMine, 10 + 6, 20 + 8);
+    expect(Math.hypot(diag.x - 10, diag.z - 20)).toBeCloseTo(5, 5);
+
+    const boxMine = {
+      x: 50,
+      z: 50,
+      obstacleGeometry: { shape: 'box' as const, majorRadius: 10, minorRadius: 4, height: 0 },
+    } as unknown as Parameters<typeof clipPointToMineFootprint>[0];
+    // Inside the box — unchanged.
+    expect(clipPointToMineFootprint(boxMine, 55, 52)).toEqual({ x: 55, z: 52 });
+    // Past +X edge — clamped to box.
+    expect(clipPointToMineFootprint(boxMine, 80, 50)).toEqual({ x: 60, z: 50 });
+    // Past -Z edge — clamped to box.
+    expect(clipPointToMineFootprint(boxMine, 50, 30)).toEqual({ x: 50, z: 46 });
+    // Outside two edges — clamped on both axes.
+    expect(clipPointToMineFootprint(boxMine, 80, 30)).toEqual({ x: 60, z: 46 });
+  });
 
   it('detonates mine when enemy overlaps mine geometry radius', () => {
     const scene = new THREE.Scene();
