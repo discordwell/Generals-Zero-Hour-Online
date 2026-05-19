@@ -388,6 +388,30 @@ export interface AudioSettingsConfig {
   zoomSoundVolumePercent?: number;
 }
 
+/**
+ * Source parity: a single pristine bone position from a W3D model.
+ *
+ * The C++ engine resolves named bones (e.g., SpawnPoint, FirePoint) from the
+ * drawable's pristine pose via Drawable::getPristineBonePositions.  The
+ * browser port bakes the same data into the bundle at conversion time and
+ * exposes it through IniDataRegistry, so deterministic game-logic can read
+ * bones without coupling to the renderer's GLB loader.
+ */
+export interface ModelBoneRecord {
+  /** Bone name as stored in the W3D pivots table (uppercase). */
+  name: string;
+  /** Model-local X translation (Generals units). */
+  x: number;
+  /** Model-local Y translation. */
+  y: number;
+  /** Model-local Z translation (height above floor). */
+  z: number;
+  /** Yaw around Z derived from the pivot quaternion (radians). */
+  angle: number;
+}
+
+export type ModelBoneMap = Record<string, ModelBoneRecord[]>;
+
 export interface IniDataBundle {
   objects: ObjectDef[];
   weapons: WeaponDef[];
@@ -419,6 +443,11 @@ export interface IniDataBundle {
   ai?: AiConfig;
   audioSettings?: AudioSettingsConfig;
   gameData?: GameDataConfig;
+  /**
+   * Source parity: maps lowercased model basename (e.g., "ubstingers") to its
+   * pristine bone records.  Populated by tools/extract-model-bones.ts.
+   */
+  modelBones?: ModelBoneMap;
   stats: RegistryStats;
   errors: RegistryError[];
   unsupportedBlockTypes: string[];
@@ -446,6 +475,13 @@ export class IniDataRegistry {
   readonly staticGameLODs = new Map<string, RawBlockDef>();
   readonly dynamicGameLODs = new Map<string, RawBlockDef>();
   readonly mappedImages = new Map<string, MappedImageDef>();
+  /**
+   * Source parity: pristine bone positions per model.  Keyed by lowercased model
+   * basename (e.g., "ubstingers") as that's how W3D-derived .glb files are named.
+   * Backs IniDataRegistry.getPristineBonePositions for SpawnPoint /
+   * FirePoint / runway look-ups in the deterministic game-logic layer.
+   */
+  readonly modelBones = new Map<string, ModelBoneRecord[]>();
   private nextSpecialPowerSourceTemplateId = 1;
   private commandMaps: RawBlockDef[] = [];
   private creditsBlocks: RawBlockDef[] = [];
@@ -727,6 +763,51 @@ export class IniDataRegistry {
     for (const unsupported of bundle.unsupportedBlockTypes) {
       this.unsupportedBlockTypes.add(unsupported);
     }
+
+    this.modelBones.clear();
+    if (bundle.modelBones) {
+      for (const [modelKey, bones] of Object.entries(bundle.modelBones)) {
+        if (!Array.isArray(bones) || bones.length === 0) continue;
+        this.modelBones.set(modelKey.toLowerCase(), bones.map((b) => ({ ...b })));
+      }
+    }
+  }
+
+  /**
+   * Source parity: Drawable::getPristineBonePositions(name, startIndex, ...)
+   *
+   * Returns all bones whose name starts with `prefix` followed by a numeric
+   * suffix >= `startIndex`, sorted ascending by that suffix.  Match is
+   * case-insensitive against the lowercased model basename (no extension).
+   *
+   * `modelName` is expected to be the W3D Model field's value as it appears in
+   * the INI (e.g., "UBStingerS"); we lowercase it because the conversion
+   * pipeline keys bones by the .glb basename.
+   */
+  getPristineBonePositions(
+    modelName: string | null | undefined,
+    prefix: string,
+    startIndex: number = 1,
+  ): ModelBoneRecord[] {
+    if (!modelName) return [];
+    const trimmed = modelName.trim();
+    if (!trimmed) return [];
+    const bones = this.modelBones.get(trimmed.toLowerCase());
+    if (!bones || bones.length === 0) return [];
+    const upperPrefix = prefix.trim().toUpperCase();
+    if (!upperPrefix) return [];
+    const matches: Array<{ index: number; record: ModelBoneRecord }> = [];
+    for (const record of bones) {
+      if (!record.name.startsWith(upperPrefix)) continue;
+      const suffix = record.name.slice(upperPrefix.length);
+      // Source parity: getPristineBonePositions parses an integer suffix.
+      // Bones without a numeric suffix are accepted at index 0 (rare).
+      const parsed = suffix.length === 0 ? 0 : Number.parseInt(suffix, 10);
+      if (!Number.isFinite(parsed) || parsed < startIndex) continue;
+      matches.push({ index: parsed, record });
+    }
+    matches.sort((a, b) => a.index - b.index);
+    return matches.map((m) => ({ ...m.record }));
   }
 
   /** Get all objects matching a KindOf flag. */

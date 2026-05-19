@@ -31,6 +31,7 @@ import {
 } from '@generals/core';
 import { RUNTIME_ASSET_BASE_URL, RUNTIME_MANIFEST_FILE } from '@generals/assets';
 import type { IniDataBundle, ObjectDef, RegistryStats } from '@generals/ini-data';
+import { extractModelBones } from './extract-model-bones.js';
 import { loadRuntimeIniFixtures } from './convert-all/src/runtime-ini-fixtures.js';
 import { RUNTIME_MAP_FIXTURE_CONVERTER, loadRuntimeMapFixtures } from './convert-all/src/runtime-map-fixtures.js';
 
@@ -1295,6 +1296,23 @@ function stepParseIni(
 
     if (mergedBundle) {
       mergedBundle.stats = mergeStats(mergedBundle);
+      // Source parity: SpawnPointProductionExitUpdate, FirePoint occupants, etc.
+      // depend on pristine bone offsets from the .w3d→.glb conversion.  Walk
+      // the converted .glb files and bake the relevant pivots into the bundle
+      // so the deterministic game-logic layer can read them without coupling
+      // to the renderer's runtime GLB loader.
+      try {
+        const modelDir = path.join(outputDir, 'models');
+        const bones = extractModelBones(modelDir);
+        if (Object.keys(bones).length > 0) {
+          (mergedBundle as { modelBones?: typeof bones }).modelBones = bones;
+          let totalBones = 0;
+          for (const list of Object.values(bones)) totalBones += list.length;
+          console.log(`Embedded ${totalBones} pristine bones across ${Object.keys(bones).length} models into the bundle.`);
+        }
+      } catch (err) {
+        console.warn(`Bone extraction skipped: ${err instanceof Error ? err.message : String(err)}`);
+      }
       const serialized = JSON.stringify(mergedBundle, null, 2) + '\n';
       fs.writeFileSync(mergedBundlePath, serialized);
       const outputHash = sha256Hex(serialized);

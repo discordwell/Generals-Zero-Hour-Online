@@ -1934,6 +1934,45 @@ export function extractProductionProfile(self: GL, objectDef: ObjectDef | undefi
   };
 }
 
+/**
+ * Source parity: find the "pristine" model name for an object — the Model
+ * field on the first W3DModelDraw module's NONE/DefaultConditionState, which
+ * is what Drawable::getPristineBonePositions reads against.
+ */
+function resolveObjectDefaultModelName(objectDef: ObjectDef): string | null {
+  const walk = (blocks: IniBlock[]): string | null => {
+    for (const block of blocks) {
+      const blockType = block.type.toUpperCase();
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      // Only inspect W3DModelDraw-family draw modules.
+      const isDrawModule = blockType === 'DRAW' && moduleType.startsWith('W3D');
+      if (isDrawModule) {
+        let fallback: string | null = null;
+        for (const child of block.blocks) {
+          const childType = child.type.toUpperCase();
+          const model = readStringField(child.fields, ['Model']);
+          if (!model || model.toUpperCase() === 'NONE') continue;
+          if (childType === 'DEFAULTCONDITIONSTATE') {
+            return model;
+          }
+          if (childType === 'CONDITIONSTATE') {
+            const stateName = (child.name ?? '').toUpperCase().trim();
+            if (stateName === '' || stateName === 'NONE') {
+              return model;
+            }
+            if (!fallback) fallback = model;
+          }
+        }
+        if (fallback) return fallback;
+      }
+      const nested = walk(block.blocks);
+      if (nested) return nested;
+    }
+    return null;
+  };
+  return walk(objectDef.blocks);
+}
+
 export function extractQueueProductionExitProfile(self: GL, objectDef: ObjectDef | undefined): QueueProductionExitProfile | null {
   if (!objectDef) {
     return null;
@@ -1962,6 +2001,7 @@ export function extractQueueProductionExitProfile(self: GL, objectDef: ObjectDef
           allowAirborneCreation: readBooleanField(block.fields, ['AllowAirborneCreation']) === true,
           initialBurst: Math.max(0, Math.trunc(initialBurstRaw)),
           spawnPointBoneName: null,
+          spawnPointBones: null,
           useSpawnRallyPoint: readBooleanField(block.fields, ['UseSpawnRallyPoint']) === true,
         };
       } else if (moduleType === 'SUPPLYCENTERPRODUCTIONEXITUPDATE') {
@@ -1975,13 +2015,31 @@ export function extractQueueProductionExitProfile(self: GL, objectDef: ObjectDef
           allowAirborneCreation: false,
           initialBurst: 0,
           spawnPointBoneName: null,
+          spawnPointBones: null,
           useSpawnRallyPoint: false,
         };
       } else if (moduleType === 'SPAWNPOINTPRODUCTIONEXITUPDATE') {
-        // Source parity: SpawnPointProductionExitUpdate.cpp drives exits from named bone positions.
-        // This browser port currently lacks bone-space exit placement, so we deterministically
-        // use producer-local origin and emit no rally/airborne overrides.
+        // Source parity: SpawnPointProductionExitUpdate.cpp:142 reads pristine bone
+        // positions matching the SpawnPointBoneName prefix from the drawable.  We
+        // pre-resolve them once here so the simulation loop can map deterministic
+        // entity rotation onto cached model-local offsets.
         const spawnPointBoneName = readStringField(block.fields, ['SpawnPointBoneName']);
+        let spawnPointBones: ReadonlyArray<{ x: number; y: number; z: number; angle: number }> | null = null;
+        if (spawnPointBoneName) {
+          const modelName = resolveObjectDefaultModelName(objectDef);
+          const registry: IniDataRegistry | null = self.iniDataRegistry ?? null;
+          if (modelName && registry?.getPristineBonePositions) {
+            const bones = registry.getPristineBonePositions(modelName, spawnPointBoneName, 1);
+            if (bones.length > 0) {
+              spawnPointBones = bones.map((b) => ({
+                x: b.x,
+                y: b.y,
+                z: b.z,
+                angle: b.angle,
+              }));
+            }
+          }
+        }
         profile = {
           moduleType: 'SPAWN_POINT',
           unitCreatePoint: { x: 0, y: 0, z: 0 },
@@ -1990,6 +2048,7 @@ export function extractQueueProductionExitProfile(self: GL, objectDef: ObjectDef
           allowAirborneCreation: false,
           initialBurst: 0,
           spawnPointBoneName: spawnPointBoneName ?? null,
+          spawnPointBones,
           useSpawnRallyPoint: false,
         };
       }

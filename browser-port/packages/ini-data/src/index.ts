@@ -27,4 +27,6 @@ export type {
   VertexWaterSetting,
   WeaponBonusEntry,
   IniDataBundle,
+  ModelBoneRecord,
+  ModelBoneMap,
 } from './registry.js';

@@ -2508,6 +2508,13 @@ interface QueueProductionExitProfile {
   allowAirborneCreation: boolean;
   initialBurst: number;
   spawnPointBoneName: string | null;
+  /**
+   * Source parity: SpawnPointProductionExitUpdate::initializeBonePositions
+   * caches pristine bone offsets (Drawable::getPristineBonePositions).  Resolved
+   * once at profile extraction time from IniDataRegistry.modelBones.  Null when
+   * the model has no matching bones — runtime falls back to a circular ring.
+   */
+  spawnPointBones: ReadonlyArray<{ x: number; y: number; z: number; angle: number }> | null;
   /** Source parity: DefaultProductionExitUpdate::useSpawnRallyPoint for spawned/parachuted units. */
   useSpawnRallyPoint: boolean;
 }
@@ -48542,12 +48549,50 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity: SpawnPointProductionExitUpdate::initializeBonePositions —
-   * Bone-free approximation: distribute MAX_SPAWN_POINTS slots in a circle
-   * around the building at majorRadius distance from its center.
+   * Source parity: SpawnPointProductionExitUpdate::initializeBonePositions
+   * (SpawnPointProductionExitUpdate.cpp:142-173).
+   *
+   * Walks model-local pristine bone positions, rotates them by the producer's
+   * yaw, and translates by the producer's world position to obtain anchored
+   * spawn slots.  Falls back to a circular ring at majorRadius when no bone
+   * data is available (e.g., test fixtures with stub models).
    */
   private initializeSpawnPointPositions(entity: MapEntity): SpawnPointExitState {
     const MAX_SPAWN_POINTS = 10;
+    const exitProfile = entity.queueProductionExitProfile;
+    const bones = exitProfile?.moduleType === 'SPAWN_POINT' ? exitProfile.spawnPointBones : null;
+    if (bones && bones.length > 0) {
+      const cosYaw = Math.cos(entity.rotationY);
+      const sinYaw = Math.sin(entity.rotationY);
+      const positions: { x: number; z: number; angle: number }[] = [];
+      const used = Math.min(bones.length, MAX_SPAWN_POINTS);
+      for (let i = 0; i < used; i++) {
+        const bone = bones[i]!;
+        // Source parity: Object::convertBonePosToWorldPos applies the producer's
+        // rotation matrix to the model-local pivot translation, then translates
+        // by the producer's world coord.  In Generals, X→world-X and Y→world-Z;
+        // the bone's Z is height above floor.  Bone yaw composes with the
+        // producer's facing to give the slot's exit direction.
+        const localX = bone.x;
+        const localY = bone.y;
+        const worldX = entity.x + cosYaw * localX - sinYaw * localY;
+        const worldZ = entity.z + sinYaw * localX + cosYaw * localY;
+        positions.push({
+          x: worldX,
+          z: worldZ,
+          angle: entity.rotationY + bone.angle,
+        });
+      }
+      // Pad remaining slots so existing callers that index up to spawnPointCount
+      // never read undefined positions, even though only `used` slots are real.
+      return {
+        initialized: true,
+        spawnPointCount: used,
+        spawnPositions: positions,
+        occupierIds: new Array(used).fill(-1),
+      };
+    }
+
     const radius = entity.obstacleGeometry?.majorRadius ?? 20;
     const positions: { x: number; z: number; angle: number }[] = [];
     for (let i = 0; i < MAX_SPAWN_POINTS; i++) {

@@ -1681,6 +1681,68 @@ describe('SpawnPointProductionExitUpdate', () => {
     expect(aliveUnitIds.length).toBe(10);
   });
 
+  it('positions spawned units at model-local SpawnPoint bones rotated by producer yaw', () => {
+    // Source parity: SpawnPointProductionExitUpdate.cpp:142-173 reads pristine
+    // bone positions and Object::convertBonePosToWorldPos rotates them by the
+    // producer's transform.  Bone offsets here mimic UBStingerS.glb's
+    // SPAWNPOINT01..03 (the in-game GLA Stinger Site).
+    const bundle = makeSpawnPointBundle();
+    // Inject a model bone definition into the bundle.  The default model name
+    // resolved for StingerSite is null because our synthetic bundle has no
+    // W3DModelDraw / ConditionState — give it one so resolveObjectDefaultModelName
+    // returns 'UBStingerS' (lowercased to 'ubstingers' for the bone key).
+    const stingerObj = bundle.objects.find((o) => o.name === 'StingerSite');
+    expect(stingerObj).toBeDefined();
+    stingerObj!.blocks.push({
+      type: 'Draw',
+      name: 'W3DModelDraw ModuleTag_Draw',
+      fields: {},
+      blocks: [
+        {
+          type: 'DefaultConditionState',
+          name: '',
+          fields: { Model: 'UBStingerS' },
+          blocks: [],
+        },
+      ],
+    });
+    bundle.modelBones = {
+      ubstingers: [
+        { name: 'SPAWNPOINT01', x: 10, y: 0, z: 0, angle: 0 },
+        { name: 'SPAWNPOINT02', x: 0, y: 10, z: 0, angle: Math.PI / 2 },
+        { name: 'SPAWNPOINT03', x: -10, y: 0, z: 0, angle: Math.PI },
+      ],
+    };
+
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('StingerSite', 100, 50, 0)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    logic.submitCommand({ type: 'setSideCredits', side: 'GLA', amount: 5000 });
+    logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+    logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+    logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+
+    const unitIds = logic.getEntityIdsByTemplate('StingerMissile');
+    expect(unitIds.length).toBe(3);
+    const positions = unitIds.map((id) => {
+      const e = logic.getEntityState(id)!;
+      return { x: Math.round(e.x), z: Math.round(e.z) };
+    }).sort((a, b) => (a.x - b.x) || (a.z - b.z));
+    // With producer at (100, 50) and rotationY=0, world == producer + local.
+    // Expected slots: (90,50), (100,60), (110,50).
+    expect(positions).toEqual([
+      { x: 90, z: 50 },
+      { x: 100, z: 60 },
+      { x: 110, z: 50 },
+    ]);
+  });
+
   it('blocks production queue when all 10 spawn slots are occupied', () => {
     const bundle = makeSpawnPointBundle(12);
     const scene = new THREE.Scene();
