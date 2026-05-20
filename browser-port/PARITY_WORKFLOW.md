@@ -1,154 +1,213 @@
-# Parity Testing Workflow
+# Generals Parity Workflow
 
-Three-layer verification system ensuring the browser port matches the original C++ Generals engine.
+Parity is proven in layers.  Hand-written TS tests are useful for regression
+control, but they do not prove agreement with the original C&C Generals C++
+engine on their own.  This document describes how the layers compose, what
+each one actually proves, and the path to a CI-gated guarantee.
 
-## Layer 1: Source Truth Verification
+Modeled on CLIaaS / EasterEgg's `PARITY_WORKFLOW.md` for Red Alert.
 
-Parses C++ source headers/implementations from the in-repo original and compares enum values,
-field tables, and type definitions against the TypeScript port.
+## Layer 0 — Source Truth
 
-```bash
-# Generate source truth report (JSON + Markdown)
-npm run parity:source
-
-# Strict mode — exits non-zero on errors
-npm run parity:strict
+```sh
+npm run parity:source         # report-only
+npm run parity:strict         # fail on any mismatch
 ```
 
-**Reports:**
-- `test-results/parity/source-parity.json` — structured mismatch data
-- `test-results/parity/source-parity.md` — human-readable summary
+Compares static C++ data (enum definitions, INI field tables, save chunk
+layouts, weapon-bonus condition names, damage-type bit lists, module field
+parsers, etc.) against the corresponding TypeScript port constants.  Reads
+C++ source headers directly out of the in-repo `../GeneralsMD/Code/...`
+tree, so a header edit in the source mirror immediately surfaces as a TS
+divergence.
 
-**What it checks:**
-- Damage type enum ordering (C++ `DamageType` vs TS `SOURCE_DAMAGE_TYPE_NAMES`)
-- Weapon bonus condition names (C++ `TheWeaponBonusNames` vs TS `WEAPON_BONUS_CONDITION_BY_NAME`)
-- Weapon field coverage (C++ `TheWeaponTemplateFieldParseTable` vs TS `resolveWeaponProfileFromDef`)
+356 categories at the time of writing — all green.
 
-## Layer 2: Module Runtime Coverage
+**What this proves**: every C++ enum, INI field key, weapon-bonus mask,
+save-chunk schema, and module field name the TS port hard-codes matches
+the source.
 
-Compares source-declared modules, shipped INI module usage, TypeScript gameplay
-signals, test signals, and save-only coverage. Use this before picking the next
-runtime parity target so high-use INI modules do not hide behind save adapters or
-incidental imports.
+**What it does not prove**: that the runtime behavior agrees with the
+original engine — only that the static surface area lines up.
 
-```bash
-npm run report:module-runtime-coverage
+Outputs:
+
+```
+test-results/parity/source-parity.json
+test-results/parity/source-parity.md
 ```
 
-**Reports:**
-- `module-runtime-coverage-report.json` - ranked source+INI module coverage gaps
+### Supporting reports
 
-**What it checks:**
-- C++ `ModuleFactory.cpp` registrations from Generals and GeneralsMD
-- Module usage in the shipped `ini-bundle.json`
-- Gameplay implementation signals in `packages/game-logic/src`
-- Test and save-coverage signals for each module
+| Command | What it ranks |
+|---------|-------------|
+| `npm run report:module-runtime-coverage` | Source+INI modules without gameplay signals |
+| `npm run report:module-field-coverage` | Shipped module fields without TS extraction |
+| `npm run report:conversion-parity` | INI bundle conversion drift |
+| `npm run report:command-coverage` | Command-type coverage for control-bar dispatch |
+| `npm run report:script-coverage` | Map-script action / condition coverage |
+| `npm run report:save-core-chunks` | Source-save chunk parser round-trip status |
 
-## Layer 3: Module Field Coverage
+All passing as of 2026-05-20.
 
-Compares C++ module `buildFieldParse` tables, shipped INI fields, TypeScript
-runtime extraction signals, and tests. Use this after module coverage is clear:
-it finds the next layer of parity drift where a module exists but individual INI
-parameters are still ignored.
+## Layer 1 — Save-Load Differential
 
-```bash
-npm run report:module-field-coverage
+```sh
+npx tsx tools/save-load-parity-report.ts             # regenerate oracle
+npx playwright test e2e/save-load-parity.e2e.ts      # diff TS vs oracle
 ```
 
-**Reports:**
-- `module-field-coverage-report.json` - ranked shipped module fields missing TS runtime signals
+The oracle generator parses every real `.sav` fixture under
+`fixtures/source-saves/` and dumps the C++ engine's authoritative state:
 
-**What it checks:**
-- C++ module data classes, inherited field parsers, and helper parse tables
-- Shipped INI fields by module type and usage count
-- Gameplay implementation signals in `packages/game-logic/src`
-- Test signals for each shipped source-known module field
+- frame counter
+- object count
+- complete object-TOC template list (153 distinct templates per Generals
+  campaign save, 200+ per Zero Hour skirmish)
+- first-object metadata (template, internal name, team id)
+- all CHUNK_* block names present in the file
 
-## Layer 4: Unit Tests (Parity Agent)
+Output lives at `parity-reports/save-load-parity.json` and `.md` — _not_
+under `test-results/`, because Playwright wipes that directory at the start
+of each test run.
 
-Headless game logic tests using `createParityAgent()` — a camera-free wrapper around
-`GameLogicSubsystem` that works in vitest without browser/Three.js rendering.
+The differential test then:
 
-```bash
-# Run all parity tests (source truth + combat + pipeline)
-npm run parity
+1. Boots the dev server via Playwright's webServer config.
+2. Loads each fixture through the actual load-game UI.
+3. Captures the TS port's `gameLogic.frameCounter` and `spawnedEntities` via
+   the `__GENERALS_E2E__` runtime hook.
+4. Asserts:
+   - **Frame parity (exact)**: TS frame counter equals C++ frame counter.
+   - **Object count parity (TS ≤ C++)**: TS spawns no more than C++; any
+     excess would be a load-time fabrication bug.
+   - **Template coverage (≥70% baseline)**: TS port's spawned templates
+     cover at least 70% of the C++ save's distinct TOC templates.  Raise
+     this threshold as the porting work closes the remaining gap.
+5. Writes per-fixture findings to
+   `parity-reports/save-load-findings/<fixture>.sav.json` with covered /
+   missing template names, so a downstream tool can roll up the cross-
+   fixture diff matrix.
 
-# Run specific test files
+By default only three fixtures run (one Generals, one ZH campaign, one ZH
+Challenge) — set `PARITY_FULL=1` to exercise all 36 real saves.
+
+**What this proves**: the TS port can ingest every real C++ save fixture
+without losing the frame counter and without fabricating entities, and
+reconstructs at least 70% of the distinct object templates the C++ engine
+saved.
+
+**What it does not prove**: that the per-entity state (positions, HPs,
+module fields) matches C++ — only that the templates show up.  Closing
+this is Layer 2's job.
+
+**Currently known divergences (template-coverage gap)**:
+
+- `Amb_*` ambient-audio source objects — TS port doesn't currently spawn
+  audio-trigger entities from saves.  ~28% of the gap on Generals saves.
+- System decals (`VerticalArrow`) — movement-indicator decoration,
+  intentionally skipped.
+
+## Layer 2 — Replay (.rep) Differential  *(not yet built)*
+
+Generals replay files (`.rep`) contain frame-by-frame player commands plus
+a periodic CRC32 of game state.  A replay differential harness would:
+
+1. Parse a `.rep` to extract: starting save (if any), command sequence,
+   CRC checkpoint frames.
+2. Drive the TS port through the same command sequence at the same frames.
+3. Compare TS-computed CRCs against the recorded values at each checkpoint.
+
+The first frame where CRCs diverge is the first frame TS computed something
+different from C++.  This is the gold-standard runtime differential because
+the CRC is computed from the C++ engine's complete state — there is no way
+for a buggy port to fake it.
+
+Estimated effort: 1-2 sessions to parse the format, wire commands through
+`__GENERALS_E2E__`, and surface findings.
+
+## Layer 3 — Headless C++ Oracle  *(stretch)*
+
+Following CLIaaS's WasmAdapter pattern but native: compile a tiny C++
+binary from the in-repo `GeneralsMD/` source that loads a `.sav`, runs N
+frames, and dumps entity state as JSON.  Drive the TS port through the
+identical sequence; differential test diffs the JSON outputs.
+
+Substantial lift — multiple modules need to be extracted from the Windows
+DirectX dependency tree and replaced with no-op stubs (no audio, no
+renderer, no input).  A reasonable scope is just `GameLogic`, `AI`, the
+saver, and the INI parser — enough to advance frames without a graphics
+context.
+
+## Layer 4 — Visual Verification  *(deferred)*
+
+```sh
+npm run report:visual-scenes                    # Playwright scene probes
+```
+
+Side-by-side screenshot comparison between the TS port and the original
+game running in a Windows VM is the future ambition.  Today's
+implementation is Playwright probes of canonical retail scenes
+(`Tournament Desert`, `MD_USA01`, etc.) that catch unresolved model
+placeholders, page errors, missing skybox state, and obvious renderer
+divergence.  Blocked on
+`tools/visual-oracle/vm/generals-win10.qcow2` — see
+`fixtures/source-saves/README.md` for VM status notes.
+
+## Layer 5 — Vitest Parity Agent
+
+```sh
+npm run parity                                  # all parity-tagged tests
 npx vitest run packages/game-logic/src/parity-combat.test.ts
 npx vitest run packages/game-logic/src/parity-pipeline.test.ts
 npx vitest run packages/game-logic/src/parity-agent.test.ts
 npx vitest run tools/parity-source-truth.test.ts
 ```
 
-**Test categories:**
-- `parity-agent.test.ts` — Agent smoke tests (state, step, diff, determinism)
-- `parity-combat.test.ts` — C++ formula verification (armor coefficients, UNRESISTABLE, clip reload, delay, pre-attack types)
-- `parity-pipeline.test.ts` — Multi-system integration (combat+armor+upgrade, mutual combat, victory, guard, stop)
-- `parity-source-truth.test.ts` — Parser unit tests + live source comparison
+Headless game-logic tests using `createParityAgent()` — a camera-free wrapper
+around `GameLogicSubsystem` that runs in vitest without browser or
+Three.js rendering.  Useful for fast inner-loop development against
+specific source formulas (armor coefficients, clip reload, pre-attack
+types), independent of the larger differential harness.
 
-## Layer 4: Runtime Visual Scene Parity
+## Promotion to CI gate
 
-Retail-map scene probes using Playwright against the built app. This catches
-runtime visual blockers that the logic/source-truth layers can miss, such as
-unresolved model placeholders, missing skybox state, and page/runtime errors.
+The path to a real guarantee is:
 
-```bash
-npm run report:visual-scenes
-```
+1. Drive Layer 0 to 100% strict, with the known-difference set empty.
+   _Done at the time of this writing._
+2. Drive Layer 1 template-coverage threshold from 70% → 90% → 100% by
+   closing each finding under `parity-reports/save-load-findings/`.
+3. Build Layer 2 (replay differential) and reach 100% CRC agreement on at
+   least one full replay.
+4. Promote `--strict` variants of all three layers into CI only after the
+   known-difference set is empty or explicitly allowlisted in this file.
 
-**Reports:**
-- `visual-scene-parity-report.json` — per-scene runtime probe results
-- `test-results/visual-scenes/*.png` — scene captures for inspected maps
+Until those three layers are green together, parity is still an audit
+effort rather than a proof.
 
-**Current probe scenes:**
-- `Tournament Desert`
-- `MD_USA01`
+## Quick reference
 
-**What it checks:**
-- No uncaught page errors
-- No unresolved placed-map objects
-- No unresolved rendered entities / visible placeholders after warm-up
-- Minimum renderable population for the scene
-- Script skybox visible on campaign intro scenes that expect it
+| Command | Layer | Output |
+|---------|-------|--------|
+| `npm run parity:strict` | 0 | source-parity.json (356 categories) |
+| `npm run report:module-runtime-coverage` | 0 | module-runtime-coverage-report.json |
+| `npm run report:module-field-coverage` | 0 | module-field-coverage-report.json |
+| `npx tsx tools/save-load-parity-report.ts` | 1 | parity-reports/save-load-parity.{json,md} |
+| `npx playwright test e2e/save-load-parity.e2e.ts` | 1 | parity-reports/save-load-findings/*.json |
+| `npm run report:visual-scenes` | 4 | visual-scene-parity-report.json |
+| `npm run parity` | 5 | vitest pass/fail |
+| `npm test` | all | full suite |
 
-## Layer 5: Visual Comparison
-
-Screenshot comparison using the Visual Oracle tool (QEMU-based).
-
-```bash
-cd tools/visual-oracle && npx tsx cli.ts <command>
-```
-
-See `tools/visual-oracle/` for details.
-
-## Quick Reference
-
-| Command | What it does |
-|---------|-------------|
-| `npm run parity` | Run all parity vitest suites |
-| `npm run parity:source` | Generate source truth report |
-| `npm run parity:strict` | Source truth with non-zero exit on failure |
-| `npm run report:module-runtime-coverage` | Rank source+INI modules missing gameplay coverage |
-| `npm run report:module-field-coverage` | Rank shipped source-known module fields missing gameplay coverage |
-| `npm run report:visual-scenes` | Probe canonical retail scenes for runtime visual blockers |
-| `npm test` | Run all tests including parity |
-
-## Architecture
+## File map
 
 ```
-ParityAgent (parity-agent.ts)
-  └── GameLogicSubsystem (index.ts)  ← wraps, doesn't duplicate
-       ├── submitCommand() ← move, attack, build, etc.
-       ├── update(1/30) ← step simulation
-       └── getEntityState() ← read entity data
-
-Source Truth (parity-source-truth.ts)
-  ├── C++ headers (Generals/ + GeneralsMD/)
-  │    ├── Damage.h / Damage.cpp
-  │    ├── Weapon.h / Weapon.cpp
-  │    └── Armor.cpp
-  └── TS port (packages/game-logic/src/index.ts)
-       ├── SOURCE_DAMAGE_TYPE_NAMES
-       ├── WEAPON_BONUS_CONDITION_BY_NAME
-       └── resolveWeaponProfileFromDef()
+PARITY_WORKFLOW.md                              ← this document
+tools/parity-source-truth.ts                    ← Layer 0
+tools/save-load-parity-report.ts                ← Layer 1 oracle generator
+e2e/save-load-parity.e2e.ts                     ← Layer 1 differential test
+parity-reports/save-load-parity.{json,md}       ← Layer 1 oracle output
+parity-reports/save-load-findings/*.json        ← Layer 1 per-fixture findings (gitignored)
+test-results/parity/source-parity.{json,md}     ← Layer 0 output
+fixtures/source-saves/*.sav                     ← C++ engine ground truth (36 real fixtures)
 ```

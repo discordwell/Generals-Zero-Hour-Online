@@ -46,7 +46,9 @@
     "convert:all": "tsx tools/convert-all.ts",
     "parity": "vitest run --reporter=verbose -t parity",
     "parity:source": "tsx tools/parity-source-truth.ts",
-    "parity:strict": "tsx tools/parity-source-truth.ts --strict"
+    "parity:strict": "tsx tools/parity-source-truth.ts --strict",
+    "parity:save-load": "tsx tools/save-load-parity-report.ts",
+    "parity:save-load:test": "playwright test e2e/save-load-parity.e2e.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

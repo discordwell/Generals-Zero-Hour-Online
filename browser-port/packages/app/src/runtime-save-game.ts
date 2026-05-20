@@ -1064,7 +1064,7 @@ interface ParsedSourceGameLogicPolygonTriggerState {
   snapshot: SourcePolygonTriggerSnapshotState;
 }
 
-interface ParsedSourceGameLogicChunkState {
+export interface ParsedSourceGameLogicChunkState {
   version: number;
   frameCounter: number;
   objectTocEntries: Array<{ templateName: string; tocId: number }>;
@@ -5074,7 +5074,14 @@ function xferSourcePolygonTriggerSnapshot(
   };
 }
 
-function parseSourceGameLogicChunkState(
+/**
+ * Parses CHUNK_GameLogic into a structured representation including the
+ * object TOC, every saved object's deserialized fields, and engine-wide
+ * scalars (frame counter, scoring flags, etc.).  Exposed so parity tooling
+ * (tools/save-load-parity-report.ts) can extract C++ ground truth without
+ * booting the TS runtime.
+ */
+export function parseSourceGameLogicChunkState(
   data: ArrayBuffer | Uint8Array,
 ): ParsedSourceGameLogicChunkState | null {
   try {
