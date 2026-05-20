@@ -108,10 +108,10 @@ this is Layer 2's job.
 - System decals (`VerticalArrow`) — movement-indicator decoration,
   intentionally skipped.
 
-## Layer 2 — Replay (.rep) Differential  *(not yet built)*
+## Layer 2 — Replay (.rep) Differential  *(header parser landed; differential pending fixtures)*
 
 Generals replay files (`.rep`) contain frame-by-frame player commands plus
-a periodic CRC32 of game state.  A replay differential harness would:
+a periodic CRC32 of game state.  A replay differential harness will:
 
 1. Parse a `.rep` to extract: starting save (if any), command sequence,
    CRC checkpoint frames.
@@ -123,8 +123,16 @@ different from C++.  This is the gold-standard runtime differential because
 the CRC is computed from the C++ engine's complete state — there is no way
 for a buggy port to fake it.
 
-Estimated effort: 1-2 sessions to parse the format, wire commands through
-`__GENERALS_E2E__`, and surface findings.
+Status:
+- `tools/replay-format.ts` parses the GENREP header (magic, start/end time,
+  frame duration, desync flag, slot disconnects, replay name, SYSTEMTIME,
+  version string + number, exe/INI CRCs, game options, local player index).
+  Covered by `tools/replay-format.test.ts`.
+- Command-stream + CRC differential pending: need real `.rep` fixtures to
+  validate the per-frame GameMessage parser
+  (Recorder.cpp:780-810) against.
+
+Estimated remaining effort: 1-2 sessions once fixtures land.
 
 ## Layer 3 — Headless C++ Oracle  *(stretch)*
 
@@ -208,6 +216,8 @@ tools/save-load-parity-report.ts                ← Layer 1 oracle generator
 e2e/save-load-parity.e2e.ts                     ← Layer 1 differential test
 parity-reports/save-load-parity.{json,md}       ← Layer 1 oracle output
 parity-reports/save-load-findings/*.json        ← Layer 1 per-fixture findings (gitignored)
+tools/replay-format.ts                          ← Layer 2 GENREP header parser
+tools/replay-format.test.ts                     ← Layer 2 unit tests
 test-results/parity/source-parity.{json,md}     ← Layer 0 output
 fixtures/source-saves/*.sav                     ← C++ engine ground truth (36 real fixtures)
 ```
