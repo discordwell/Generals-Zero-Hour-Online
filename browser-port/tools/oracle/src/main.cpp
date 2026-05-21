@@ -108,6 +108,13 @@ struct TocEntry {
 //   tocCount × { AsciiString templateName; u16 id }
 //   u32    objectCount
 //   objectCount × { u16 tocID; i32 blockSize; <blockSize> bytes of Object::xfer }
+struct ObjectRecord {
+  std::uint16_t tocId;
+  std::int32_t  blockSize;
+  std::size_t   blockDataOffset; // offset into CHUNK_GameLogic payload
+  std::string   templateName;    // resolved from TOC
+};
+
 struct GameLogicHeader {
   std::uint8_t  version;
   std::uint32_t frame;
@@ -115,6 +122,7 @@ struct GameLogicHeader {
   std::uint32_t tocCount;
   std::vector<TocEntry> toc;
   std::uint32_t objectCount;
+  std::vector<ObjectRecord> objects;
 };
 
 [[nodiscard]] std::vector<std::uint8_t> readFile(const std::string& path) {
@@ -157,6 +165,35 @@ struct GameLogicHeader {
     h.toc.push_back(std::move(e));
   }
   h.objectCount = r.readUInt32LE();
+
+  // Build a TOC-id → templateName lookup for resolution.
+  std::vector<std::string> tocNameById(0x10000);
+  for (const auto& e : h.toc) {
+    if (e.id < tocNameById.size()) tocNameById[e.id] = e.templateName;
+  }
+
+  // v3: walk every per-object header.  Each record is:
+  //   u16   tocID
+  //   i32   blockSize (Xfer::beginBlock)
+  //   bytes <blockSize> of Object::xfer
+  // We don't decode the inner Object::xfer yet — that's v4.  Capturing
+  // just the per-object header lets us compare TS port load count and
+  // per-entity template resolution against the C++ ground truth.
+  h.objects.reserve(h.objectCount);
+  for (std::uint32_t i = 0; i < h.objectCount; i++) {
+    ObjectRecord rec{};
+    rec.tocId = r.readUInt16LE();
+    rec.blockSize = r.readInt32LE();
+    rec.blockDataOffset = chunkOffset + r.offset;
+    if (rec.tocId < tocNameById.size()) {
+      rec.templateName = tocNameById[rec.tocId];
+    }
+    if (rec.blockSize < 0) {
+      throw std::runtime_error("oracle: negative object blockSize");
+    }
+    r.skip(static_cast<std::size_t>(rec.blockSize));
+    h.objects.push_back(std::move(rec));
+  }
   return h;
 }
 
@@ -248,6 +285,18 @@ void emitJson(
       std::cout << "      { \"templateName\": " << jsonString(e.templateName)
                 << ", \"id\": " << e.id << " }";
       if (i + 1 < glHeader->toc.size()) std::cout << ',';
+      std::cout << '\n';
+    }
+    std::cout << "    ],\n";
+    std::cout << "    \"objects\": [\n";
+    for (std::size_t i = 0; i < glHeader->objects.size(); i++) {
+      const auto& o = glHeader->objects[i];
+      std::cout << "      { \"tocId\": " << o.tocId
+                << ", \"templateName\": " << jsonString(o.templateName)
+                << ", \"blockDataOffset\": " << o.blockDataOffset
+                << ", \"blockSize\": " << o.blockSize
+                << " }";
+      if (i + 1 < glHeader->objects.size()) std::cout << ',';
       std::cout << '\n';
     }
     std::cout << "    ]\n";

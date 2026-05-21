@@ -46,6 +46,13 @@ interface OracleTocEntry {
   id: number;
 }
 
+interface OracleObject {
+  tocId: number;
+  templateName: string;
+  blockDataOffset: number;
+  blockSize: number;
+}
+
 interface OracleGameLogic {
   version: number;
   frameCounter: number;
@@ -53,6 +60,7 @@ interface OracleGameLogic {
   tocCount: number;
   objectCount: number;
   toc: OracleTocEntry[];
+  objects: OracleObject[];
 }
 
 interface OracleResult {
@@ -233,9 +241,9 @@ function buildReport(): Report {
         mismatches.push({ fixture, message: `CHUNK_GameLogic tocCount: oracle=${cppTocCount} ts=${tsTocCount}` });
       }
 
-      // Compare TOC template names — confirms oracle's AsciiString parser
-      // produces the same templateName strings as the TS port for every
-      // entry in the same order.
+      // Compare TOC + per-object headers — confirms oracle's parser
+      // produces the same templateName strings, tocIds, and per-object
+      // blockSizes as the TS port across the entire CHUNK_GameLogic.
       if (gameLogicChunk && oracle.gameLogic) {
         const chunkBytes = new Uint8Array(ab, gameLogicChunk.blockDataOffset, gameLogicChunk.blockSize);
         const fullState = parseSourceGameLogicChunkState(bytesToAB(chunkBytes));
@@ -254,6 +262,37 @@ function buildReport(): Report {
               mismatches.push({
                 fixture,
                 message: `CHUNK_GameLogic toc[${i}] id: oracle=${cppToc[i]!.id} ts=${tsToc[i]!.tocId}`,
+              });
+            }
+          }
+
+          // v3: per-object header diff (templateName + blockSize).  TS's
+          // parsed objects array matches C++'s order — both walk the same
+          // bytes — so a positional diff catches any per-entity
+          // misalignment that would shift the rest of the stream.
+          const cppObjs = oracle.gameLogic.objects;
+          const tsObjs = fullState.objects;
+          if (cppObjs.length !== tsObjs.length) {
+            mismatches.push({
+              fixture,
+              message: `CHUNK_GameLogic object count: oracle=${cppObjs.length} ts=${tsObjs.length}`,
+            });
+          }
+          const objLimit = Math.min(cppObjs.length, tsObjs.length);
+          for (let i = 0; i < objLimit; i++) {
+            const co = cppObjs[i]!;
+            const to = tsObjs[i]!;
+            if (co.templateName !== (to.templateName ?? '')) {
+              mismatches.push({
+                fixture,
+                message: `CHUNK_GameLogic object[${i}] templateName: oracle=${co.templateName} ts=${to.templateName ?? '<null>'}`,
+              });
+            }
+            const tsBlockBytes = to.blockData?.byteLength ?? -1;
+            if (co.blockSize !== tsBlockBytes) {
+              mismatches.push({
+                fixture,
+                message: `CHUNK_GameLogic object[${i}] blockSize: oracle=${co.blockSize} ts=${tsBlockBytes}`,
               });
             }
           }
