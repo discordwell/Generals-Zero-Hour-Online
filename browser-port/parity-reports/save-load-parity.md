@@ -4,7 +4,7 @@ C++ engine ground-truth state extracted from `fixtures/source-saves/`.
 Downstream differential tests load the same `.sav` files into the TS
 port and assert TS == C++ for every field listed here.
 
-- generated: 2026-05-20T20:57:40.381Z
+- generated: 2026-05-20T21:03:50.154Z
 - real saves: 36
 - parsed cleanly: 36
 - parse failures: 0
