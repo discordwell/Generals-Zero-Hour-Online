@@ -1,0 +1,265 @@
+{
+  "generatedAt": "2026-05-21T07:30:43.692Z",
+  "oracleBinary": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\tools\\oracle\\build\\oracle.exe",
+  "fixtureDir": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\fixtures\\source-saves",
+  "summary": {
+    "fixtureCount": 36,
+    "agreeing": 36,
+    "diverging": 0,
+    "totalMismatches": 0
+  },
+  "fixtures": [
+    {
+      "fixture": "zipeater_GN_000.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_GN_001.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_GN_008.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_GN_015.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_GN_022.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_GN_023.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_GN_030.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_GN_037.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_GN_044.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_000.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_005.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_010.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_015.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_020.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_025.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_030.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_037.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_044.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_051.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_058.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_065.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_073.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_080.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_087.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_095.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_102.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_109.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_116.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_123.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_130.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_138.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_145.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_152.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_160.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_161.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    },
+    {
+      "fixture": "zipeater_ZH_162.sav",
+      "cppChunkCount": 17,
+      "tsChunkCount": 17,
+      "agree": true,
+      "mismatches": []
+    }
+  ]
+}
