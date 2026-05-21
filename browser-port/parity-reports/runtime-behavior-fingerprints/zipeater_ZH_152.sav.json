@@ -1,0 +1,56 @@
+{
+  "fixture": "zipeater_ZH_152.sav",
+  "startFrame": 1108,
+  "checkpoints": [
+    {
+      "frame": 1108,
+      "total": 3888392482,
+      "sections": {
+        "objects": 3204495001,
+        "partitionManager": 3560198256,
+        "playerList": 3149339361,
+        "ai": 3337624698
+      }
+    },
+    {
+      "frame": 1138,
+      "total": 3598488541,
+      "sections": {
+        "objects": 2016227370,
+        "partitionManager": 1300293239,
+        "playerList": 1519239417,
+        "ai": 1695919191
+      }
+    },
+    {
+      "frame": 1168,
+      "total": 2509042802,
+      "sections": {
+        "objects": 4015376038,
+        "partitionManager": 1300293239,
+        "playerList": 1519239417,
+        "ai": 3236165128
+      }
+    },
+    {
+      "frame": 1228,
+      "total": 1345951633,
+      "sections": {
+        "objects": 2612136641,
+        "partitionManager": 1300293239,
+        "playerList": 424813040,
+        "ai": 3905522796
+      }
+    },
+    {
+      "frame": 1408,
+      "total": 4199859376,
+      "sections": {
+        "objects": 811704033,
+        "partitionManager": 1300293239,
+        "playerList": 424813040,
+        "ai": 516362650
+      }
+    }
+  ]
+}
