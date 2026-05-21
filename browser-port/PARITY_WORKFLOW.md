@@ -157,6 +157,27 @@ original C++ engine would compute for the same state.  Closing that
 requires Layer 2 (replay CRC differential) or Layer 3 (headless C++
 oracle).
 
+## Layer 1d — Runtime Command Fingerprint
+
+```sh
+npm run parity:runtime-command:test
+```
+
+Extends Layer 1c to include real player commands.  For each fixture,
+picks a deterministic VEHICLE (smallest entity id that's alive,
+movable, has a side, not airborne), issues a `moveTo` command 50 units
+in +X/+Z, advances 30 frames, and captures the post-command CRC + the
+entity's exact final position.
+
+Locks down the entire runtime: command dispatch → AI state machine →
+locomotor physics (accel/brake/turnRate/minSpeed) → pathfinding A* →
+per-frame movement integration.  Any change that affects how a unit
+responds to a move command flips the CRC and the entity position.
+
+Fingerprints live at
+`parity-reports/runtime-command-fingerprints/<fixture>.json` and are
+committed.
+
 ## Layer 2 — Replay (.rep) Differential  *(header parser landed; differential pending fixtures)*
 
 Generals replay files (`.rep`) contain frame-by-frame player commands plus
@@ -254,6 +275,7 @@ effort rather than a proof.
 | `npx tsx tools/save-load-parity-report.ts` | 1 | parity-reports/save-load-parity.{json,md} |
 | `npx playwright test e2e/save-load-parity.e2e.ts` | 1 | parity-reports/save-load-findings/*.json |
 | `npm run parity:runtime-behavior:test` | 1c | parity-reports/runtime-behavior-fingerprints/*.json |
+| `npm run parity:runtime-command:test` | 1d | parity-reports/runtime-command-fingerprints/*.json |
 | `npm run report:visual-scenes` | 4 | visual-scene-parity-report.json |
 | `npm run parity` | 5 | vitest pass/fail |
 | `npm test` | all | full suite |
@@ -269,6 +291,10 @@ parity-reports/save-load-parity.{json,md}       ← Layer 1 oracle output
 parity-reports/save-load-findings/*.json        ← Layer 1 per-fixture findings (gitignored)
 e2e/runtime-behavior-parity.e2e.ts              ← Layer 1c runtime fingerprint test
 parity-reports/runtime-behavior-fingerprints/*.json ← Layer 1c golden CRC reference (committed)
+e2e/runtime-command-parity.e2e.ts               ← Layer 1d command fingerprint test
+parity-reports/runtime-command-fingerprints/*.json ← Layer 1d golden post-command state (committed)
+tools/runtime-behavior-summary.ts               ← cross-fixture roll-up of 1c volatility
+parity-reports/runtime-behavior-summary.{json,md} ← aggregated fingerprint matrix
 tools/replay-format.ts                          ← Layer 2 GENREP header parser
 tools/replay-format.test.ts                     ← Layer 2 unit tests
 test-results/parity/source-parity.{json,md}     ← Layer 0 output
