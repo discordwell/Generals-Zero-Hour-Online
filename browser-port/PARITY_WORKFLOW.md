@@ -143,6 +143,15 @@ every time, down to the bit.  Combined with Layer 0's verification that
 TS uses the same xfer-snapshot algorithm as C++, this is the strongest
 runtime-parity assertion possible without a co-running C++ engine.
 
+**Composes with**:
+
+- `e2e/source-save-simulation.e2e.ts` — within-process determinism: loads
+  a save, runs 300 frames, then RELOADS the same save, runs 300 frames
+  again, and asserts CRC identical.  Catches non-deterministic bugs in
+  the current process (e.g., a `Math.random` slipping into game-logic).
+  L1c catches the complementary case: cross-process drift between
+  arbitrary runs against the committed golden fingerprint.
+
 **What it does not prove**: that the CRC value itself matches what the
 original C++ engine would compute for the same state.  Closing that
 requires Layer 2 (replay CRC differential) or Layer 3 (headless C++
