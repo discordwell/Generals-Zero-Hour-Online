@@ -81,9 +81,10 @@ The differential test then:
    - **Frame parity (exact)**: TS frame counter equals C++ frame counter.
    - **Object count parity (TS ≤ C++)**: TS spawns no more than C++; any
      excess would be a load-time fabrication bug.
-   - **Template coverage (≥70% baseline)**: TS port's spawned templates
-     cover at least 70% of the C++ save's distinct TOC templates.  Raise
-     this threshold as the porting work closes the remaining gap.
+   - **Template coverage (100% strict)**: TS port's spawned templates
+     cover **every** distinct template the C++ save references.  Counts
+     alive and destroyed entities both — hulks/debris/decals are saved in
+     a destroyed state in C++ and the TS port restores them faithfully.
 5. Writes per-fixture findings to
    `parity-reports/save-load-findings/<fixture>.sav.json` with covered /
    missing template names, so a downstream tool can roll up the cross-
@@ -93,20 +94,15 @@ By default only three fixtures run (one Generals, one ZH campaign, one ZH
 Challenge) — set `PARITY_FULL=1` to exercise all 36 real saves.
 
 **What this proves**: the TS port can ingest every real C++ save fixture
-without losing the frame counter and without fabricating entities, and
-reconstructs at least 70% of the distinct object templates the C++ engine
-saved.
+without losing the frame counter, without fabricating entities, and
+reconstructs **100%** of the distinct object templates the C++ engine
+saved — including non-gameplay decoration like `Amb_*` ambient-audio
+triggers, system decals (`VerticalArrow`), debris hulks, and stumped
+trees.  Verified across all 36 fixtures / 34,282 live C++ objects.
 
-**What it does not prove**: that the per-entity state (positions, HPs,
-module fields) matches C++ — only that the templates show up.  Closing
-this is Layer 2's job.
-
-**Currently known divergences (template-coverage gap)**:
-
-- `Amb_*` ambient-audio source objects — TS port doesn't currently spawn
-  audio-trigger entities from saves.  ~28% of the gap on Generals saves.
-- System decals (`VerticalArrow`) — movement-indicator decoration,
-  intentionally skipped.
+**What it does not prove**: that the per-entity field state (positions,
+HPs, module fields) matches C++ — only that the templates show up.
+Closing this is Layer 2's job (replay CRC differential).
 
 ## Layer 2 — Replay (.rep) Differential  *(header parser landed; differential pending fixtures)*
 
@@ -183,11 +179,12 @@ types), independent of the larger differential harness.
 The path to a real guarantee is:
 
 1. Drive Layer 0 to 100% strict, with the known-difference set empty.
-   _Done at the time of this writing._
-2. Drive Layer 1 template-coverage threshold from 70% → 90% → 100% by
-   closing each finding under `parity-reports/save-load-findings/`.
+   _Done — 356/356 categories green._
+2. Drive Layer 1 template-coverage threshold to 100%.  _Done — all 36
+   fixtures pass at strict 100% across 34,282 live C++ objects._
 3. Build Layer 2 (replay differential) and reach 100% CRC agreement on at
-   least one full replay.
+   least one full replay.  _Header parser landed; CRC differential
+   pending real `.rep` fixtures._
 4. Promote `--strict` variants of all three layers into CI only after the
    known-difference set is empty or explicitly allowlisted in this file.
 
