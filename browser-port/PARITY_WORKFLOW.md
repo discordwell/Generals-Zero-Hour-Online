@@ -104,6 +104,50 @@ trees.  Verified across all 36 fixtures / 34,282 live C++ objects.
 HPs, module fields) matches C++ — only that the templates show up.
 Closing this is Layer 2's job (replay CRC differential).
 
+## Layer 1c — Runtime Behavior Fingerprint
+
+```sh
+npm run parity:runtime-behavior:test
+```
+
+For each save fixture, loads it into the TS port (auto-paused), advances
+30/60/120/300 frames in controlled steps, captures the full GameLogic CRC
+plus per-section CRCs at every checkpoint, and asserts byte-equality
+against a golden fingerprint committed at
+`parity-reports/runtime-behavior-fingerprints/<fixture>.json`.
+
+The CRC walk mirrors C++ `GameLogic::getCRC()` (GameLogic.cpp:5420):
+
+- `MARKER:Objects` + every `Object::xfer` snapshot in order
+- `RandomSeed`
+- `MARKER:ThePartitionManager` + partition snapshot
+- `MARKER:ThePlayerList` + player list snapshot
+- `MARKER:TheAI` + AI snapshot
+
+If the TS port's `xferSnapshot` implementations match C++ byte-for-byte
+(Layer 0's source-truth gates ensure they do), then **stable cross-run
+CRCs at fixed frame offsets prove byte-identical runtime state**.  Any
+code change that perturbs a single entity field — position, HP, AI
+bucket, deterministic random seed — flips the CRC and fails this test.
+
+On a missing fingerprint, the test bootstraps it and skips the equality
+check.  On a present fingerprint, equality is enforced.  Committed
+fingerprints become the simulation's behavioral spec.
+
+Default subset: `zipeater_GN_000` + `zipeater_ZH_000` (~50s).
+`BEHAVIOR_FULL=1` runs all 36 fixtures (~20 min).
+
+**What this proves**: the TS port is byte-deterministic across runs — the
+same save advanced the same number of frames produces the same state
+every time, down to the bit.  Combined with Layer 0's verification that
+TS uses the same xfer-snapshot algorithm as C++, this is the strongest
+runtime-parity assertion possible without a co-running C++ engine.
+
+**What it does not prove**: that the CRC value itself matches what the
+original C++ engine would compute for the same state.  Closing that
+requires Layer 2 (replay CRC differential) or Layer 3 (headless C++
+oracle).
+
 ## Layer 2 — Replay (.rep) Differential  *(header parser landed; differential pending fixtures)*
 
 Generals replay files (`.rep`) contain frame-by-frame player commands plus
@@ -200,6 +244,7 @@ effort rather than a proof.
 | `npm run report:module-field-coverage` | 0 | module-field-coverage-report.json |
 | `npx tsx tools/save-load-parity-report.ts` | 1 | parity-reports/save-load-parity.{json,md} |
 | `npx playwright test e2e/save-load-parity.e2e.ts` | 1 | parity-reports/save-load-findings/*.json |
+| `npm run parity:runtime-behavior:test` | 1c | parity-reports/runtime-behavior-fingerprints/*.json |
 | `npm run report:visual-scenes` | 4 | visual-scene-parity-report.json |
 | `npm run parity` | 5 | vitest pass/fail |
 | `npm test` | all | full suite |
@@ -213,6 +258,8 @@ tools/save-load-parity-report.ts                ← Layer 1 oracle generator
 e2e/save-load-parity.e2e.ts                     ← Layer 1 differential test
 parity-reports/save-load-parity.{json,md}       ← Layer 1 oracle output
 parity-reports/save-load-findings/*.json        ← Layer 1 per-fixture findings (gitignored)
+e2e/runtime-behavior-parity.e2e.ts              ← Layer 1c runtime fingerprint test
+parity-reports/runtime-behavior-fingerprints/*.json ← Layer 1c golden CRC reference (committed)
 tools/replay-format.ts                          ← Layer 2 GENREP header parser
 tools/replay-format.test.ts                     ← Layer 2 unit tests
 test-results/parity/source-parity.{json,md}     ← Layer 0 output

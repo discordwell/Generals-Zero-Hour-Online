@@ -48,7 +48,8 @@
     "parity:source": "tsx tools/parity-source-truth.ts",
     "parity:strict": "tsx tools/parity-source-truth.ts --strict",
     "parity:save-load": "tsx tools/save-load-parity-report.ts",
-    "parity:save-load:test": "playwright test e2e/save-load-parity.e2e.ts"
+    "parity:save-load:test": "playwright test e2e/save-load-parity.e2e.ts",
+    "parity:runtime-behavior:test": "playwright test e2e/runtime-behavior-parity.e2e.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
