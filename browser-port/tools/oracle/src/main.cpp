@@ -73,6 +73,15 @@ struct Reader {
     return value;
   }
 
+  float readFloat32LE() {
+    static_assert(sizeof(float) == 4, "expecting IEEE 754 single-precision");
+    if (!require(4)) throw std::runtime_error("oracle: unexpected EOF reading f32");
+    float value;
+    std::memcpy(&value, data + offset, 4);
+    offset += 4;
+    return value;
+  }
+
   std::string readAsciiString() {
     const std::uint8_t len = readUInt8();
     if (!require(len)) throw std::runtime_error("oracle: unexpected EOF reading string body");
@@ -108,11 +117,28 @@ struct TocEntry {
 //   tocCount × { AsciiString templateName; u16 id }
 //   u32    objectCount
 //   objectCount × { u16 tocID; i32 blockSize; <blockSize> bytes of Object::xfer }
+// Per-object header decoded from the first ~bytes of Object::xfer
+// (Object.cpp:4032).  Identity-only fields — module list, status bits,
+// and the rest of the payload are deferred to a later oracle version.
+struct ObjectIdentity {
+  bool parsed = false;
+  std::uint8_t version = 0;
+  std::uint32_t objectId = 0;
+  // For v>=7: row-major 4x3 matrix3D (12 floats).
+  // For v<7: position (x,y,z) + orientation (4 floats total).
+  std::uint32_t teamId = 0;
+  std::uint32_t producerId = 0;
+  std::uint32_t builderId = 0;
+  std::uint32_t drawableId = 0;
+  std::string internalName;
+};
+
 struct ObjectRecord {
   std::uint16_t tocId;
   std::int32_t  blockSize;
   std::size_t   blockDataOffset; // offset into CHUNK_GameLogic payload
   std::string   templateName;    // resolved from TOC
+  ObjectIdentity identity;
 };
 
 struct GameLogicHeader {
@@ -172,13 +198,11 @@ struct GameLogicHeader {
     if (e.id < tocNameById.size()) tocNameById[e.id] = e.templateName;
   }
 
-  // v3: walk every per-object header.  Each record is:
-  //   u16   tocID
-  //   i32   blockSize (Xfer::beginBlock)
-  //   bytes <blockSize> of Object::xfer
-  // We don't decode the inner Object::xfer yet — that's v4.  Capturing
-  // just the per-object header lets us compare TS port load count and
-  // per-entity template resolution against the C++ ground truth.
+  // v3: walk every per-object header (tocID + blockSize).
+  // v4: decode the IDENTITY portion of the Object::xfer payload —
+  //     version, objectId, transformMatrix or position+orientation,
+  //     teamId, producerId, builderId, drawableId, internalName.
+  //     Status bits + module list deferred to a later version.
   h.objects.reserve(h.objectCount);
   for (std::uint32_t i = 0; i < h.objectCount; i++) {
     ObjectRecord rec{};
@@ -191,6 +215,38 @@ struct GameLogicHeader {
     if (rec.blockSize < 0) {
       throw std::runtime_error("oracle: negative object blockSize");
     }
+
+    // Parse identity from the start of the payload.  If anything throws
+    // we leave identity.parsed=false so the JSON emit and differential
+    // skip the entity — corrupted payloads shouldn't kill the whole run.
+    Reader objectReader{r.data + r.offset, static_cast<std::size_t>(rec.blockSize)};
+    try {
+      ObjectIdentity id;
+      id.version = objectReader.readUInt8();
+      // ObjectID = unsigned int = 4 bytes (Xfer::xferObjectID).
+      id.objectId = objectReader.readUInt32LE();
+      // version >= 7: xferMatrix3D writes its OWN u8 version byte + 12
+      //               floats = 49 bytes (Xfer.cpp:842).
+      // version <  7: Coord3D (3 floats) + Real (1 float) = 16 bytes.
+      const std::size_t mtxBytes = (id.version >= 7) ? 49 : 16;
+      objectReader.skip(mtxBytes);
+      // TeamID xfered as raw bytes via xferUser(&teamID, sizeof(TeamID)).
+      // TeamID is unsigned int = 4 bytes.
+      id.teamId = objectReader.readUInt32LE();
+      // producerID, builderID — both ObjectID = u32.
+      id.producerId = objectReader.readUInt32LE();
+      id.builderId = objectReader.readUInt32LE();
+      // drawableID — u32.
+      id.drawableId = objectReader.readUInt32LE();
+      // internalName — AsciiString (u8 length prefix + chars).
+      id.internalName = objectReader.readAsciiString();
+      id.parsed = true;
+      rec.identity = std::move(id);
+    } catch (const std::exception&) {
+      // Leave rec.identity.parsed = false; differential will treat as
+      // "not yet supported" and skip per-field comparison for this entity.
+    }
+
     r.skip(static_cast<std::size_t>(rec.blockSize));
     h.objects.push_back(std::move(rec));
   }
@@ -294,8 +350,19 @@ void emitJson(
       std::cout << "      { \"tocId\": " << o.tocId
                 << ", \"templateName\": " << jsonString(o.templateName)
                 << ", \"blockDataOffset\": " << o.blockDataOffset
-                << ", \"blockSize\": " << o.blockSize
-                << " }";
+                << ", \"blockSize\": " << o.blockSize;
+      if (o.identity.parsed) {
+        std::cout << ", \"identity\": { "
+                  << "\"version\": " << static_cast<unsigned>(o.identity.version)
+                  << ", \"objectId\": " << o.identity.objectId
+                  << ", \"teamId\": " << o.identity.teamId
+                  << ", \"producerId\": " << o.identity.producerId
+                  << ", \"builderId\": " << o.identity.builderId
+                  << ", \"drawableId\": " << o.identity.drawableId
+                  << ", \"internalName\": " << jsonString(o.identity.internalName)
+                  << " }";
+      }
+      std::cout << " }";
       if (i + 1 < glHeader->objects.size()) std::cout << ',';
       std::cout << '\n';
     }

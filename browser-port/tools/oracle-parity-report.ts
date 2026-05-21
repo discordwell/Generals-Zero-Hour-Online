@@ -46,11 +46,22 @@ interface OracleTocEntry {
   id: number;
 }
 
+interface OracleObjectIdentity {
+  version: number;
+  objectId: number;
+  teamId: number;
+  producerId: number;
+  builderId: number;
+  drawableId: number;
+  internalName: string;
+}
+
 interface OracleObject {
   tocId: number;
   templateName: string;
   blockDataOffset: number;
   blockSize: number;
+  identity?: OracleObjectIdentity;
 }
 
 interface OracleGameLogic {
@@ -294,6 +305,30 @@ function buildReport(): Report {
                 fixture,
                 message: `CHUNK_GameLogic object[${i}] blockSize: oracle=${co.blockSize} ts=${tsBlockBytes}`,
               });
+            }
+
+            // v4: per-object identity diff (objectId, drawableId, teamId,
+            // producerId, builderId, internalName, version).  Catches any
+            // misalignment in the Object::xfer header parser between TS
+            // and the mingw-built C++ oracle.
+            const cppId = co.identity;
+            const tsState = to.state;
+            if (cppId && tsState) {
+              const compare = (field: string, cppVal: number | string, tsVal: number | string): void => {
+                if (cppVal !== tsVal) {
+                  mismatches.push({
+                    fixture,
+                    message: `CHUNK_GameLogic object[${i}](${co.templateName}) ${field}: oracle=${cppVal} ts=${tsVal}`,
+                  });
+                }
+              };
+              compare('version', cppId.version, tsState.version);
+              compare('objectId', cppId.objectId, tsState.objectId);
+              compare('drawableId', cppId.drawableId, tsState.drawableId);
+              compare('teamId', cppId.teamId, tsState.teamId);
+              compare('producerId', cppId.producerId, tsState.producerId);
+              compare('builderId', cppId.builderId, tsState.builderId);
+              compare('internalName', cppId.internalName, tsState.internalName);
             }
           }
         }
