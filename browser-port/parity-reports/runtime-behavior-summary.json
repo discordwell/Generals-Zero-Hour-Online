@@ -1,0 +1,138 @@
+{
+  "generatedAt": "2026-05-21T06:51:23.601Z",
+  "fixtureCount": 11,
+  "fixtures": [
+    {
+      "fixture": "zipeater_GN_000.sav",
+      "startFrame": 1372,
+      "endFrame": 1672,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 0,
+        "ai": 1
+      }
+    },
+    {
+      "fixture": "zipeater_GN_001.sav",
+      "startFrame": 2156,
+      "endFrame": 2456,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 0,
+        "ai": 1
+      }
+    },
+    {
+      "fixture": "zipeater_GN_008.sav",
+      "startFrame": 853,
+      "endFrame": 1153,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 1,
+        "ai": 1
+      }
+    },
+    {
+      "fixture": "zipeater_GN_015.sav",
+      "startFrame": 1918,
+      "endFrame": 2218,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 0,
+        "ai": 1
+      }
+    },
+    {
+      "fixture": "zipeater_GN_022.sav",
+      "startFrame": 1300,
+      "endFrame": 1600,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 0,
+        "ai": 1
+      }
+    },
+    {
+      "fixture": "zipeater_GN_023.sav",
+      "startFrame": 2055,
+      "endFrame": 2355,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 0,
+        "ai": 1
+      }
+    },
+    {
+      "fixture": "zipeater_GN_030.sav",
+      "startFrame": 839,
+      "endFrame": 1139,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 1,
+        "ai": 1
+      }
+    },
+    {
+      "fixture": "zipeater_GN_037.sav",
+      "startFrame": 1920,
+      "endFrame": 2220,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 0,
+        "ai": 1
+      }
+    },
+    {
+      "fixture": "zipeater_GN_044.sav",
+      "startFrame": 79282,
+      "endFrame": 79582,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 1,
+        "ai": 1
+      }
+    },
+    {
+      "fixture": "zipeater_ZH_000.sav",
+      "startFrame": 2466,
+      "endFrame": 2766,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 0,
+        "ai": 1
+      }
+    },
+    {
+      "fixture": "zipeater_ZH_005.sav",
+      "startFrame": 1304,
+      "endFrame": 1604,
+      "checkpointCount": 5,
+      "sectionVolatility": {
+        "objects": 1,
+        "partitionManager": 0,
+        "playerList": 0,
+        "ai": 1
+      }
+    }
+  ]
+}
