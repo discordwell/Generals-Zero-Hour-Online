@@ -204,18 +204,63 @@ Status:
 
 Estimated remaining effort: 1-2 sessions once fixtures land.
 
-## Layer 3 — Headless C++ Oracle  *(stretch)*
+## Layer 3 — Headless C++ Oracle  *(v3 landed — per-object header diff at 36/36 = 0 mismatches)*
 
-Following CLIaaS's WasmAdapter pattern but native: compile a tiny C++
-binary from the in-repo `GeneralsMD/` source that loads a `.sav`, runs N
-frames, and dumps entity state as JSON.  Drive the TS port through the
-identical sequence; differential test diffs the JSON outputs.
+```sh
+# Build the oracle binary (one-time setup):
+conda create -n oracle -c conda-forge cmake make m2w64-gcc m2w64-binutils -y
+conda run -n oracle bash -c '
+  cd tools/oracle
+  cmake -S . -B build -G "Unix Makefiles" \
+    -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
+    -DCMAKE_MAKE_PROGRAM=make
+  cmake --build build
+'
 
-Substantial lift — multiple modules need to be extracted from the Windows
-DirectX dependency tree and replaced with no-op stubs (no audio, no
-renderer, no input).  A reasonable scope is just `GameLogic`, `AI`, the
-saver, and the INI parser — enough to advance frames without a graphics
-context.
+# Run the differential against every real .sav fixture:
+npm run parity:oracle               # report-only
+npm run parity:oracle:strict        # exit non-zero on any mismatch
+```
+
+An INDEPENDENT C++ implementation (mingw-w64 build, standalone — no
+GeneralsMD source linkage required) that reads the same `.sav` files
+as the TS port and dumps a parsed JSON representation.  The
+differential (`tools/oracle-parity-report.ts`) runs the oracle on every
+real fixture, parses the same fixture in TS via `@generals/engine` and
+`runtime-save-game.parseSourceGameLogicChunkState`, and asserts per-field
+agreement.
+
+Current scope (v3):
+- Chunk inventory: every CHUNK_<name>, blockStartOffset, blockDataOffset,
+  blockSize.
+- CHUNK_GameLogic header: version, frame counter, object TOC count + per-
+  entry templateName/id, object count.
+- Per-object headers: tocId, resolved templateName, blockSize, payload
+  offset, for **every saved object across every fixture**.
+
+Result: 36/36 fixtures agree, 0 mismatches across all 34,282 live C++
+objects.  This is the strongest TS↔C++ static parity proof currently
+available — two completely independent parsers (one in mingw-built
+C++, one in TS) walking the same bytes and producing identical output.
+
+Roadmap:
+- **v4** — decode the Object::xfer payload itself (object ID, drawable
+  ID, internal name, status bits, module list).  Gateway to per-field
+  state comparison.
+- **v5** — extract GameLogic + Object + module sources from GeneralsMD/,
+  compile against them, drive the engine's `update()` N times from a
+  loaded save, dump post-frame state.  This is the gold-standard
+  runtime-parity oracle and the missing piece for L3 to assert TS CRC
+  == C++ CRC at frame N for any N.
+
+**What this proves**: the TS port and the C++ engine agree byte-for-byte
+on the save format for every chunk, every TOC entry, and every per-
+object header.  Any change in either implementation that would shift
+even a single field surfaces as a per-fixture mismatch.
+
+**What it does not prove**: that the per-object payload's internal
+structure matches (deferred to v4) or that simulation runtime behavior
+matches (deferred to v5).
 
 ## Layer 4 — Visual Verification  *(deferred)*
 
@@ -256,10 +301,19 @@ The path to a real guarantee is:
    _Done — 356/356 categories green._
 2. Drive Layer 1 template-coverage threshold to 100%.  _Done — all 36
    fixtures pass at strict 100% across 34,282 live C++ objects._
-3. Build Layer 2 (replay differential) and reach 100% CRC agreement on at
-   least one full replay.  _Header parser landed; CRC differential
-   pending real `.rep` fixtures._
-4. Promote `--strict` variants of all three layers into CI only after the
+3. Bootstrap Layer 1c + 1d runtime-behavior fingerprints across all 36
+   fixtures.  _Done — committed golden CRC + post-command-state
+   fingerprints lock down byte-deterministic runtime behavior._
+4. Drive Layer 3 oracle differential to per-object header agreement.
+   _Done — v3 oracle agrees with TS port on every chunk, every TOC
+   entry, and every per-object templateName + blockSize across all
+   34,282 saved objects._
+5. Extend Layer 3 oracle to v4 (decode Object::xfer payload) + v5 (run
+   the engine's update() loop from a loaded save).  v5 is the missing
+   piece for TS CRC == C++ CRC at frame N runtime equality.
+6. Build Layer 2 (replay differential) once real `.rep` fixtures land
+   and reach 100% CRC agreement on at least one full replay.
+7. Promote `--strict` variants of all layers into CI only after the
    known-difference set is empty or explicitly allowlisted in this file.
 
 Until those three layers are green together, parity is still an audit
@@ -276,6 +330,8 @@ effort rather than a proof.
 | `npx playwright test e2e/save-load-parity.e2e.ts` | 1 | parity-reports/save-load-findings/*.json |
 | `npm run parity:runtime-behavior:test` | 1c | parity-reports/runtime-behavior-fingerprints/*.json |
 | `npm run parity:runtime-command:test` | 1d | parity-reports/runtime-command-fingerprints/*.json |
+| `npm run parity:oracle` | 3 | parity-reports/oracle-parity.{json,md} |
+| `npm run parity:oracle:strict` | 3 | same; exit 1 on any mismatch |
 | `npm run report:visual-scenes` | 4 | visual-scene-parity-report.json |
 | `npm run parity` | 5 | vitest pass/fail |
 | `npm test` | all | full suite |
@@ -295,6 +351,11 @@ e2e/runtime-command-parity.e2e.ts               ← Layer 1d command fingerprint
 parity-reports/runtime-command-fingerprints/*.json ← Layer 1d golden post-command state (committed)
 tools/runtime-behavior-summary.ts               ← cross-fixture roll-up of 1c volatility
 parity-reports/runtime-behavior-summary.{json,md} ← aggregated fingerprint matrix
+tools/oracle/CMakeLists.txt                     ← Layer 3 C++ oracle build
+tools/oracle/src/main.cpp                       ← Layer 3 chunk + GameLogic + per-object decoder
+tools/oracle/README.md                          ← Layer 3 build + run instructions
+tools/oracle-parity-report.ts                   ← Layer 3 differential driver
+parity-reports/oracle-parity.{json,md}          ← Layer 3 diff results (36/36 agree)
 tools/replay-format.ts                          ← Layer 2 GENREP header parser
 tools/replay-format.test.ts                     ← Layer 2 unit tests
 test-results/parity/source-parity.{json,md}     ← Layer 0 output
