@@ -1,0 +1,30 @@
+{
+  "fixture": "zipeater_GN_000.sav",
+  "scenario": "move-vehicle-50-50",
+  "startFrame": 1372,
+  "selectedEntityId": 2,
+  "selectedEntityTemplate": "GLAVehicleTechnicalChassisTwo",
+  "initialPosition": {
+    "x": 2535,
+    "z": 93.75
+  },
+  "destination": {
+    "x": 2585,
+    "z": 143.75
+  },
+  "postCommand": {
+    "frame": 1402,
+    "totalCrc": 2423808702,
+    "sections": {
+      "objects": 1762284303,
+      "partitionManager": 1955526741,
+      "playerList": 4044776532,
+      "ai": 1266764590
+    },
+    "entityPosition": {
+      "x": 2545.2304152452757,
+      "z": 88.1187733676015
+    },
+    "entityDestroyed": false
+  }
+}

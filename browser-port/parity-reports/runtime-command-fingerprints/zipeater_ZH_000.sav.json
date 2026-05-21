@@ -1,0 +1,30 @@
+{
+  "fixture": "zipeater_ZH_000.sav",
+  "scenario": "move-vehicle-50-50",
+  "startFrame": 2466,
+  "selectedEntityId": 159,
+  "selectedEntityTemplate": "ChinaTankBattleMaster",
+  "initialPosition": {
+    "x": 1915,
+    "z": 0
+  },
+  "destination": {
+    "x": 1965,
+    "z": 50
+  },
+  "postCommand": {
+    "frame": 2496,
+    "totalCrc": 1916144809,
+    "sections": {
+      "objects": 4116198186,
+      "partitionManager": 1406078991,
+      "playerList": 4219958669,
+      "ai": 3746444648
+    },
+    "entityPosition": {
+      "x": 1915,
+      "z": 0
+    },
+    "entityDestroyed": false
+  }
+}
