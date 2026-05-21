@@ -21,6 +21,10 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { basename, resolve } from 'node:path';
 
 import { listSaveGameChunks } from '@generals/engine';
+import {
+  inspectGameLogicChunkLayout,
+  parseSourceGameLogicChunkState,
+} from '../packages/app/src/runtime-save-game.js';
 
 const FIXTURE_DIR = resolve(process.cwd(), 'fixtures/source-saves');
 const ORACLE_BIN = resolve(process.cwd(), 'tools/oracle/build/oracle.exe');
@@ -37,11 +41,26 @@ interface OracleChunk {
   blockSize: number;
 }
 
+interface OracleTocEntry {
+  templateName: string;
+  id: number;
+}
+
+interface OracleGameLogic {
+  version: number;
+  frameCounter: number;
+  tocVersion: number;
+  tocCount: number;
+  objectCount: number;
+  toc: OracleTocEntry[];
+}
+
 interface OracleResult {
   fixture: string;
   fileSize: number;
   chunkCount: number;
   chunks: OracleChunk[];
+  gameLogic?: OracleGameLogic;
 }
 
 interface Mismatch {
@@ -55,6 +74,12 @@ interface FixtureReport {
   fixture: string;
   cppChunkCount: number;
   tsChunkCount: number;
+  cppFrame: number | null;
+  tsFrame: number | null;
+  cppObjectCount: number | null;
+  tsObjectCount: number | null;
+  cppTocCount: number | null;
+  tsTocCount: number | null;
   agree: boolean;
   mismatches: Mismatch[];
 }
@@ -175,10 +200,76 @@ function buildReport(): Report {
       const oracle = runOracle(savePath);
       const ts = listTsChunks(savePath);
       const mismatches = diffChunks(oracle.chunks, ts, fixture);
+
+      // Layer 3 v2: also compare CHUNK_GameLogic header (frame counter,
+      // object count, TOC count + entries).  Uses the existing TS port
+      // parsers so this is a real C++ vs TS differential.
+      let cppFrame: number | null = oracle.gameLogic?.frameCounter ?? null;
+      let cppObjectCount: number | null = oracle.gameLogic?.objectCount ?? null;
+      let cppTocCount: number | null = oracle.gameLogic?.tocCount ?? null;
+      let tsFrame: number | null = null;
+      let tsObjectCount: number | null = null;
+      let tsTocCount: number | null = null;
+
+      const buf = readFileSync(savePath);
+      const ab = bytesToAB(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
+      const gameLogicChunk = ts.find((c) => c.name === 'CHUNK_GameLogic');
+      if (gameLogicChunk) {
+        const chunkBytes = new Uint8Array(ab, gameLogicChunk.blockDataOffset, gameLogicChunk.blockSize);
+        const chunkAb = bytesToAB(chunkBytes);
+        const layout = inspectGameLogicChunkLayout(chunkAb);
+        tsFrame = layout.frameCounter;
+        tsObjectCount = layout.objectCount;
+        tsTocCount = layout.objectTocCount;
+      }
+
+      if (cppFrame !== tsFrame) {
+        mismatches.push({ fixture, message: `CHUNK_GameLogic frameCounter: oracle=${cppFrame} ts=${tsFrame}` });
+      }
+      if (cppObjectCount !== tsObjectCount) {
+        mismatches.push({ fixture, message: `CHUNK_GameLogic objectCount: oracle=${cppObjectCount} ts=${tsObjectCount}` });
+      }
+      if (cppTocCount !== tsTocCount) {
+        mismatches.push({ fixture, message: `CHUNK_GameLogic tocCount: oracle=${cppTocCount} ts=${tsTocCount}` });
+      }
+
+      // Compare TOC template names — confirms oracle's AsciiString parser
+      // produces the same templateName strings as the TS port for every
+      // entry in the same order.
+      if (gameLogicChunk && oracle.gameLogic) {
+        const chunkBytes = new Uint8Array(ab, gameLogicChunk.blockDataOffset, gameLogicChunk.blockSize);
+        const fullState = parseSourceGameLogicChunkState(bytesToAB(chunkBytes));
+        if (fullState) {
+          const cppToc = oracle.gameLogic.toc;
+          const tsToc = fullState.objectTocEntries;
+          const tocLimit = Math.min(cppToc.length, tsToc.length);
+          for (let i = 0; i < tocLimit; i++) {
+            if (cppToc[i]!.templateName !== tsToc[i]!.templateName) {
+              mismatches.push({
+                fixture,
+                message: `CHUNK_GameLogic toc[${i}] templateName: oracle=${cppToc[i]!.templateName} ts=${tsToc[i]!.templateName}`,
+              });
+            }
+            if (cppToc[i]!.id !== tsToc[i]!.tocId) {
+              mismatches.push({
+                fixture,
+                message: `CHUNK_GameLogic toc[${i}] id: oracle=${cppToc[i]!.id} ts=${tsToc[i]!.tocId}`,
+              });
+            }
+          }
+        }
+      }
+
       fixtures.push({
         fixture,
         cppChunkCount: oracle.chunks.length,
         tsChunkCount: ts.length,
+        cppFrame,
+        tsFrame,
+        cppObjectCount,
+        tsObjectCount,
+        cppTocCount,
+        tsTocCount,
         agree: mismatches.length === 0,
         mismatches,
       });
@@ -187,6 +278,12 @@ function buildReport(): Report {
         fixture,
         cppChunkCount: 0,
         tsChunkCount: 0,
+        cppFrame: null,
+        tsFrame: null,
+        cppObjectCount: null,
+        tsObjectCount: null,
+        cppTocCount: null,
+        tsTocCount: null,
         agree: false,
         mismatches: [{ fixture, message: `oracle invocation failed: ${(e as Error).message}` }],
       });
@@ -225,10 +322,12 @@ function renderMarkdown(report: Report): string {
   lines.push('');
   lines.push('## Per-fixture results');
   lines.push('');
-  lines.push('| fixture | C++ chunks | TS chunks | agree | mismatches |');
-  lines.push('|---|---|---|---|---|');
+  lines.push('| fixture | C++/TS chunks | C++/TS frame | C++/TS objects | C++/TS TOC | agree |');
+  lines.push('|---|---|---|---|---|---|');
   for (const f of report.fixtures) {
-    lines.push(`| ${f.fixture} | ${f.cppChunkCount} | ${f.tsChunkCount} | ${f.agree ? '✅' : '❌'} | ${f.mismatches.length} |`);
+    lines.push(
+      `| ${f.fixture} | ${f.cppChunkCount}/${f.tsChunkCount} | ${f.cppFrame}/${f.tsFrame} | ${f.cppObjectCount}/${f.tsObjectCount} | ${f.cppTocCount}/${f.tsTocCount} | ${f.agree ? '✅' : '❌'} |`,
+    );
   }
   if (report.summary.diverging > 0) {
     lines.push('');

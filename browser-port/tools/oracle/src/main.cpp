@@ -60,6 +60,19 @@ struct Reader {
     return value;
   }
 
+  std::uint32_t readUInt32LE() {
+    return static_cast<std::uint32_t>(readInt32LE());
+  }
+
+  std::uint16_t readUInt16LE() {
+    if (!require(2)) throw std::runtime_error("oracle: unexpected EOF reading u16");
+    std::uint16_t value =
+        static_cast<std::uint16_t>(data[offset])
+        | (static_cast<std::uint16_t>(data[offset + 1]) << 8);
+    offset += 2;
+    return value;
+  }
+
   std::string readAsciiString() {
     const std::uint8_t len = readUInt8();
     if (!require(len)) throw std::runtime_error("oracle: unexpected EOF reading string body");
@@ -76,9 +89,32 @@ struct Reader {
 
 struct ChunkRecord {
   std::string blockName;
-  std::size_t blockStartOffset;   // start of the AsciiString name
+  std::size_t blockStartOffset;   // start of the int32 size (per TS convention)
   std::size_t blockDataOffset;    // start of the payload bytes
   std::int32_t blockSize;
+};
+
+struct TocEntry {
+  std::string templateName;
+  std::uint16_t id;
+};
+
+// Source: GameLogic::xfer (GameLogic.cpp:6098) + xferObjectTOC
+// (GameLogic.cpp:5933).  CHUNK_GameLogic payload format:
+//   u8     version (currentVersion = 10)
+//   u32    m_frame
+//   u8     TOC version (1)
+//   u32    tocCount
+//   tocCount × { AsciiString templateName; u16 id }
+//   u32    objectCount
+//   objectCount × { u16 tocID; i32 blockSize; <blockSize> bytes of Object::xfer }
+struct GameLogicHeader {
+  std::uint8_t  version;
+  std::uint32_t frame;
+  std::uint8_t  tocVersion;
+  std::uint32_t tocCount;
+  std::vector<TocEntry> toc;
+  std::uint32_t objectCount;
 };
 
 [[nodiscard]] std::vector<std::uint8_t> readFile(const std::string& path) {
@@ -97,6 +133,31 @@ struct ChunkRecord {
     throw std::runtime_error("oracle: read failed: " + path);
   }
   return bytes;
+}
+
+[[nodiscard]] GameLogicHeader parseGameLogicHeader(
+    const std::vector<std::uint8_t>& bytes,
+    std::size_t chunkOffset,
+    std::int32_t chunkSize) {
+  // xferVersion is a single byte (XferVersion = UnsignedByte; Xfer.h:53).
+  if (chunkOffset + static_cast<std::size_t>(chunkSize) > bytes.size()) {
+    throw std::runtime_error("oracle: CHUNK_GameLogic extends past file end");
+  }
+  Reader r{bytes.data() + chunkOffset, static_cast<std::size_t>(chunkSize)};
+  GameLogicHeader h{};
+  h.version = r.readUInt8();
+  h.frame = r.readUInt32LE();
+  h.tocVersion = r.readUInt8();
+  h.tocCount = r.readUInt32LE();
+  h.toc.reserve(h.tocCount);
+  for (std::uint32_t i = 0; i < h.tocCount; i++) {
+    TocEntry e{};
+    e.templateName = r.readAsciiString();
+    e.id = r.readUInt16LE();
+    h.toc.push_back(std::move(e));
+  }
+  h.objectCount = r.readUInt32LE();
+  return h;
 }
 
 [[nodiscard]] std::vector<ChunkRecord> walkChunks(const std::vector<std::uint8_t>& bytes) {
@@ -152,7 +213,11 @@ struct ChunkRecord {
   return out;
 }
 
-void emitJson(const std::string& path, const std::vector<ChunkRecord>& chunks, std::size_t fileSize) {
+void emitJson(
+    const std::string& path,
+    const std::vector<ChunkRecord>& chunks,
+    std::size_t fileSize,
+    const GameLogicHeader* glHeader) {
   std::cout << "{\n";
   std::cout << "  \"fixture\": " << jsonString(path) << ",\n";
   std::cout << "  \"fileSize\": " << fileSize << ",\n";
@@ -169,8 +234,26 @@ void emitJson(const std::string& path, const std::vector<ChunkRecord>& chunks, s
     if (i + 1 < chunks.size()) std::cout << ',';
     std::cout << '\n';
   }
-  std::cout << "  ]\n";
-  std::cout << "}\n";
+  std::cout << "  ]";
+  if (glHeader != nullptr) {
+    std::cout << ",\n  \"gameLogic\": {\n";
+    std::cout << "    \"version\": " << static_cast<unsigned>(glHeader->version) << ",\n";
+    std::cout << "    \"frameCounter\": " << glHeader->frame << ",\n";
+    std::cout << "    \"tocVersion\": " << static_cast<unsigned>(glHeader->tocVersion) << ",\n";
+    std::cout << "    \"tocCount\": " << glHeader->tocCount << ",\n";
+    std::cout << "    \"objectCount\": " << glHeader->objectCount << ",\n";
+    std::cout << "    \"toc\": [\n";
+    for (std::size_t i = 0; i < glHeader->toc.size(); i++) {
+      const auto& e = glHeader->toc[i];
+      std::cout << "      { \"templateName\": " << jsonString(e.templateName)
+                << ", \"id\": " << e.id << " }";
+      if (i + 1 < glHeader->toc.size()) std::cout << ',';
+      std::cout << '\n';
+    }
+    std::cout << "    ]\n";
+    std::cout << "  }";
+  }
+  std::cout << "\n}\n";
 }
 
 } // namespace
@@ -189,7 +272,24 @@ int main(int argc, char* argv[]) {
     const std::string path = argv[1];
     const std::vector<std::uint8_t> bytes = readFile(path);
     const std::vector<ChunkRecord> chunks = walkChunks(bytes);
-    emitJson(path, chunks, bytes.size());
+
+    // Best-effort GameLogic header decode.  Failures degrade gracefully —
+    // some chunks may have unsupported versions on older saves.
+    GameLogicHeader glHeader{};
+    bool glHeaderValid = false;
+    for (const auto& c : chunks) {
+      if (c.blockName == "CHUNK_GameLogic") {
+        try {
+          glHeader = parseGameLogicHeader(bytes, c.blockDataOffset, c.blockSize);
+          glHeaderValid = true;
+        } catch (const std::exception& e) {
+          std::fprintf(stderr, "oracle: CHUNK_GameLogic decode failed: %s\n", e.what());
+        }
+        break;
+      }
+    }
+
+    emitJson(path, chunks, bytes.size(), glHeaderValid ? &glHeader : nullptr);
     return 0;
   } catch (const std::exception& e) {
     std::fprintf(stderr, "oracle: %s\n", e.what());
