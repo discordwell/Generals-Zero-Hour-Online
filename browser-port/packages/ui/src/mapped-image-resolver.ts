@@ -170,11 +170,55 @@ export class MappedImageResolver {
       return cached;
     }
 
-    const url = this.textureUrlByName.get(normalizedName) ?? `${this.textureBasePath}/${normalizedName}`;
-    const promise = fetchAndDecodeRgba(url);
+    const promise = this.fetchFirstAvailableAtlas(normalizedName);
     this.atlasCache.set(normalizedName, promise);
     return promise;
   }
+
+  private async fetchFirstAvailableAtlas(normalizedName: string): Promise<ImageData> {
+    const errors: string[] = [];
+
+    for (const url of this.buildAtlasCandidateUrls(normalizedName)) {
+      try {
+        return await fetchAndDecodeRgba(url);
+      } catch (error) {
+        errors.push(`${url}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    throw new Error(
+      `Failed to load atlas texture "${normalizedName}" from candidate URL(s): ${errors.join('; ')}`,
+    );
+  }
+
+  private buildAtlasCandidateUrls(normalizedName: string): string[] {
+    const candidates: string[] = [];
+    const append = (url: string | undefined): void => {
+      if (url && !candidates.includes(url)) {
+        candidates.push(url);
+      }
+    };
+
+    append(this.textureUrlByName.get(normalizedName));
+    append(`${this.textureBasePath}/${normalizedName}`);
+
+    const userInterfaceName = buildUserInterfaceAtlasName(normalizedName);
+    if (userInterfaceName !== normalizedName) {
+      append(this.textureUrlByName.get(userInterfaceName));
+      append(`${this.textureBasePath}/${userInterfaceName}`);
+    }
+
+    return candidates;
+  }
+}
+
+function buildUserInterfaceAtlasName(normalizedName: string): string {
+  const match = normalizedName.match(/^(.+)\.rgba$/i);
+  if (!match) {
+    return normalizedName;
+  }
+  const stem = match[1]!;
+  return stem.includes('userinterface') ? normalizedName : `${stem}userinterface.rgba`;
 }
 
 /**

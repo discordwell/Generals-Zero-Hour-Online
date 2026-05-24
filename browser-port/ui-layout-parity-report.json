@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-04-02T23:16:10.162Z",
-  "baseUrl": "http://127.0.0.1:50777",
+  "generatedAt": "2026-05-24T09:18:33.089Z",
+  "baseUrl": "http://127.0.0.1:57661",
   "summary": {
     "scenarioCount": 12,
     "blockedScenarios": 0,
@@ -12,18 +12,19 @@
       "name": "Main Menu",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/main-menu.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\main-menu.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A030500034010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x1040019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1040019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1040019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1040019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -108,18 +109,19 @@
       "name": "Single Player",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/single-player.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\single-player.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A030500034010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -213,18 +215,19 @@
       "name": "Multiplayer Menu",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/multiplayer-menu.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\multiplayer-menu.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A030500034010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x11c0041ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x11c0041ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x11c0041ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x11c0041ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -291,18 +294,19 @@
       "name": "Load / Replay Menu",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/load-replay-menu.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\load-replay-menu.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x1240008b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240008b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240008b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240008b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -369,18 +373,19 @@
       "name": "Load Game",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/load-game.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\load-game.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A060500024010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x10c00199c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x10c00199c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x10c00199c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x10c00199c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -437,18 +442,19 @@
       "name": "Replay Browser",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/replay-browser.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\replay-browser.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A03050000C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -517,18 +523,19 @@
       "name": "Options Menu",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/options-menu.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\options-menu.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A03050000C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -597,18 +604,19 @@
       "name": "Skirmish Menu",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/skirmish-menu.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\skirmish-menu.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A030500024010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -749,18 +757,19 @@
       "name": "Campaign Difficulty",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/campaign-difficulty.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\campaign-difficulty.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A03050000C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -834,18 +843,19 @@
       "name": "Challenge Menu",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/challenge-menu.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\challenge-menu.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A03050003C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x1240019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240019ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -985,18 +995,19 @@
       "name": "Campaign Load Screen",
       "url": "/",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/campaign-load.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\campaign-load.png",
       "pageErrors": [],
       "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
         "Failed to load resource: the server responded with a status of 404 (Not Found)"
       ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A060500024010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x13c00429600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x13c00429600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x13c00429600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x13c00429600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {
@@ -1129,16 +1140,11 @@
       "name": "In-Game HUD",
       "url": "/?map=assets/maps/_extracted/MapsZH/Maps/Tournament%20Desert/Tournament%20Desert.json",
       "status": "pass",
-      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/in-game-hud.png",
+      "screenshotPath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\test-results\\ui-layout\\in-game-hud.png",
       "pageErrors": [],
       "consoleErrors": [],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x1140019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1140019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
-        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+        "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
         "viewport": {

@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-05-04T01:05:16.410Z",
+  "generatedAt": "2026-05-24T08:51:15.999Z",
   "rootDir": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port",
   "packagesDir": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\packages",
   "packages": [
     {
       "packageName": "app",
-      "sourceFileCount": 50,
+      "sourceFileCount": 52,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
@@ -68,14 +68,14 @@
     },
     {
       "packageName": "renderer",
-      "sourceFileCount": 21,
+      "sourceFileCount": 22,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     },
     {
       "packageName": "terrain",
-      "sourceFileCount": 8,
+      "sourceFileCount": 9,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
@@ -89,7 +89,7 @@
     }
   ],
   "totals": {
-    "sourceFileCount": 207,
+    "sourceFileCount": 211,
     "todoMarkers": 0,
     "subsetMarkers": 0,
     "totalMarkers": 0

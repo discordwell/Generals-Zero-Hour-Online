@@ -1,13 +1,25 @@
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import {
   buildUiLayoutParityReport,
   collectUiLayoutBlockingIssues,
+  isUiLayoutReportEntrypoint,
   scaleSourceRect,
   type UiRect,
 } from './ui-layout-parity-report.js';
 
 describe('ui layout parity report', () => {
+  it('detects the CLI entrypoint from a Windows-safe file URL comparison', () => {
+    const scriptPath = path.resolve('tools/ui-layout-parity-report.ts');
+
+    expect(isUiLayoutReportEntrypoint(pathToFileURL(scriptPath).href, scriptPath)).toBe(true);
+    expect(isUiLayoutReportEntrypoint(pathToFileURL(scriptPath).href, undefined)).toBe(false);
+    expect(isUiLayoutReportEntrypoint(pathToFileURL(scriptPath).href, path.resolve('tools/visual-scene-parity-report.ts'))).toBe(false);
+  });
+
   it('passes when main-menu buttons match the retail order and bounds', () => {
     const viewport = { width: 1280, height: 720 };
     const expectedButtons = [

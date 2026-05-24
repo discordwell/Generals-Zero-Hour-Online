@@ -213,6 +213,76 @@ describe('MappedImageResolver', () => {
       );
     });
 
+    it('falls back from a manifest-selected atlas when the file is not decodable RGBA', async () => {
+      const lfsPointerBuffer = new TextEncoder().encode('version https://git-lfs.github.com/spec/v1\n').buffer;
+      const atlasBuffer = createRgbaBuffer(512, 512);
+      resolver = new MappedImageResolver(
+        'assets/textures/Art/Textures',
+        new Map([
+          ['ssuserinterface512_001.rgba', 'assets/textures/EnglishZH/Data/English/Art/Textures/SSUserInterface512_001.rgba'],
+        ]),
+      );
+      vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+        const urlString = String(url);
+        if (urlString.includes('/EnglishZH/')) {
+          return Promise.resolve({
+            ok: true,
+            arrayBuffer: () => Promise.resolve(lfsPointerBuffer),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          arrayBuffer: () => Promise.resolve(atlasBuffer),
+        } as Response);
+      });
+
+      resolver.addEntries([makeEntry()]);
+      const url = await resolver.resolve('SSAttackMove');
+
+      expect(url).not.toBeNull();
+      expect(fetch).toHaveBeenNthCalledWith(
+        1,
+        'assets/textures/EnglishZH/Data/English/Art/Textures/SSUserInterface512_001.rgba',
+      );
+      expect(fetch).toHaveBeenNthCalledWith(
+        2,
+        'assets/textures/Art/Textures/ssuserinterface512_001.rgba',
+      );
+    });
+
+    it('falls back to source hand-created userinterface atlas names', async () => {
+      const atlasBuffer = createRgbaBuffer(1024, 1024);
+      vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+        const urlString = String(url);
+        return Promise.resolve({
+          ok: urlString.endsWith('/mainmenubackdropuserinterface.rgba'),
+          status: urlString.endsWith('/mainmenubackdropuserinterface.rgba') ? 200 : 404,
+          arrayBuffer: () => Promise.resolve(atlasBuffer),
+        } as Response);
+      });
+
+      resolver.addEntries([
+        makeEntry({
+          name: 'MainMenuBackdrop',
+          texture: 'MainMenuBackdrop.tga',
+          textureWidth: 1024,
+          textureHeight: 1024,
+          left: 0, top: 0, right: 799, bottom: 599,
+        }),
+      ]);
+      const url = await resolver.resolve('MainMenuBackdrop');
+
+      expect(url).not.toBeNull();
+      expect(fetch).toHaveBeenNthCalledWith(
+        1,
+        'assets/textures/Art/Textures/mainmenubackdrop.rgba',
+      );
+      expect(fetch).toHaveBeenNthCalledWith(
+        2,
+        'assets/textures/Art/Textures/mainmenubackdropuserinterface.rgba',
+      );
+    });
+
     it('caches resolved URLs for the same image name', async () => {
       const atlasBuffer = createRgbaBuffer(64, 64);
       const mockResponse = {

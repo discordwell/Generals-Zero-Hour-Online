@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-19T15:54:54.432Z",
+  "generatedAt": "2026-05-24T08:51:46.373Z",
   "status": "clear",
   "inputs": {
     "iniBundlePath": "packages/app/public/assets/data/ini-bundle.json",
@@ -29118,6 +29118,7 @@
         "packages/app/src/cursor-manager.test.ts",
         "packages/app/src/runtime-save-game.test.ts",
         "packages/app/src/script-message-runtime.test.ts",
+        "packages/app/src/shell-map-metadata.test.ts",
         "packages/game-logic/src/bridge-mechanics.test.ts",
         "packages/game-logic/src/deterministic-crc.test.ts",
         "packages/game-logic/src/index.test.ts",
@@ -29127,6 +29128,7 @@
         "packages/game-logic/src/update-behaviors.test.ts",
         "tools/convert-all/src/convert-all.test.ts",
         "tools/import-source-save-fixtures.test.ts",
+        "tools/map-converter/src/map-json.test.ts",
         "tools/map-converter/src/MapParser.test.ts",
         "tools/save-core-chunk-report.test.ts",
         "tools/texture-converter/src/DdsDecoder.test.ts",

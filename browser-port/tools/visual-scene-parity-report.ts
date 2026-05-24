@@ -88,6 +88,7 @@ const CAMPAIGN_SCENE_EXPECTATION: VisualSceneExpectation = {
   minRenderableCount: 100,
 };
 const SCENARIO_BOOT_TIMEOUT_MS = 45_000;
+const SCENARIO_SCREENSHOT_TIMEOUT_MS = 120_000;
 
 function buildMapUrl(mapName: string): string {
   const encoded = encodeURIComponent(mapName);
@@ -359,7 +360,11 @@ async function probeScenario(
     }
 
     try {
-      await page.screenshot({ path: screenshotPath, fullPage: true });
+      await page.screenshot({
+        path: screenshotPath,
+        fullPage: true,
+        timeout: SCENARIO_SCREENSHOT_TIMEOUT_MS,
+      });
     } catch (error) {
       pageErrors.push(
         `screenshot failed: ${error instanceof Error ? error.message : String(error)}`,

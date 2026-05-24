@@ -1118,6 +1118,10 @@ export function buildUiLayoutParityReport(baseUrl: string, scenarios: UiLayoutSc
   };
 }
 
+export function isUiLayoutReportEntrypoint(importMetaUrl: string, argvEntry: string | undefined): boolean {
+  return Boolean(argvEntry && path.resolve(argvEntry) === fileURLToPath(importMetaUrl));
+}
+
 function browserLaunchArgs(): string[] {
   return ['--use-gl=angle', '--use-angle=swiftshader'];
 }
@@ -2359,7 +2363,7 @@ async function main(): Promise<void> {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isUiLayoutReportEntrypoint(import.meta.url, process.argv[1])) {
   void main().catch((error) => {
     console.error(error);
     process.exitCode = 1;
