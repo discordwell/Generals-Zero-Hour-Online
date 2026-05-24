@@ -64,6 +64,80 @@ describe('IniDataRegistry', () => {
       expect(registry.sciences.size).toBe(1);
     });
 
+    it('indexes Rank.ini entries using the source RankInfo fields', () => {
+      const parsed = parseIni(`
+Rank 1
+  RankName = INI:RankLevel1
+  SkillPointsNeeded = 0
+  SciencesGranted = SCIENCE_Rank1 SCIENCE_Training
+  SciencePurchasePointsGranted = 1
+End
+Rank 2
+  RankName = INI:RankLevel2
+  SkillPointsNeeded = 800
+  SciencesGranted = SCIENCE_Rank2
+  SciencePurchasePointsGranted = 1
+End
+`);
+
+      registry.loadBlocks(parsed.blocks);
+
+      expect(registry.getRankInfos()).toEqual([
+        {
+          level: 1,
+          fields: {
+            RankName: 'INI:RankLevel1',
+            SkillPointsNeeded: 0,
+            SciencesGranted: ['SCIENCE_Rank1', 'SCIENCE_Training'],
+            SciencePurchasePointsGranted: 1,
+          },
+          rankName: 'INI:RankLevel1',
+          skillPointsNeeded: 0,
+          sciencesGranted: ['SCIENCE_Rank1', 'SCIENCE_Training'],
+          sciencePurchasePointsGranted: 1,
+        },
+        expect.objectContaining({
+          level: 2,
+          rankName: 'INI:RankLevel2',
+          skillPointsNeeded: 800,
+          sciencesGranted: ['SCIENCE_Rank2'],
+          sciencePurchasePointsGranted: 1,
+        }),
+      ]);
+      expect(registry.getUnsupportedBlockTypes()).toEqual([]);
+
+      const restored = new IniDataRegistry();
+      restored.loadBundle(registry.toBundle());
+      expect(restored.getRankInfo(2)?.skillPointsNeeded).toBe(800);
+    });
+
+    it('indexes GameLODPresets BenchProfile command-style entries', () => {
+      const parsed = parseIni(`
+BenchProfile = P4 2189 6.108187 15.113676 9.402223
+BenchProfile = K7 1500 6.978142 16.116205 9.252953
+`);
+
+      registry.loadBlocks(parsed.blocks);
+
+      expect(registry.getBenchProfiles()).toEqual([
+        {
+          cpuType: 'P4',
+          mhz: 2189,
+          intBenchIndex: 6.108187,
+          floatBenchIndex: 15.113676,
+          memBenchIndex: 9.402223,
+        },
+        {
+          cpuType: 'K7',
+          mhz: 1500,
+          intBenchIndex: 6.978142,
+          floatBenchIndex: 16.116205,
+          memBenchIndex: 9.252953,
+        },
+      ]);
+      expect(registry.getUnsupportedBlockTypes()).toEqual([]);
+    });
+
     it('indexes PlayerTemplate as factions', () => {
       registry.loadBlocks([
         makeBlock('PlayerTemplate', 'FactionAmerica', { Side: 'America' }),

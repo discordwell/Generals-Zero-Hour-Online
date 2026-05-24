@@ -204,18 +204,12 @@ Status:
 
 Estimated remaining effort: 1-2 sessions once fixtures land.
 
-## Layer 3 — Headless C++ Oracle  *(v3 landed — per-object header diff at 36/36 = 0 mismatches)*
+## Layer 3 - Headless C++ Oracle  *(v4 landed - Object::xfer identity diff at 36/36 = 0 mismatches)*
 
 ```sh
-# Build the oracle binary (one-time setup):
-conda create -n oracle -c conda-forge cmake make m2w64-gcc m2w64-binutils -y
-conda run -n oracle bash -c '
-  cd tools/oracle
-  cmake -S . -B build -G "Unix Makefiles" \
-    -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
-    -DCMAKE_MAKE_PROGRAM=make
-  cmake --build build
-'
+# Build the oracle binary. parity:oracle also auto-builds if the binary is
+# missing or stale; set ORACLE_CONDA_ENV if the env is not named "oracle".
+npm run oracle:build
 
 # Run the differential against every real .sav fixture:
 npm run parity:oracle               # report-only
@@ -230,13 +224,16 @@ real fixture, parses the same fixture in TS via `@generals/engine` and
 `runtime-save-game.parseSourceGameLogicChunkState`, and asserts per-field
 agreement.
 
-Current scope (v3):
+Current scope (v4):
 - Chunk inventory: every CHUNK_<name>, blockStartOffset, blockDataOffset,
   blockSize.
 - CHUNK_GameLogic header: version, frame counter, object TOC count + per-
   entry templateName/id, object count.
 - Per-object headers: tocId, resolved templateName, blockSize, payload
   offset, for **every saved object across every fixture**.
+- Object::xfer identity fields: version, objectId, teamId, producerId,
+  builderId, drawableId, and internalName for every object whose identity
+  prefix parses in the standalone C++ oracle.
 
 Result: 36/36 fixtures agree, 0 mismatches across all 34,282 live C++
 objects.  This is the strongest TS↔C++ static parity proof currently
@@ -244,9 +241,6 @@ available — two completely independent parsers (one in mingw-built
 C++, one in TS) walking the same bytes and producing identical output.
 
 Roadmap:
-- **v4** — decode the Object::xfer payload itself (object ID, drawable
-  ID, internal name, status bits, module list).  Gateway to per-field
-  state comparison.
 - **v5** — extract GameLogic + Object + module sources from GeneralsMD/,
   compile against them, drive the engine's `update()` N times from a
   loaded save, dump post-frame state.  This is the gold-standard
@@ -258,9 +252,9 @@ on the save format for every chunk, every TOC entry, and every per-
 object header.  Any change in either implementation that would shift
 even a single field surfaces as a per-fixture mismatch.
 
-**What it does not prove**: that the per-object payload's internal
-structure matches (deferred to v4) or that simulation runtime behavior
-matches (deferred to v5).
+**What it does not prove**: that the remaining per-object payload fields
+(status bitset internals, geometry, sighting, module list, module payloads)
+match, or that simulation runtime behavior matches (deferred to v5).
 
 ## Layer 4 — Visual Verification  *(deferred)*
 
@@ -304,12 +298,12 @@ The path to a real guarantee is:
 3. Bootstrap Layer 1c + 1d runtime-behavior fingerprints across all 36
    fixtures.  _Done — committed golden CRC + post-command-state
    fingerprints lock down byte-deterministic runtime behavior._
-4. Drive Layer 3 oracle differential to per-object header agreement.
-   _Done — v3 oracle agrees with TS port on every chunk, every TOC
-   entry, and every per-object templateName + blockSize across all
+4. Drive Layer 3 oracle differential to Object::xfer identity agreement.
+   _Done - v4 oracle agrees with TS port on every chunk, every TOC
+   entry, every per-object header, and every parsed identity prefix across
    34,282 saved objects._
-5. Extend Layer 3 oracle to v4 (decode Object::xfer payload) + v5 (run
-   the engine's update() loop from a loaded save).  v5 is the missing
+5. Extend Layer 3 oracle to v5 (run the engine's update() loop from a
+   loaded save).  v5 is the missing
    piece for TS CRC == C++ CRC at frame N runtime equality.
 6. Build Layer 2 (replay differential) once real `.rep` fixtures land
    and reach 100% CRC agreement on at least one full replay.
@@ -330,6 +324,7 @@ effort rather than a proof.
 | `npx playwright test e2e/save-load-parity.e2e.ts` | 1 | parity-reports/save-load-findings/*.json |
 | `npm run parity:runtime-behavior:test` | 1c | parity-reports/runtime-behavior-fingerprints/*.json |
 | `npm run parity:runtime-command:test` | 1d | parity-reports/runtime-command-fingerprints/*.json |
+| `npm run oracle:build` | 3 | tools/oracle/build/oracle.exe |
 | `npm run parity:oracle` | 3 | parity-reports/oracle-parity.{json,md} |
 | `npm run parity:oracle:strict` | 3 | same; exit 1 on any mismatch |
 | `npm run report:visual-scenes` | 4 | visual-scene-parity-report.json |

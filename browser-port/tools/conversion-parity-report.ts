@@ -25,10 +25,12 @@ interface ConversionParityReport {
     unsupportedBlockTypes: number;
     unresolvedRegistryErrors: number;
     missingReferences: number;
+    sourceDanglingReferences: number;
   };
   unresolvedRegistryErrors: RegistryError[];
   unsupportedBlockTypes: string[];
   missingReferences: MissingReference[];
+  sourceDanglingReferences: MissingReference[];
 }
 
 function normalizeToken(token: string | null | undefined): string {
@@ -196,6 +198,28 @@ function collectMissingReferences(bundle: IniDataBundle): MissingReference[] {
   return missing;
 }
 
+const SOURCE_DANGLING_REFERENCE_KEYS = new Set([
+  // Source-authored data wart, not a conversion miss:
+  //   Data/INI/Object/FactionUnit.ini: GLAVehicleDozer has
+  //   CommandSet = GLADozerCommandSet, but Data/INI/CommandSet.ini only defines
+  //   GLAWorkerCommandSet. ThingTemplate::validate() does not require command
+  //   set resolution, and ControlBar::findCommandSet() returns null when asked.
+  'Object|GLAVehicleDozer|CommandSet|GLADOZERCOMMANDSET',
+]);
+
+function missingReferenceKey(reference: MissingReference): string {
+  return [
+    reference.ownerType,
+    reference.ownerName,
+    reference.referenceType,
+    reference.referenceName,
+  ].join('|');
+}
+
+function isSourceDanglingReference(reference: MissingReference): boolean {
+  return SOURCE_DANGLING_REFERENCE_KEYS.has(missingReferenceKey(reference));
+}
+
 async function main(): Promise<void> {
   const scriptPath = fileURLToPath(import.meta.url);
   const projectRoot = path.resolve(path.dirname(scriptPath), '..');
@@ -209,7 +233,9 @@ async function main(): Promise<void> {
   const unsupportedBlockTypes = [...(bundle.unsupportedBlockTypes ?? [])].sort((left, right) =>
     left.localeCompare(right),
   );
-  const missingReferences = collectMissingReferences(bundle);
+  const allMissingReferences = collectMissingReferences(bundle);
+  const sourceDanglingReferences = allMissingReferences.filter(isSourceDanglingReference);
+  const missingReferences = allMissingReferences.filter((reference) => !isSourceDanglingReference(reference));
 
   const report: ConversionParityReport = {
     generatedAt: new Date().toISOString(),
@@ -224,10 +250,12 @@ async function main(): Promise<void> {
       unsupportedBlockTypes: unsupportedBlockTypes.length,
       unresolvedRegistryErrors: unresolvedRegistryErrors.length,
       missingReferences: missingReferences.length,
+      sourceDanglingReferences: sourceDanglingReferences.length,
     },
     unresolvedRegistryErrors,
     unsupportedBlockTypes,
     missingReferences,
+    sourceDanglingReferences,
   };
 
   await fs.writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
@@ -244,6 +272,7 @@ async function main(): Promise<void> {
       unresolvedRegistryErrors: report.summary.unresolvedRegistryErrors,
       unsupportedBlockTypes: report.summary.unsupportedBlockTypes,
       missingReferences: report.summary.missingReferences,
+      sourceDanglingReferences: report.summary.sourceDanglingReferences,
     },
   ]);
 }

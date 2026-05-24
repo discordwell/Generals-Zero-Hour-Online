@@ -8,6 +8,7 @@
     }
   ],
   "audioEvents": [],
+  "benchProfiles": [],
   "challengeGeneralsBlocks": [],
   "commandButtons": [],
   "commandMaps": [],
@@ -186,6 +187,7 @@
   ],
   "onlineChatColorBlocks": [],
   "particleSystems": [],
+  "rankInfos": [],
   "sciences": [],
   "specialPowers": [],
   "staticGameLODs": [],

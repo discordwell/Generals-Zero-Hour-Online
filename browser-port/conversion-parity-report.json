@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-19T15:55:29.805Z",
+  "generatedAt": "2026-05-24T06:21:30.074Z",
   "bundlePath": "C:\\Users\\cordw\\Projects\\Generals-Zero-Hour-Online\\browser-port\\packages\\app\\public\\assets\\data\\ini-bundle.json",
   "summary": {
     "objects": 2130,
@@ -8,18 +8,15 @@
     "upgrades": 82,
     "specialPowers": 81,
     "sciences": 96,
-    "unsupportedBlockTypes": 4,
+    "unsupportedBlockTypes": 0,
     "unresolvedRegistryErrors": 0,
-    "missingReferences": 1
+    "missingReferences": 0,
+    "sourceDanglingReferences": 1
   },
   "unresolvedRegistryErrors": [],
-  "unsupportedBlockTypes": [
-    "BenchProfile",
-    "BenchProfile",
-    "Rank",
-    "Rank"
-  ],
-  "missingReferences": [
+  "unsupportedBlockTypes": [],
+  "missingReferences": [],
+  "sourceDanglingReferences": [
     {
       "ownerType": "Object",
       "ownerName": "GLAVehicleDozer",

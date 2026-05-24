@@ -30,7 +30,7 @@ import {
   type ManifestEntry,
 } from '@generals/core';
 import { RUNTIME_ASSET_BASE_URL, RUNTIME_MANIFEST_FILE } from '@generals/assets';
-import type { IniDataBundle, ObjectDef, RegistryStats } from '@generals/ini-data';
+import type { BenchProfileDef, IniDataBundle, ObjectDef, RankInfoDef, RegistryStats } from '@generals/ini-data';
 import { extractModelBones } from './extract-model-bones.js';
 import { loadRuntimeIniFixtures } from './convert-all/src/runtime-ini-fixtures.js';
 import { RUNTIME_MAP_FIXTURE_CONVERTER, loadRuntimeMapFixtures } from './convert-all/src/runtime-map-fixtures.js';
@@ -776,6 +776,33 @@ function combineLists(left: string[], right: string[]): string[] {
   return [...left, ...right].sort();
 }
 
+function mergeRankInfos(left: RankInfoDef[] = [], right: RankInfoDef[] = []): RankInfoDef[] {
+  const byLevel = new Map<number, RankInfoDef>();
+  for (const rankInfo of [...left, ...right]) {
+    byLevel.set(rankInfo.level, {
+      ...rankInfo,
+      fields: { ...rankInfo.fields },
+      sciencesGranted: [...rankInfo.sciencesGranted],
+    });
+  }
+  return [...byLevel.values()].sort((a, b) => a.level - b.level);
+}
+
+function mergeBenchProfiles(left: BenchProfileDef[] = [], right: BenchProfileDef[] = []): BenchProfileDef[] {
+  const byProfile = new Map<string, BenchProfileDef>();
+  for (const profile of [...left, ...right]) {
+    const key = [
+      profile.cpuType,
+      profile.mhz,
+      profile.intBenchIndex,
+      profile.floatBenchIndex,
+      profile.memBenchIndex,
+    ].join('|');
+    byProfile.set(key, { ...profile });
+  }
+  return [...byProfile.values()];
+}
+
 function mergeRawBlocks<T>(left: T[], right: T[]): T[] {
   return [...left, ...right];
 }
@@ -826,6 +853,7 @@ function mergeBundles(baseBundle: IniDataBundle, patchBundle: IniDataBundle): In
     weapons: mergeByName(baseBundle.weapons, patchBundle.weapons),
     armors: mergeByName(baseBundle.armors, patchBundle.armors),
     upgrades: mergeByName(baseBundle.upgrades, patchBundle.upgrades),
+    rankInfos: mergeRankInfos(baseBundle.rankInfos, patchBundle.rankInfos),
     commandButtons: mergeByName(baseBundle.commandButtons ?? [], patchBundle.commandButtons ?? []),
     commandSets: mergeByName(baseBundle.commandSets ?? [], patchBundle.commandSets ?? []),
     sciences: mergeByName(baseBundle.sciences, patchBundle.sciences),
@@ -838,6 +866,7 @@ function mergeBundles(baseBundle: IniDataBundle, patchBundle: IniDataBundle): In
     fxLists: mergeByName(baseBundle.fxLists ?? [], patchBundle.fxLists ?? []),
     staticGameLODs: mergeByName(baseBundle.staticGameLODs ?? [], patchBundle.staticGameLODs ?? []),
     dynamicGameLODs: mergeByName(baseBundle.dynamicGameLODs ?? [], patchBundle.dynamicGameLODs ?? []),
+    benchProfiles: mergeBenchProfiles(baseBundle.benchProfiles, patchBundle.benchProfiles),
     commandMaps: mergeRawBlocks(baseBundle.commandMaps ?? [], patchBundle.commandMaps ?? []),
     creditsBlocks: mergeRawBlocks(baseBundle.creditsBlocks ?? [], patchBundle.creditsBlocks ?? []),
     mouseBlocks: mergeRawBlocks(baseBundle.mouseBlocks ?? [], patchBundle.mouseBlocks ?? []),

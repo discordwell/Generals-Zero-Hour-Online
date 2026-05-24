@@ -51,6 +51,8 @@
     "parity:save-load:test": "playwright test e2e/save-load-parity.e2e.ts",
     "parity:runtime-behavior:test": "playwright test e2e/runtime-behavior-parity.e2e.ts",
     "parity:runtime-command:test": "playwright test e2e/runtime-command-parity.e2e.ts",
+    "oracle:build": "tsx tools/oracle-build.ts",
+    "oracle:rebuild": "tsx tools/oracle-build.ts --force",
     "parity:oracle": "tsx tools/oracle-parity-report.ts",
     "parity:oracle:strict": "tsx tools/oracle-parity-report.ts --strict"
   },

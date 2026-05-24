@@ -8,15 +8,15 @@
  * offset, and size for every fixture, that's strong evidence the TS save
  * loader matches the C++ byte format.
  *
- * Build the oracle first:
- *   conda run -n oracle bash -c 'cd tools/oracle && cmake -S . -B build -G "Unix Makefiles" -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ -DCMAKE_MAKE_PROGRAM=make && cmake --build build'
+ * The report auto-builds the oracle when the binary is missing or stale:
+ *   npm run oracle:build
  *
  * Then run:
  *   npx tsx tools/oracle-parity-report.ts
  *
  * Output: parity-reports/oracle-parity.{json,md}
  */
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 
@@ -25,14 +25,16 @@ import {
   inspectGameLogicChunkLayout,
   parseSourceGameLogicChunkState,
 } from '../packages/app/src/runtime-save-game.js';
+import { ensureOracleBuilt, getOracleRuntimeEnv, ORACLE_BIN } from './oracle-build.js';
 
 const FIXTURE_DIR = resolve(process.cwd(), 'fixtures/source-saves');
-const ORACLE_BIN = resolve(process.cwd(), 'tools/oracle/build/oracle.exe');
 const OUTPUT_DIR = resolve(process.cwd(), 'parity-reports');
 const JSON_OUT = resolve(OUTPUT_DIR, 'oracle-parity.json');
 const MD_OUT = resolve(OUTPUT_DIR, 'oracle-parity.md');
 const STRICT = process.argv.includes('--strict');
+const NO_BUILD = process.argv.includes('--no-build');
 const REAL_SAVE_SIZE_THRESHOLD = 100_000;
+const ORACLE_RUNTIME_ENV = getOracleRuntimeEnv();
 
 interface OracleChunk {
   name: string;
@@ -117,8 +119,16 @@ interface Report {
 }
 
 function runOracle(savePath: string): OracleResult {
-  const stdout = execFileSync(ORACLE_BIN, [savePath], { encoding: 'utf8' });
-  return JSON.parse(stdout) as OracleResult;
+  const result = spawnSync(ORACLE_BIN, [savePath], {
+    encoding: 'utf8',
+    env: ORACLE_RUNTIME_ENV,
+  });
+  if (result.status !== 0) {
+    const stderr = result.stderr.trim();
+    const suffix = stderr.length > 0 ? `: ${stderr}` : '';
+    throw new Error(`oracle exited ${result.status ?? 'unknown'}${suffix}`);
+  }
+  return JSON.parse(result.stdout) as OracleResult;
 }
 
 function bytesToAB(bytes: Uint8Array): ArrayBuffer {
@@ -198,10 +208,13 @@ function diffChunks(cpp: OracleChunk[], ts: OracleChunk[], fixture: string): Mis
 }
 
 function buildReport(): Report {
+  if (!NO_BUILD) {
+    ensureOracleBuilt();
+  }
   if (!existsSync(ORACLE_BIN)) {
     throw new Error(
       `oracle binary missing: ${ORACLE_BIN}\n` +
-      `Build it first: see tools/oracle/README.md`,
+      `Build it first with "npm run oracle:build" or see tools/oracle/README.md`,
     );
   }
   mkdirSync(OUTPUT_DIR, { recursive: true });

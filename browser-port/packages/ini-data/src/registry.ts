@@ -92,6 +92,15 @@ export interface ScienceDef {
   fields: Record<string, IniValue>;
 }
 
+export interface RankInfoDef {
+  level: number;
+  fields: Record<string, IniValue>;
+  rankName?: string;
+  skillPointsNeeded: number;
+  sciencesGranted: string[];
+  sciencePurchasePointsGranted: number;
+}
+
 export interface FactionDef {
   name: string;
   side?: string;
@@ -198,6 +207,14 @@ export interface RawBlockDef {
   name: string;
   fields: Record<string, IniValue>;
   blocks: IniBlock[];
+}
+
+export interface BenchProfileDef {
+  cpuType: string;
+  mhz: number;
+  intBenchIndex: number;
+  floatBenchIndex: number;
+  memBenchIndex: number;
 }
 
 export interface RegistryStats {
@@ -418,6 +435,7 @@ export interface IniDataBundle {
   armors: ArmorDef[];
   upgrades: UpgradeDef[];
   sciences: ScienceDef[];
+  rankInfos?: RankInfoDef[];
   factions: FactionDef[];
   specialPowers?: SpecialPowerDef[];
   objectCreationLists?: ObjectCreationListDef[];
@@ -430,6 +448,7 @@ export interface IniDataBundle {
   fxLists?: RawBlockDef[];
   staticGameLODs?: RawBlockDef[];
   dynamicGameLODs?: RawBlockDef[];
+  benchProfiles?: BenchProfileDef[];
   commandMaps?: RawBlockDef[];
   creditsBlocks?: RawBlockDef[];
   mouseBlocks?: RawBlockDef[];
@@ -463,6 +482,7 @@ export class IniDataRegistry {
   readonly armors = new Map<string, ArmorDef>();
   readonly upgrades = new Map<string, UpgradeDef>();
   readonly sciences = new Map<string, ScienceDef>();
+  private rankInfos: RankInfoDef[] = [];
   readonly factions = new Map<string, FactionDef>();
   readonly specialPowers = new Map<string, SpecialPowerDef>();
   readonly objectCreationLists = new Map<string, ObjectCreationListDef>();
@@ -474,6 +494,7 @@ export class IniDataRegistry {
   readonly fxLists = new Map<string, RawBlockDef>();
   readonly staticGameLODs = new Map<string, RawBlockDef>();
   readonly dynamicGameLODs = new Map<string, RawBlockDef>();
+  private benchProfiles: BenchProfileDef[] = [];
   readonly mappedImages = new Map<string, MappedImageDef>();
   /**
    * Source parity: pristine bone positions per model.  Keyed by lowercased model
@@ -539,6 +560,7 @@ export class IniDataRegistry {
     this.armors.clear();
     this.upgrades.clear();
     this.sciences.clear();
+    this.rankInfos = [];
     this.factions.clear();
     this.specialPowers.clear();
     this.nextSpecialPowerSourceTemplateId = 1;
@@ -551,6 +573,7 @@ export class IniDataRegistry {
     this.fxLists.clear();
     this.staticGameLODs.clear();
     this.dynamicGameLODs.clear();
+    this.benchProfiles = [];
     this.mappedImages.clear();
     this.commandMaps = [];
     this.creditsBlocks = [];
@@ -605,6 +628,13 @@ export class IniDataRegistry {
     for (const science of bundle.sciences) {
       this.sciences.set(science.name, { ...science, fields: { ...science.fields } });
     }
+    this.rankInfos = (bundle.rankInfos ?? [])
+      .map((rankInfo) => ({
+        ...rankInfo,
+        fields: { ...rankInfo.fields },
+        sciencesGranted: [...(rankInfo.sciencesGranted ?? [])],
+      }))
+      .sort((left, right) => left.level - right.level);
 
     for (const faction of bundle.factions) {
       this.factions.set(faction.name, { ...faction, fields: { ...faction.fields } });
@@ -710,6 +740,7 @@ export class IniDataRegistry {
         blocks: [...(lod.blocks ?? [])],
       });
     }
+    this.benchProfiles = (bundle.benchProfiles ?? []).map((profile) => ({ ...profile }));
     this.commandMaps = cloneRawBlocks(bundle.commandMaps ?? []);
     this.creditsBlocks = cloneRawBlocks(bundle.creditsBlocks ?? []);
     this.mouseBlocks = cloneRawBlocks(bundle.mouseBlocks ?? []);
@@ -852,6 +883,28 @@ export class IniDataRegistry {
     return this.sciences.get(name);
   }
 
+  getRankInfos(): RankInfoDef[] {
+    return this.rankInfos.map((rankInfo) => ({
+      ...rankInfo,
+      fields: { ...rankInfo.fields },
+      sciencesGranted: [...rankInfo.sciencesGranted],
+    }));
+  }
+
+  getRankInfo(level: number): RankInfoDef | undefined {
+    if (!Number.isInteger(level) || level <= 0) {
+      return undefined;
+    }
+    const rankInfo = this.rankInfos.find((entry) => entry.level === level);
+    return rankInfo
+      ? {
+          ...rankInfo,
+          fields: { ...rankInfo.fields },
+          sciencesGranted: [...rankInfo.sciencesGranted],
+        }
+      : undefined;
+  }
+
   getFaction(name: string): FactionDef | undefined {
     return this.factions.get(name);
   }
@@ -944,6 +997,10 @@ export class IniDataRegistry {
 
   getDynamicGameLOD(name: string): RawBlockDef | undefined {
     return this.dynamicGameLODs.get(name);
+  }
+
+  getBenchProfiles(): BenchProfileDef[] {
+    return this.benchProfiles.map((profile) => ({ ...profile }));
   }
 
   getCommandMaps(): RawBlockDef[] {
@@ -1089,6 +1146,7 @@ export class IniDataRegistry {
       armors: [...this.armors.values()].sort((a, b) => a.name.localeCompare(b.name)),
       upgrades: [...this.upgrades.values()].sort((a, b) => a.name.localeCompare(b.name)),
       sciences: [...this.sciences.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      rankInfos: this.getRankInfos().sort((a, b) => a.level - b.level),
       factions: [...this.factions.values()].sort((a, b) => a.name.localeCompare(b.name)),
       specialPowers: [...this.specialPowers.values()].sort((a, b) => a.name.localeCompare(b.name)),
       objectCreationLists: [...this.objectCreationLists.values()]
@@ -1108,6 +1166,7 @@ export class IniDataRegistry {
       fxLists: [...this.fxLists.values()].sort((a, b) => a.name.localeCompare(b.name)),
       staticGameLODs: [...this.staticGameLODs.values()].sort((a, b) => a.name.localeCompare(b.name)),
       dynamicGameLODs: [...this.dynamicGameLODs.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      benchProfiles: this.getBenchProfiles(),
       commandMaps: cloneRawBlocks(this.commandMaps),
       creditsBlocks: cloneRawBlocks(this.creditsBlocks),
       mouseBlocks: cloneRawBlocks(this.mouseBlocks),
@@ -1226,6 +1285,17 @@ export class IniDataRegistry {
           fields: block.fields,
         });
         break;
+
+      case 'Rank': {
+        const rankInfo = parseRankInfoBlock(block);
+        if (rankInfo) {
+          this.rankInfos = [
+            ...this.rankInfos.filter((entry) => entry.level !== rankInfo.level),
+            rankInfo,
+          ].sort((left, right) => left.level - right.level);
+        }
+        break;
+      }
 
       case 'PlayerTemplate':
       case 'Faction':
@@ -1374,6 +1444,10 @@ export class IniDataRegistry {
           fields: block.fields,
           blocks: block.blocks,
         });
+        break;
+
+      case 'BenchProfile':
+        this.benchProfiles.push(...parseBenchProfileBlock(block));
         break;
 
       case 'CommandMap':
@@ -1909,6 +1983,66 @@ function parseVertexWaterSettings(
 
   const settings = [...byIndex.values()].sort((left, right) => left.index - right.index);
   return settings.length > 0 ? settings : undefined;
+}
+
+function parseRankInfoBlock(block: IniBlock): RankInfoDef | null {
+  const level = extractInteger(block.name);
+  if (level === undefined || level <= 0) {
+    return null;
+  }
+
+  const sciencesGranted = flattenIniStrings(block.fields['SciencesGranted'] ?? [])
+    .flatMap((entry) => entry.split(/[\s,;|]+/))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return {
+    level,
+    fields: { ...block.fields },
+    rankName: extractString(block.fields['RankName']),
+    skillPointsNeeded: extractInteger(block.fields['SkillPointsNeeded']) ?? 0,
+    sciencesGranted,
+    sciencePurchasePointsGranted: extractInteger(block.fields['SciencePurchasePointsGranted']) ?? 0,
+  };
+}
+
+function parseBenchProfileBlock(block: IniBlock): BenchProfileDef[] {
+  const entries: string[][] = [];
+  const headerTokens = block.name
+    .replace(/^=\s*/, '')
+    .split(/\s+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (headerTokens.length > 0) {
+    entries.push(headerTokens);
+  }
+  entries.push(...extractTokenEntries(block.fields['BenchProfile']));
+
+  return entries
+    .map((tokens) => parseBenchProfileEntry(tokens))
+    .filter((entry): entry is BenchProfileDef => entry !== null);
+}
+
+function parseBenchProfileEntry(tokens: readonly string[]): BenchProfileDef | null {
+  if (tokens.length < 5) {
+    return null;
+  }
+  const cpuType = tokens[0]?.trim();
+  const mhz = Number(tokens[1]);
+  const intBenchIndex = Number(tokens[2]);
+  const floatBenchIndex = Number(tokens[3]);
+  const memBenchIndex = Number(tokens[4]);
+  if (!cpuType || !Number.isFinite(mhz) || !Number.isFinite(intBenchIndex)
+    || !Number.isFinite(floatBenchIndex) || !Number.isFinite(memBenchIndex)) {
+    return null;
+  }
+  return {
+    cpuType,
+    mhz: Math.trunc(mhz),
+    intBenchIndex,
+    floatBenchIndex,
+    memBenchIndex,
+  };
 }
 
 function degreesToRadians(value: number | undefined): number | undefined {
