@@ -5,7 +5,7 @@ against the TS port's `listSaveGameChunks` for every real .sav
 fixture under `fixtures/source-saves/`.  100% agreement proves
 the TS save-chunk parser matches the original C++ byte format.
 
-- generated: 2026-05-24T10:20:19.702Z
+- generated: 2026-05-24T11:00:30.846Z
 - fixtures: 36
 - agreeing (TS == C++): 36
 - diverging: 0

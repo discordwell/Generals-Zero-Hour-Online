@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-05-24T10:16:09.114Z",
-  "baseUrl": "http://127.0.0.1:62987",
+  "generatedAt": "2026-05-24T11:24:05.648Z",
+  "baseUrl": "http://127.0.0.1:55900",
   "summary": {
     "scenarioCount": 37,
     "blockedScenarios": 0,
@@ -20,7 +20,7 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ZBSupplyDk_A1.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 282,
+        "frame": 283,
         "mapPath": "maps/_extracted/MapsZH/Maps/Tournament Desert/Tournament Desert.json",
         "placementResolvedObjects": 580,
         "placementSpawnedObjects": 580,
@@ -28,11 +28,11 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 580,
         "sceneObjectCount": 711,
-        "debugInfoText": "FPS: 29 | Map: 270x340 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 580/784 (unresolved: 0) | Sel: none | Frame: 282",
+        "debugInfoText": "FPS: 28 | Map: 270x340 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 580/784 (unresolved: 0) | Sel: none | Frame: 283",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 2.3798413746585887e-28,
+          "x": 1.7194353931908302e-28,
           "y": 440,
           "z": 456.128880494422
         },
@@ -140,59 +140,50 @@
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CBChalet2.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBMeCtdrl1.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVbackhoe.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVFklt.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PmContainr2.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVfrmrtrk.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMBUNDLE.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMSCARE.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGWMill1.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBBrnShed.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTrainTnl.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMlclusters.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRocks05.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVFklt.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 259,
+        "frame": 242,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI01/MD_CHI01.json",
         "placementResolvedObjects": 1224,
         "placementSpawnedObjects": 1224,
         "placementTotalObjects": 3349,
         "placementUnresolvedObjects": 0,
         "renderableCount": 1238,
-        "sceneObjectCount": 1671,
-        "debugInfoText": "FPS: 2 | Map: 385x530 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1224/3349 (unresolved: 0) | Sel: none | Frame: 259",
+        "sceneObjectCount": 1670,
+        "debugInfoText": "FPS: 2 | Map: 385x530 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1224/3349 (unresolved: 0) | Sel: none | Frame: 242",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 3014.1563220803314,
-          "y": 264.5284698552673,
-          "z": 4434.217337305609
+          "x": 2998.011395880989,
+          "y": 263.4305214633694,
+          "z": 4422.451879573188
         },
         "cameraQuaternion": {
-          "x": -0.2713836042879817,
-          "y": 0.15434191887445822,
-          "z": 0.044137325444335226,
-          "w": 0.9489896774488304
+          "x": -0.2700144825465199,
+          "y": 0.13327857861947465,
+          "z": 0.03776833090642184,
+          "w": 0.9528392062026261
         },
         "rtsCameraState": {
-          "targetX": 2933.3028700086807,
-          "targetZ": 4192.2237232349535,
-          "angle": 0.32245298122096155,
-          "zoom": 321.60130475753704,
-          "pitch": 0.8117543720362479
+          "targetX": 2928.3972005208334,
+          "targetZ": 4178.4765842013885,
+          "angle": 0.27794708529510614,
+          "zoom": 319.79772729750357,
+          "pitch": 0.8031052485892647
         },
         "scriptCameraEffectsState": {
           "grayscale": 0,
           "saturation": 1,
           "blurPixels": 0,
           "fadeType": "MULTIPLY",
-          "fadeAmount": 0.83,
+          "fadeAmount": 1,
           "shakeOffsetX": 0,
           "shakeOffsetY": 0
         },
         "objectVisuals": {
           "visualEntityCount": 1238,
-          "modelEntityCount": 1008,
+          "modelEntityCount": 969,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -211,8 +202,8 @@
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVGattTank.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"textures/Art/Textures/shadow.rgba\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVDragon.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"textures/Art/Textures/shadow.rgba\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NIMSST_SKN.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVBtMstr.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/NVHelix.glb\", falling back to fetch.",
@@ -261,32 +252,32 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVCmpCar.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 360,
+        "frame": 324,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.json",
         "placementResolvedObjects": 1846,
         "placementSpawnedObjects": 1846,
         "placementTotalObjects": 2581,
         "placementUnresolvedObjects": 0,
         "renderableCount": 1858,
-        "sceneObjectCount": 2196,
-        "debugInfoText": "FPS: 2 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1846/2581 (unresolved: 0) | Sel: none | Frame: 360",
+        "sceneObjectCount": 2194,
+        "debugInfoText": "FPS: 2 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1846/2581 (unresolved: 0) | Sel: none | Frame: 324",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 2306.0058104576433,
+          "x": 2270.477971979696,
           "y": 385.1938619704917,
-          "z": 1935.7154778981449
+          "z": 1960.5504199788136
         },
         "cameraQuaternion": {
-          "x": -0.30424102771996675,
-          "y": 0.305590284686199,
-          "z": 0.10373392360400174,
-          "w": 0.8962651661484037
+          "x": -0.3087898190966684,
+          "y": 0.2630311703878508,
+          "z": 0.0892870510019742,
+          "w": 0.9096654734296641
         },
         "rtsCameraState": {
           "targetX": 2024.9300537109375,
           "targetZ": 1571.449951171875,
-          "angle": 0.6571969842491107,
+          "angle": 0.5629492046414167,
           "zoom": 579.9446521165644,
           "pitch": 1
         },
@@ -295,7 +286,7 @@
           "saturation": 1,
           "blurPixels": 0,
           "fadeType": "MULTIPLY",
-          "fadeAmount": 0,
+          "fadeAmount": 0.18000000000000005,
           "shakeOffsetX": 0,
           "shakeOffsetY": 0
         },
@@ -366,15 +357,10 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMWallWd1.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UBStingerS.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG17.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCtrSlpy.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCemBlk1.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PEVending.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMSign04.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMSlide.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMSwing.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCtrSlpy.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 199,
+        "frame": 205,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.json",
         "placementResolvedObjects": 1548,
         "placementSpawnedObjects": 1548,
@@ -382,25 +368,25 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 1592,
         "sceneObjectCount": 1896,
-        "debugInfoText": "FPS: 2 | Map: 420x420 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1548/2995 (unresolved: 0) | Sel: none | Frame: 199",
+        "debugInfoText": "FPS: 2 | Map: 420x420 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1548/2995 (unresolved: 0) | Sel: none | Frame: 205",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 1464.2707640869637,
-          "y": 241.1365940351375,
-          "z": 532.2088607398283
+          "x": 1466.1099118981358,
+          "y": 242.10758960203944,
+          "z": 542.2843861420336
         },
         "cameraQuaternion": {
-          "x": -0.33095272997699526,
-          "y": -0.09485969868049614,
-          "z": -0.03345949907800562,
+          "x": -0.33095272997699543,
+          "y": -0.09485969868049601,
+          "z": -0.03345949907800559,
           "w": 0.9382709576707937
         },
         "rtsCameraState": {
-          "targetX": 1516.4120672052557,
-          "targetZ": 276.97604388612683,
+          "targetX": 1518.4924356356535,
+          "targetZ": 285.87078909209276,
           "angle": -0.20151634999866808,
-          "zoom": 344.7764329893687,
+          "zoom": 346.37146762959395,
           "pitch": 1.0499999523162842
         },
         "scriptCameraEffectsState": {
@@ -507,32 +493,32 @@
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/ZBRefinery.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 259,
+        "frame": 276,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.json",
         "placementResolvedObjects": 1648,
         "placementSpawnedObjects": 1648,
         "placementTotalObjects": 2256,
         "placementUnresolvedObjects": 0,
         "renderableCount": 1668,
-        "sceneObjectCount": 2136,
-        "debugInfoText": "FPS: 2 | Map: 560x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1648/2256 (unresolved: 0) | Sel: none | Frame: 259",
+        "sceneObjectCount": 2141,
+        "debugInfoText": "FPS: 2 | Map: 560x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1648/2256 (unresolved: 0) | Sel: none | Frame: 276",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 4707.052484214695,
+          "x": 4709.31935422403,
           "y": 270.5000038444996,
-          "z": 3835.1003219814693
+          "z": 3798.307628749719
         },
         "cameraQuaternion": {
-          "x": -0.18225098098107265,
-          "y": 0.6446997062764812,
-          "z": 0.16218578664171385,
-          "w": 0.7244602399510025
+          "x": -0.17308641734757388,
+          "y": 0.683443068489418,
+          "z": 0.17193237504011985,
+          "w": 0.6880304663869281
         },
         "rtsCameraState": {
           "targetX": 4373.0947265625,
           "targetZ": 3796.058349609375,
-          "angle": 1.4544176807760765,
+          "angle": 1.5641066158047596,
           "zoom": 423.8113512950632,
           "pitch": 0.699999988079071
         },
@@ -547,7 +533,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1668,
-          "modelEntityCount": 1370,
+          "modelEntityCount": 1375,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -612,37 +598,36 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTrainTnl.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/EXHideBomb.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMObsTire.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrat02.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrates01.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrat02.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 230,
+        "frame": 196,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.json",
         "placementResolvedObjects": 1964,
         "placementSpawnedObjects": 1964,
         "placementTotalObjects": 3251,
         "placementUnresolvedObjects": 0,
         "renderableCount": 2014,
-        "sceneObjectCount": 2734,
-        "debugInfoText": "FPS: 2 | Map: 700x700 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1964/3251 (unresolved: 0) | Sel: none | Frame: 230",
+        "sceneObjectCount": 2725,
+        "debugInfoText": "FPS: 2 | Map: 700x700 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1964/3251 (unresolved: 0) | Sel: none | Frame: 196",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 1185.6310954480775,
-          "y": 389.49865847586904,
-          "z": 3692.7398002798327
+          "x": 1351.367830471046,
+          "y": 362.25981132681017,
+          "z": 3710.0630116581847
         },
         "cameraQuaternion": {
           "x": -0.267991260899908,
-          "y": -0.5228795823913515,
-          "z": -0.1774937011154477,
-          "w": 0.7894767966595748
+          "y": -0.5228795823913516,
+          "z": -0.17749370111544768,
+          "w": 0.7894767966595746
         },
         "rtsCameraState": {
-          "targetX": 1650.0011067708333,
-          "targetZ": 3495.9509403935185,
+          "targetX": 1783.05322265625,
+          "targetZ": 3527.1251085069443,
           "angle": -1.1699628860130629,
-          "zoom": 635.7148137753077,
+          "zoom": 590.9701143724343,
           "pitch": 1
         },
         "scriptCameraEffectsState": {
@@ -656,7 +641,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 2014,
-          "modelEntityCount": 1323,
+          "modelEntityCount": 1326,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -676,7 +661,7 @@
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
-        "frame": 479,
+        "frame": 539,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI05_END/MD_CHI05_END.json",
         "placementResolvedObjects": 270,
         "placementSpawnedObjects": 270,
@@ -684,11 +669,11 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 270,
         "sceneObjectCount": 787,
-        "debugInfoText": "FPS: 53 | Map: 700x700 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 270/485 (unresolved: 0) | Sel: none | Frame: 479",
+        "debugInfoText": "FPS: 53 | Map: 700x700 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 270/485 (unresolved: 0) | Sel: none | Frame: 539",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 8.485802993659431e-30,
+          "x": 2.8771601115387384e-38,
           "y": 502.5,
           "z": 447.16920605613876
         },
@@ -734,6 +719,30 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVBMW.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVLimo1.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG03.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"textures/Art/Textures/shadow.rgba\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG15.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG14.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG06.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTower2.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG13.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMLumber.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMSlide.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrates.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMSwing.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMSign04.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMWdSwHrs.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMBalBeam.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVBug3.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMObsTire.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVBug2.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PATtelpost.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CBChalet3.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CBChalet2.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBChalet.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMlclusters.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PMOUTHOUS.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVScrpCar1.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PEMailbox.glb\", falling back to fetch.",
@@ -782,55 +791,36 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVSPTCAR02.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVSwatch01.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVTruck.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVTanker.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PEChkPoint.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrates03.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVSpplyTrk.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVFklt.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PmContainr1.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/AIPFDR_SKN.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UBStingerS.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMUNCrate03.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGShop.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTownHs02.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGPub02.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTownHs01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGCtage01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMBikeRck.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PEBusStop.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMcafeset.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMLamp01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVBug1.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMWallWd1.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVTanker.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 263,
+        "frame": 218,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI05_Intro/MD_CHI05_Intro.json",
         "placementResolvedObjects": 1452,
         "placementSpawnedObjects": 1452,
         "placementTotalObjects": 2153,
         "placementUnresolvedObjects": 0,
         "renderableCount": 1550,
-        "sceneObjectCount": 2015,
-        "debugInfoText": "FPS: 2 | Map: 600x600 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1452/2153 (unresolved: 0) | Sel: none | Frame: 263",
+        "sceneObjectCount": 2013,
+        "debugInfoText": "FPS: 2 | Map: 600x600 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1452/2153 (unresolved: 0) | Sel: none | Frame: 218",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 1010.1595173463145,
-          "y": 508.11165118983297,
-          "z": 3682.1172304546053
+          "x": 1226.0013170052782,
+          "y": 474.99011801535704,
+          "z": 3706.5348556218096
         },
         "cameraQuaternion": {
-          "x": -0.26799126089990793,
-          "y": -0.5228795823913513,
-          "z": -0.1774937011154476,
-          "w": 0.7894767966595748
+          "x": -0.26799126089990805,
+          "y": -0.5228795823913516,
+          "z": -0.17749370111544774,
+          "w": 0.7894767966595746
         },
         "rtsCameraState": {
-          "targetX": 1520.8622884114584,
-          "targetZ": 3465.6936595775464,
+          "targetX": 1696.9606770833334,
+          "targetZ": 3506.953587962963,
           "angle": -1.1699628860130629,
-          "zoom": 699.1435904256937,
+          "zoom": 644.7355225091544,
           "pitch": 1
         },
         "scriptCameraEffectsState": {
@@ -844,7 +834,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1550,
-          "modelEntityCount": 1007,
+          "modelEntityCount": 1008,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -862,6 +852,10 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UVTechTrck.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PMHwySgn01.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBMogdis02.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMPrkBnch02.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMPlanter02.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CBTower01.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMBarrel01.glb\", falling back to fetch.",
@@ -911,10 +905,11 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UVQuadCann.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ABPWRPLANT.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ABBARRACKS.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ABWarFact.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ABWarFact.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBHangar1.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 287,
+        "frame": 256,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA01/MD_GLA01.json",
         "placementResolvedObjects": 1415,
         "placementSpawnedObjects": 1415,
@@ -922,24 +917,24 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 1445,
         "sceneObjectCount": 1939,
-        "debugInfoText": "FPS: 2 | Map: 675x640 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1415/1985 (unresolved: 0) | Sel: none | Frame: 287",
+        "debugInfoText": "FPS: 2 | Map: 675x640 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1415/1985 (unresolved: 0) | Sel: none | Frame: 256",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 2898.630361202035,
-          "y": 89.08965445870135,
-          "z": 2591.705831557988
+          "x": 3309.288502724774,
+          "y": 78.1856731326277,
+          "z": 3125.3190877532056
         },
         "cameraQuaternion": {
           "x": 0,
-          "y": 0.9640844316029736,
+          "y": -0.6777084077638573,
           "z": 0,
-          "w": -0.2655959501588293
+          "w": 0.7353307514623453
         },
         "rtsCameraState": {
-          "targetX": 2931.1333393297696,
-          "targetZ": 2646.219842208059,
-          "angle": -2.6039486112848005,
+          "targetX": 3372.5460340711807,
+          "targetZ": 3120.151334635417,
+          "angle": -1.4892834620579607,
           "zoom": 80,
           "pitch": 0
         },
@@ -954,7 +949,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1445,
-          "modelEntityCount": 1117,
+          "modelEntityCount": 1152,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -1041,12 +1036,10 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGasSttn.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBCnvStr01.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBHigh01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NBBunker.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UVComBikeG.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTSmlApt_D.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NBBunker.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 203,
+        "frame": 200,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.json",
         "placementResolvedObjects": 1149,
         "placementSpawnedObjects": 1149,
@@ -1054,13 +1047,13 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 1186,
         "sceneObjectCount": 1512,
-        "debugInfoText": "FPS: 2 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1149/2097 (unresolved: 0) | Sel: none | Frame: 203",
+        "debugInfoText": "FPS: 2 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1149/2097 (unresolved: 0) | Sel: none | Frame: 200",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 1818.1833499358438,
+          "x": 1820.6176813393035,
           "y": 187.7399568281055,
-          "z": 1070.6675609565689
+          "z": 1067.684096252328
         },
         "cameraQuaternion": {
           "x": -0.2220989829271957,
@@ -1069,8 +1062,8 @@
           "w": 0.9697403014051483
         },
         "rtsCameraState": {
-          "targetX": 1782.7993001302084,
-          "targetZ": 898.8393717447916,
+          "targetX": 1785.2336315336681,
+          "targetZ": 895.8559070405506,
           "angle": 0.20308797184456218,
           "zoom": 221.1292477043205,
           "pitch": 0.6299999952316284
@@ -1086,7 +1079,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1186,
-          "modelEntityCount": 983,
+          "modelEntityCount": 970,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -1171,10 +1164,12 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ZBODerrick_A1.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ZBRefinery_A1.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBMogdis02_d.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse11_D.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse11_D.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse12_D.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse05_D.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 338,
+        "frame": 354,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA02_CINE/MD_GLA02_CINE.json",
         "placementResolvedObjects": 667,
         "placementSpawnedObjects": 667,
@@ -1182,24 +1177,24 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 721,
         "sceneObjectCount": 1021,
-        "debugInfoText": "FPS: 3 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 667/1277 (unresolved: 0) | Sel: none | Frame: 338",
+        "debugInfoText": "FPS: 3 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 667/1277 (unresolved: 0) | Sel: none | Frame: 354",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 1371.2418522033283,
+          "x": 1374.2475620767573,
           "y": 49.30383926843961,
-          "z": 826.7479297063468
+          "z": 818.5178074497757
         },
         "cameraQuaternion": {
           "x": 0,
-          "y": -0.7994388681551586,
+          "y": -0.8385381008142795,
           "z": 0,
-          "w": 0.6007474478371082
+          "w": 0.5448429622219426
         },
         "rtsCameraState": {
           "targetX": 1432.959228515625,
           "targetZ": 844.6237182617188,
-          "angle": -1.852721160977891,
+          "angle": -1.9891889982349,
           "zoom": 80.99041253110227,
           "pitch": 0
         },
@@ -1248,8 +1243,8 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrates01.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMFuelTnk.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMLumber.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRRSign.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"textures/Art/Textures/shadow.rgba\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRRSign.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrates03.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMSign03.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CBMilitDckFllr.glb\", falling back to fetch.",
@@ -1303,11 +1298,10 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRocks01b.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UITUNF_SKN.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMUNCrate03.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMDock01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVCamaro.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMDock01.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 241,
+        "frame": 244,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.json",
         "placementResolvedObjects": 1295,
         "placementSpawnedObjects": 1295,
@@ -1315,26 +1309,26 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 1383,
         "sceneObjectCount": 1728,
-        "debugInfoText": "FPS: 2 | Map: 480x480 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1295/1907 (unresolved: 0) | Sel: none | Frame: 241",
+        "debugInfoText": "FPS: 2 | Map: 480x480 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1295/1907 (unresolved: 0) | Sel: none | Frame: 244",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 2749.7767368406803,
-          "y": 224.7153716705833,
-          "z": 121.69124864113274
+          "x": 2757.614634335501,
+          "y": 225.84225441372044,
+          "z": 121.24366461623897
         },
         "cameraQuaternion": {
-          "x": -0.18596211361898723,
-          "y": -0.6956699035722098,
-          "z": -0.19420505238229277,
-          "w": 0.6661425336903374
+          "x": -0.1851391594500573,
+          "y": -0.6959092529372857,
+          "z": -0.19334562002601874,
+          "w": 0.6663717239883079
         },
         "rtsCameraState": {
-          "targetX": 3042.356282552083,
-          "targetZ": 134.3848731282552,
+          "targetX": 3051.661382039388,
+          "targetZ": 134.00094396718345,
           "angle": -1.6141543446496032,
-          "zoom": 369.13536397419193,
-          "pitch": 0.7891213245471651
+          "zoom": 370.9864713036627,
+          "pitch": 0.7847280188085644
         },
         "scriptCameraEffectsState": {
           "grayscale": 0,
@@ -1347,7 +1341,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1383,
-          "modelEntityCount": 289,
+          "modelEntityCount": 277,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -1365,6 +1359,15 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMWallChn1.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"textures/Art/Textures/shadow.rgba\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVOvrlrd.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ABWarFact.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRocks05.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRocks03.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRocks02b.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRocks02.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRocks03b.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRocks07.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRocks04.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRocks06.glb\", falling back to fetch.",
@@ -1428,28 +1431,10 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NITHNT_SKN.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBBunker01.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PATtombstn.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMWalPckt1.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMPrkBnch02.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PATrcSldr02.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMOpmarkV3.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMOpmarkV2.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrat01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PABell.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBNShack.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGWMill1.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTownHs02.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBChurch01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGCtage01Bib.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGCtage01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ABSUPPLYCT.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UIHJCK_SKN.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UBCmdHQ.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/avtomahawk.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UVTechTrck.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ABSupDrop.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMWalPckt1.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 291,
+        "frame": 241,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA03_CINE/MD_GLA03_CINE.json",
         "placementResolvedObjects": 1107,
         "placementSpawnedObjects": 1107,
@@ -1457,26 +1442,26 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 1112,
         "sceneObjectCount": 1417,
-        "debugInfoText": "FPS: 2 | Map: 480x480 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1107/1423 (unresolved: 0) | Sel: none | Frame: 291",
+        "debugInfoText": "FPS: 3 | Map: 480x480 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1107/1423 (unresolved: 0) | Sel: none | Frame: 241",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 2841.842252768159,
-          "y": 243.49675072286917,
-          "z": 115.8227556839413
+          "x": 2749.7767368406803,
+          "y": 224.7153716705833,
+          "z": 121.69124864113274
         },
         "cameraQuaternion": {
-          "x": -0.17188753410306054,
-          "y": -0.6996067438788405,
-          "z": -0.17950660440837057,
-          "w": 0.6699122767295674
+          "x": -0.18596211361898723,
+          "y": -0.6956699035722098,
+          "z": -0.19420505238229277,
+          "w": 0.6661425336903374
         },
         "rtsCameraState": {
-          "targetX": 3158.8751650209783,
-          "targetZ": 129.57729456809713,
+          "targetX": 3042.356282552083,
+          "targetZ": 134.3848731282552,
           "angle": -1.6141543446496032,
-          "zoom": 399.98715279870504,
-          "pitch": 0.715899562237153
+          "zoom": 369.13536397419193,
+          "pitch": 0.7891213245471651
         },
         "scriptCameraEffectsState": {
           "grayscale": 0,
@@ -1489,7 +1474,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1112,
-          "modelEntityCount": 974,
+          "modelEntityCount": 951,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -1507,6 +1492,7 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMmcluster.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMlclusters.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMWallChn1.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"textures/Art/Textures/shadow.rgba\", falling back to fetch.",
@@ -1605,7 +1591,7 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ABStrategy.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 366,
+        "frame": 362,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA03_END/MD_GLA03_END.json",
         "placementResolvedObjects": 1110,
         "placementSpawnedObjects": 1110,
@@ -1613,11 +1599,11 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 1114,
         "sceneObjectCount": 1419,
-        "debugInfoText": "FPS: 3 | Map: 480x480 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1110/1450 (unresolved: 0) | Sel: none | Frame: 366",
+        "debugInfoText": "FPS: 3 | Map: 480x480 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1110/1450 (unresolved: 0) | Sel: none | Frame: 362",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 1.177269427961642e-46,
+          "x": 4.320405004147857e-46,
           "y": 341.25,
           "z": 403.9998655807738
         },
@@ -1645,7 +1631,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1114,
-          "modelEntityCount": 1013,
+          "modelEntityCount": 1032,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -1806,8 +1792,7 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVFerry.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/avleopard.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UITECH_SKN.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVSSupplyTk.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UIWRKR_SKN.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVSSupplyTk.glb\", falling back to fetch."
       ],
       "debugState": {
         "frame": 5,
@@ -1818,7 +1803,7 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 2725,
         "sceneObjectCount": 3139,
-        "debugInfoText": "FPS: 11 | Map: 440x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2701/4428 (unresolved: 0) | Sel: none | Frame: 5",
+        "debugInfoText": "FPS: 15 | Map: 440x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2701/4428 (unresolved: 0) | Sel: none | Frame: 5",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
@@ -1868,7 +1853,6 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVBMW.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVCmpCar.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVTourbus.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVTanker.glb\", falling back to fetch.",
@@ -1939,10 +1923,11 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMBarRoad03.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UBSnAtk_1.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVTugboat.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVtrowler.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVtrowler.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/AVPTBoat.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 193,
+        "frame": 192,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA04_INTRO/MD_GLA04_INTRO.json",
         "placementResolvedObjects": 2204,
         "placementSpawnedObjects": 2204,
@@ -1950,26 +1935,26 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 2207,
         "sceneObjectCount": 2599,
-        "debugInfoText": "FPS: 2 | Map: 440x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2204/3653 (unresolved: 0) | Sel: none | Frame: 193",
+        "debugInfoText": "FPS: 2 | Map: 440x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2204/3653 (unresolved: 0) | Sel: none | Frame: 192",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 821.9930148936826,
-          "y": 69.96995231643544,
-          "z": 535.2538439746273
+          "x": 820.4803274030626,
+          "y": 69.77846650428486,
+          "z": 535.5345018344559
         },
         "cameraQuaternion": {
-          "x": -0.13324400165692604,
-          "y": 0.7418904022632488,
-          "z": 0.1547808367043474,
-          "w": 0.6386607547369934
+          "x": -0.13319244817106934,
+          "y": 0.7419028938415693,
+          "z": 0.15472095039369396,
+          "w": 0.6386715081863087
         },
         "rtsCameraState": {
-          "targetX": 731.8204106987847,
-          "targetZ": 548.8148398166232,
+          "targetX": 730.5544973415799,
+          "targetZ": 549.0583854844836,
           "angle": 1.720066997179087,
-          "zoom": 114.9382155015493,
-          "pitch": 0.5685308937835375
+          "zoom": 114.62366565816913,
+          "pitch": 0.5682804764610698
         },
         "scriptCameraEffectsState": {
           "grayscale": 0,
@@ -1982,7 +1967,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 2207,
-          "modelEntityCount": 1878,
+          "modelEntityCount": 1857,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -2056,10 +2041,25 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBNAptUnit.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBMogdis08.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTOilDepo.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTOilTnk1.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTOilTnk1.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMcluster.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMmcluster.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMBarRoad03.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UBSnAtk_1.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVTugboat.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVtrowler.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/AVPTBoat.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVCstcrn.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UITUNF_SKN.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UVBattBus.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UVTechTrck.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UBBlackMkt.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UIRGRD_SKN.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVSSupplyTk.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NBSupCent.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 185,
+        "frame": 215,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA04_Sound/MD_GLA04_Sound.json",
         "placementResolvedObjects": 2135,
         "placementSpawnedObjects": 2135,
@@ -2067,26 +2067,26 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 2138,
         "sceneObjectCount": 2514,
-        "debugInfoText": "FPS: 2 | Map: 440x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2135/3419 (unresolved: 0) | Sel: none | Frame: 185",
+        "debugInfoText": "FPS: 2 | Map: 440x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2135/3419 (unresolved: 0) | Sel: none | Frame: 215",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 809.8915149687218,
-          "y": 68.43806581923083,
-          "z": 537.4991068532552
+          "x": 855.2721396873243,
+          "y": 74.18264018374812,
+          "z": 529.0793710584011
         },
         "cameraQuaternion": {
-          "x": -0.13283134626219437,
-          "y": 0.7419902486238796,
-          "z": 0.1543014819381074,
-          "w": 0.6387467080689734
+          "x": -0.13437611982910086,
+          "y": 0.7416148141427553,
+          "z": 0.15609594429462073,
+          "w": 0.6384235130682863
         },
         "rtsCameraState": {
-          "targetX": 721.6931038411458,
-          "targetZ": 550.7632051595052,
+          "targetX": 759.6705045572917,
+          "targetZ": 543.4568351236979,
           "angle": 1.720066997179087,
-          "zoom": 112.421816754508,
-          "pitch": 0.566527555203796
+          "zoom": 121.85831205591285,
+          "pitch": 0.5740400748778265
         },
         "scriptCameraEffectsState": {
           "grayscale": 0,
@@ -2099,7 +2099,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 2138,
-          "modelEntityCount": 1768,
+          "modelEntityCount": 1827,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -2161,11 +2161,10 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ABStrategy.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CBChalet2.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG18.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG16.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG14.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG16.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 272,
+        "frame": 282,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.json",
         "placementResolvedObjects": 2243,
         "placementSpawnedObjects": 2243,
@@ -2173,24 +2172,24 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 2249,
         "sceneObjectCount": 3118,
-        "debugInfoText": "FPS: 1 | Map: 710x710 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2243/6660 (unresolved: 0) | Sel: none | Frame: 272",
+        "debugInfoText": "FPS: 1 | Map: 710x710 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2243/6660 (unresolved: 0) | Sel: none | Frame: 282",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 768.3416250267776,
-          "y": 235.3975967343605,
-          "z": 929.4782327839587
+          "x": 760.4249583601108,
+          "y": 231.23916850363793,
+          "z": 917.6268981485421
         },
         "cameraQuaternion": {
-          "x": -0.19664451334173902,
-          "y": -0.38596526530308567,
-          "z": -0.0845816391669855,
-          "w": 0.8973336590521582
+          "x": -0.19664451334173894,
+          "y": -0.3859652653030854,
+          "z": -0.08458163916698541,
+          "w": 0.8973336590521586
         },
         "rtsCameraState": {
-          "targetX": 919.7883504231771,
-          "targetZ": 785.9988753255209,
-          "angle": -0.8124063903952075,
+          "targetX": 911.8716837565104,
+          "targetZ": 774.1475406901042,
+          "angle": -0.8124063903952073,
           "zoom": 262.9601545346522,
           "pitch": 0.6000000238418579
         },
@@ -2205,7 +2204,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 2249,
-          "modelEntityCount": 1631,
+          "modelEntityCount": 1623,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -2284,32 +2283,24 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBNBarnCoo.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PMHAYPILE.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMHAYSTACK.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVOXPL_SKN.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMTROUGH.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVcombine.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVTrnEng2.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/ZBArtPlat.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTrainTnl.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVGattTank.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVNukeCn.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVInferno.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVOXPL_SKN.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 179,
+        "frame": 159,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA05_END/MD_GLA05_END.json",
         "placementResolvedObjects": 1799,
         "placementSpawnedObjects": 1799,
         "placementTotalObjects": 6083,
         "placementUnresolvedObjects": 0,
         "renderableCount": 1801,
-        "sceneObjectCount": 2679,
-        "debugInfoText": "FPS: 1 | Map: 710x710 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1799/6083 (unresolved: 0) | Sel: none | Frame: 179",
+        "sceneObjectCount": 2675,
+        "debugInfoText": "FPS: 2 | Map: 710x710 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1799/6083 (unresolved: 0) | Sel: none | Frame: 159",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 1193.0480480480358,
-          "y": 399.7246838617882,
-          "z": 1636.5519327430586
+          "x": 1459.714714714701,
+          "y": 384.0625,
+          "z": 1903.2185994097238
         },
         "cameraQuaternion": {
           "x": -0.3214394653031616,
@@ -2318,8 +2309,8 @@
           "w": 0.9469301294951057
         },
         "rtsCameraState": {
-          "targetX": 1158.3333333333214,
-          "targetZ": 1158.3333333333214,
+          "targetX": 1424.9999999999866,
+          "targetZ": 1424.9999999999866,
           "angle": 0,
           "zoom": 559.0244121644654,
           "pitch": 1
@@ -2335,7 +2326,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1801,
-          "modelEntityCount": 1395,
+          "modelEntityCount": 1403,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -2353,12 +2344,6 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGWMill1.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ZBSmalPile.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVSUV01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVFklt.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVcargobm.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMRRSign.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCone.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMPUMP.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PMOUTHOUS.glb\", falling back to fetch.",
@@ -2427,7 +2412,7 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMWalPckt1.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 247,
+        "frame": 274,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA05_INTRO/MD_GLA05_INTRO.json",
         "placementResolvedObjects": 2105,
         "placementSpawnedObjects": 2105,
@@ -2435,7 +2420,7 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 2116,
         "sceneObjectCount": 2565,
-        "debugInfoText": "FPS: 2 | Map: 550x550 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2105/3263 (unresolved: 0) | Sel: none | Frame: 247",
+        "debugInfoText": "FPS: 2 | Map: 550x550 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2105/3263 (unresolved: 0) | Sel: none | Frame: 274",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
@@ -2467,7 +2452,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 2116,
-          "modelEntityCount": 1140,
+          "modelEntityCount": 1144,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -2515,7 +2500,7 @@
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/AVChinook.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 480,
+        "frame": 482,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_ShellMap/MD_ShellMap.json",
         "placementResolvedObjects": 420,
         "placementSpawnedObjects": 420,
@@ -2523,13 +2508,13 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 423,
         "sceneObjectCount": 627,
-        "debugInfoText": "FPS: 12 | Map: 315x315 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 420/752 (unresolved: 0) | Sel: none | Frame: 480",
+        "debugInfoText": "FPS: 12 | Map: 315x315 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 420/752 (unresolved: 0) | Sel: none | Frame: 482",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 779.9813471826482,
+          "x": 781.1545698388983,
           "y": 327.5,
-          "z": 722.2786164511252
+          "z": 723.5018995321799
         },
         "cameraQuaternion": {
           "x": -0.290101592872131,
@@ -2538,8 +2523,8 @@
           "w": 0.8546117342687155
         },
         "rtsCameraState": {
-          "targetX": 1094.0398095703124,
-          "targetZ": 468.1464193725586,
+          "targetX": 1095.2130322265625,
+          "targetZ": 469.3697024536133,
           "angle": -0.8904782744035191,
           "zoom": 509.2306858284203,
           "pitch": 1
@@ -2577,10 +2562,10 @@
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/ABBtCmdHQ.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UVComBike.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/AIOFCR_SKN.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"textures/Art/Textures/shadow.rgba\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/AvAmphib.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/AvHummer.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UVRockBug.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"textures/Art/Textures/shadow.rgba\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CINE_Biak03.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CINE_TreeBirds.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CINE_Biak02.glb\", falling back to fetch.",
@@ -2624,7 +2609,7 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMgaldrum.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 166,
+        "frame": 152,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json",
         "placementResolvedObjects": 2061,
         "placementSpawnedObjects": 2061,
@@ -2632,13 +2617,13 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 2290,
         "sceneObjectCount": 2740,
-        "debugInfoText": "FPS: 1 | Map: 610x460 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2061/3134 (unresolved: 0) | Sel: none | Frame: 166",
+        "debugInfoText": "FPS: 1 | Map: 610x460 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2061/3134 (unresolved: 0) | Sel: none | Frame: 152",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 530.8327048831518,
-          "y": 487.521524573838,
-          "z": 2444.7973790989113
+          "x": 479.56340921190076,
+          "y": 487.7155465825926,
+          "z": 2468.626500588259
         },
         "cameraQuaternion": {
           "x": -0.32143946530316153,
@@ -2647,8 +2632,8 @@
           "w": 0.9469301294951057
         },
         "rtsCameraState": {
-          "targetX": 530.8327048831518,
-          "targetZ": 2016.8956478599266,
+          "targetX": 479.56340921190076,
+          "targetZ": 2040.7247693492745,
           "angle": 0,
           "zoom": 539.3583281339742,
           "pitch": 1
@@ -2658,13 +2643,13 @@
           "saturation": 1,
           "blurPixels": 0,
           "fadeType": "MULTIPLY",
-          "fadeAmount": 0.86,
+          "fadeAmount": 1,
           "shakeOffsetX": 0,
           "shakeOffsetY": 0
         },
         "objectVisuals": {
           "visualEntityCount": 2290,
-          "modelEntityCount": 1113,
+          "modelEntityCount": 1112,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -2733,10 +2718,26 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBEuroCnd.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBSovBldg.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CBMogdis01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTower04.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTower04.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTower05.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBsovbld2.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHotel02.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTSvtOfc2.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CBMeCtdrl2.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTower02.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/cbtower03.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMDock01.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMDock04.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMDock03.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMDock06.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMDock05.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBNSpyPost.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/NVDragon.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVCdtpln.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGWMill1.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 138,
+        "frame": 160,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA01_CINE/MD_USA01_CINE.json",
         "placementResolvedObjects": 1969,
         "placementSpawnedObjects": 1969,
@@ -2744,13 +2745,13 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 2205,
         "sceneObjectCount": 2657,
-        "debugInfoText": "FPS: 1 | Map: 610x460 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1969/3060 (unresolved: 0) | Sel: none | Frame: 138",
+        "debugInfoText": "FPS: 1 | Map: 610x460 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1969/3060 (unresolved: 0) | Sel: none | Frame: 160",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 428.29411354064973,
+          "x": 508.86014959547265,
           "y": 487.7155465825926,
-          "z": 2492.4556220776076
+          "z": 2455.0098597372034
         },
         "cameraQuaternion": {
           "x": -0.32143946530316153,
@@ -2759,8 +2760,8 @@
           "w": 0.9469301294951057
         },
         "rtsCameraState": {
-          "targetX": 428.29411354064973,
-          "targetZ": 2064.553890838623,
+          "targetX": 508.86014959547265,
+          "targetZ": 2027.1081284982188,
           "angle": 0,
           "zoom": 539.3583281339742,
           "pitch": 1
@@ -2776,7 +2777,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 2205,
-          "modelEntityCount": 1458,
+          "modelEntityCount": 1460,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -2848,13 +2849,10 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMSmkStak.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PEStrtSign.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMstrtlamp.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrates03.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMJnkCrate.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMFuelTnk.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrat01.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrates03.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 198,
+        "frame": 183,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA02/MD_USA02.json",
         "placementResolvedObjects": 1770,
         "placementSpawnedObjects": 1770,
@@ -2862,7 +2860,7 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 1792,
         "sceneObjectCount": 2261,
-        "debugInfoText": "FPS: 2 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1770/3521 (unresolved: 0) | Sel: none | Frame: 198",
+        "debugInfoText": "FPS: 2 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1770/3521 (unresolved: 0) | Sel: none | Frame: 183",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
@@ -2888,7 +2886,7 @@
           "saturation": 1,
           "blurPixels": 0,
           "fadeType": "MULTIPLY",
-          "fadeAmount": 0.84,
+          "fadeAmount": 0.99,
           "shakeOffsetX": 0,
           "shakeOffsetY": 0
         },
@@ -2912,7 +2910,6 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CIEFMR1_SKN.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVTruck02.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVChknTrk.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CVTaxi02.glb\", falling back to fetch.",
@@ -2958,12 +2955,10 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrates03.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMBarRoad01.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMJnkCrate.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMFuelTnk.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrat01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCrates01.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMFuelTnk.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 221,
+        "frame": 176,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA02_INTRO/MD_USA02_INTRO.json",
         "placementResolvedObjects": 2098,
         "placementSpawnedObjects": 2098,
@@ -2971,23 +2966,23 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 2246,
         "sceneObjectCount": 2702,
-        "debugInfoText": "FPS: 1 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2098/3716 (unresolved: 0) | Sel: none | Frame: 221",
+        "debugInfoText": "FPS: 1 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2098/3716 (unresolved: 0) | Sel: none | Frame: 176",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 1410.973967835286,
-          "y": 365.9082874480367,
-          "z": 1710.254312772006
+          "x": 1362.0127922981765,
+          "y": 365.2568574052324,
+          "z": 1475.018295926303
         },
         "cameraQuaternion": {
-          "x": -0.2936756480618874,
-          "y": 0.38497854391135244,
+          "x": -0.29367564806188745,
+          "y": 0.38497854391135233,
           "z": 0.13068260630172973,
           "w": 0.8651405613387413
         },
         "rtsCameraState": {
-          "targetX": 1057.355262451172,
-          "targetZ": 1391.5989514160156,
+          "targetX": 1008.3940869140625,
+          "targetZ": 1156.3629345703125,
           "angle": 0.8373589246488562,
           "zoom": 600,
           "pitch": 1
@@ -3003,7 +2998,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 2246,
-          "modelEntityCount": 1546,
+          "modelEntityCount": 1536,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -3070,43 +3065,37 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PEPhonBoot.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMPrkBnch02.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMJunkDlr.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PAJunkDlr.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMFireHydrt2.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMClthLn.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMChkPnt02.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMCnvsShd.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PABusStop.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMBikeRck.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PAJunkDlr.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 218,
+        "frame": 180,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA02_INTRO_NS/MD_USA02_INTRO_NS.json",
         "placementResolvedObjects": 2113,
         "placementSpawnedObjects": 2113,
         "placementTotalObjects": 3784,
         "placementUnresolvedObjects": 0,
-        "renderableCount": 2264,
-        "sceneObjectCount": 2723,
-        "debugInfoText": "FPS: 1 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2113/3784 (unresolved: 0) | Sel: none | Frame: 218",
+        "renderableCount": 2256,
+        "sceneObjectCount": 2715,
+        "debugInfoText": "FPS: 1 | Map: 490x490 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 2113/3784 (unresolved: 0) | Sel: none | Frame: 180",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 1005.6782989936172,
-          "y": 58.608721379057386,
-          "z": 937.8491302588837
+          "x": 1277.2473417023546,
+          "y": 375.2568574052324,
+          "z": 1194.2980683037065
         },
         "cameraQuaternion": {
-          "x": 0,
-          "y": -0.20775917734079197,
-          "z": 0,
-          "w": 0.9781800060472906
+          "x": -0.2936756480618874,
+          "y": 0.38497854391135233,
+          "z": 0.13068260630172968,
+          "w": 0.8651405613387414
         },
         "rtsCameraState": {
-          "targetX": 1031.4750870662442,
-          "targetZ": 879.8599358390262,
-          "angle": -0.4185671842071882,
-          "zoom": 80,
-          "pitch": 0
+          "targetX": 923.6286363182405,
+          "targetZ": 875.642706947716,
+          "angle": 0.8373589246488562,
+          "zoom": 600,
+          "pitch": 1
         },
         "scriptCameraEffectsState": {
           "grayscale": 0,
@@ -3118,7 +3107,7 @@
           "shakeOffsetY": 0
         },
         "objectVisuals": {
-          "visualEntityCount": 2264,
+          "visualEntityCount": 2256,
           "modelEntityCount": 1552,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
@@ -3137,6 +3126,7 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG07.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG08.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PRG13.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/AVThundrblt.glb\", falling back to fetch.",
@@ -3184,19 +3174,18 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTower2.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGPub02.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBChurch01.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGShop.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/ZBODerrick.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBGShop.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 227,
+        "frame": 222,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03/MD_USA03.json",
         "placementResolvedObjects": 1643,
         "placementSpawnedObjects": 1643,
         "placementTotalObjects": 2515,
         "placementUnresolvedObjects": 0,
         "renderableCount": 1675,
-        "sceneObjectCount": 2016,
-        "debugInfoText": "FPS: 2 | Map: 390x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1643/2515 (unresolved: 0) | Sel: none | Frame: 227",
+        "sceneObjectCount": 2018,
+        "debugInfoText": "FPS: 2 | Map: 390x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1643/2515 (unresolved: 0) | Sel: none | Frame: 222",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
@@ -3228,7 +3217,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1675,
-          "modelEntityCount": 1446,
+          "modelEntityCount": 1444,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -3301,34 +3290,34 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/ZBODerrick_A1.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 376,
+        "frame": 370,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03_CINE/MD_USA03_CINE.json",
         "placementResolvedObjects": 885,
         "placementSpawnedObjects": 885,
         "placementTotalObjects": 1695,
         "placementUnresolvedObjects": 0,
-        "renderableCount": 917,
-        "sceneObjectCount": 1231,
-        "debugInfoText": "FPS: 3 | Map: 390x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 885/1695 (unresolved: 0) | Sel: none | Frame: 376",
+        "renderableCount": 920,
+        "sceneObjectCount": 1234,
+        "debugInfoText": "FPS: 3 | Map: 390x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 885/1695 (unresolved: 0) | Sel: none | Frame: 370",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 1226.0007176319566,
-          "y": 53.57050262154609,
-          "z": 1651.2558882022913
+          "x": 1570.5633171501488,
+          "y": 58.698820367803435,
+          "z": 1565.2925785070843
         },
         "cameraQuaternion": {
-          "x": -0.05536372604740989,
-          "y": 0.8659074653200869,
-          "z": -0.09837865211778195,
-          "w": -0.487299456339301
+          "x": 0.15765367928145918,
+          "y": 0.5395838139005065,
+          "z": -0.10367549747874097,
+          "w": 0.8205157015000615
         },
         "rtsCameraState": {
-          "targetX": 1274.5384521484375,
-          "targetZ": 1680.722900390625,
-          "angle": -2.1164163567762797,
+          "targetX": 1512.2890625,
+          "targetZ": 1540.1463623046875,
+          "angle": 1.163420365374063,
           "zoom": 80,
-          "pitch": -0.30000001192092896
+          "pitch": -0.5199999809265137
         },
         "scriptCameraEffectsState": {
           "grayscale": 0,
@@ -3340,8 +3329,8 @@
           "shakeOffsetY": 0
         },
         "objectVisuals": {
-          "visualEntityCount": 917,
-          "modelEntityCount": 915,
+          "visualEntityCount": 920,
+          "modelEntityCount": 920,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -3359,6 +3348,7 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UIRGRD_SKN.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UBRsrchLb.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/AvMnt_C.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/AIHERO_SKN.glb\", falling back to fetch.",
@@ -3429,19 +3419,19 @@
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UITUNFTOX_SKN.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 308,
+        "frame": 318,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03_END/MD_USA03_END.json",
         "placementResolvedObjects": 1308,
         "placementSpawnedObjects": 1308,
         "placementTotalObjects": 2227,
         "placementUnresolvedObjects": 0,
         "renderableCount": 1350,
-        "sceneObjectCount": 1732,
-        "debugInfoText": "FPS: 3 | Map: 390x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1308/2227 (unresolved: 0) | Sel: none | Frame: 308",
+        "sceneObjectCount": 1738,
+        "debugInfoText": "FPS: 3 | Map: 390x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1308/2227 (unresolved: 0) | Sel: none | Frame: 318",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 2.769772940686023e-22,
+          "x": 1.0735510039156654e-23,
           "y": 330,
           "z": 417.0321193091859
         },
@@ -3469,7 +3459,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1350,
-          "modelEntityCount": 1242,
+          "modelEntityCount": 1236,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -3571,19 +3561,19 @@
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UITUNFTOX_SKN.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 279,
+        "frame": 354,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03_END1/MD_USA03_END1.json",
         "placementResolvedObjects": 1393,
         "placementSpawnedObjects": 1393,
         "placementTotalObjects": 2324,
         "placementUnresolvedObjects": 0,
         "renderableCount": 1435,
-        "sceneObjectCount": 1814,
-        "debugInfoText": "FPS: 2 | Map: 390x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1393/2324 (unresolved: 0) | Sel: none | Frame: 279",
+        "sceneObjectCount": 1832,
+        "debugInfoText": "FPS: 3 | Map: 390x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1393/2324 (unresolved: 0) | Sel: none | Frame: 354",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 3.4367384095573245e-18,
+          "x": 8.89171089936212e-29,
           "y": 330,
           "z": 417.0321193091859
         },
@@ -3611,7 +3601,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1435,
-          "modelEntityCount": 1288,
+          "modelEntityCount": 1368,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -3769,7 +3759,7 @@
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET"
       ],
       "debugState": {
-        "frame": 461,
+        "frame": 467,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03_MID_CINE/MD_USA03_MID_CINE.json",
         "placementResolvedObjects": 50,
         "placementSpawnedObjects": 50,
@@ -3777,7 +3767,7 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 55,
         "sceneObjectCount": 289,
-        "debugInfoText": "FPS: 13 | Map: 390x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 50/104 (unresolved: 0) | Sel: none | Frame: 461",
+        "debugInfoText": "FPS: 14 | Map: 390x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 50/104 (unresolved: 0) | Sel: none | Frame: 467",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
@@ -3892,7 +3882,14 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PAFoodCart.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PEDumpst.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMFuelTnk.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PMFountain3.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/PMFountain3.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/EXHideBomb.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UBBarracks.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/ZBArtPlat.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UBArmDeal.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UVToxinTrk.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/AICIAOff_SKN.glb\", falling back to fetch.",
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBMogdis05.glb\", falling back to fetch."
       ],
       "debugState": {
         "frame": 144,
@@ -3935,7 +3932,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1562,
-          "modelEntityCount": 1017,
+          "modelEntityCount": 1061,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -3953,8 +3950,6 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMBillbrd03.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMTrnfrmr02.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMTent01.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMClthLn.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMOpmarkV3.glb\", falling back to fetch.",
@@ -4002,19 +3997,10 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTTent04.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBMogdis04.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBMogdis03.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse17.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse16.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse15.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse13.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse12.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse11.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse10.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse09.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse05.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse04.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBTHouse17.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 273,
+        "frame": 304,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA04_CINE/MD_USA04_CINE.json",
         "placementResolvedObjects": 1220,
         "placementSpawnedObjects": 1220,
@@ -4022,25 +4008,25 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 1302,
         "sceneObjectCount": 1668,
-        "debugInfoText": "FPS: 2 | Map: 540x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1220/2068 (unresolved: 0) | Sel: none | Frame: 273",
+        "debugInfoText": "FPS: 2 | Map: 540x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1220/2068 (unresolved: 0) | Sel: none | Frame: 304",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 576.2474370299146,
-          "y": 446.69555555555553,
-          "z": 3370.669408427131
+          "x": 588.1664899963232,
+          "y": 455.1516666666667,
+          "z": 3367.4370778081293
         },
         "cameraQuaternion": {
-          "x": -0.31597769983969864,
-          "y": 0.17381895672566625,
-          "z": 0.059003585131716225,
+          "x": -0.31597769983969876,
+          "y": 0.17381895672566636,
+          "z": 0.05900358513171629,
           "w": 0.9308402872826351
         },
         "rtsCameraState": {
-          "targetX": 380.8584507163289,
-          "targetZ": 2865.7358659864417,
+          "targetX": 388.8004940455887,
+          "targetZ": 2852.22595727927,
           "angle": 0.36921453442133023,
-          "zoom": 682.4439521933052,
+          "zoom": 696.3346336789583,
           "pitch": 1
         },
         "scriptCameraEffectsState": {
@@ -4054,7 +4040,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1302,
-          "modelEntityCount": 1084,
+          "modelEntityCount": 1088,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -4141,7 +4127,7 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/UIWRKR_SKN.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 157,
+        "frame": 156,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA04_Intro/MD_USA04_Intro.json",
         "placementResolvedObjects": 1174,
         "placementSpawnedObjects": 1174,
@@ -4149,11 +4135,11 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 1229,
         "sceneObjectCount": 1595,
-        "debugInfoText": "FPS: 1 | Map: 540x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1174/1992 (unresolved: 0) | Sel: none | Frame: 157",
+        "debugInfoText": "FPS: 1 | Map: 540x540 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1174/1992 (unresolved: 0) | Sel: none | Frame: 156",
         "skyboxLoaded": true,
         "skyboxVisible": false,
         "cameraPosition": {
-          "x": 0.08444122915018544,
+          "x": 0.11687367356427052,
           "y": 372.5,
           "z": 444.7256584820615
         },
@@ -4181,7 +4167,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1229,
-          "modelEntityCount": 1043,
+          "modelEntityCount": 1039,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -4199,7 +4185,6 @@
       "consoleErrors": [],
       "consoleWarnings": [
         "INI bundle has missing CommandSet references (1): GLAVehicleDozer->GLADOZERCOMMANDSET",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UVLiteTank.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVTugboat.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CVtrowler.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/UITUNFTOX_SKN.glb\", falling back to fetch.",
@@ -4267,12 +4252,10 @@
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CINE_SatP02.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CINE_SatP01.glb\", falling back to fetch.",
         "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CINE_Sat02.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CINE_Sattelite2.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CINE_MH07.glb\", falling back to fetch.",
-        "AssetManager: cache read timed out for \"models/W3D/Art/W3D/CBChemBunk.glb\", falling back to fetch."
+        "AssetManager: cache read timed out for \"models/W3DZH/Art/W3D/CINE_Sattelite2.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 233,
+        "frame": 181,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA05/MD_USA05.json",
         "placementResolvedObjects": 1801,
         "placementSpawnedObjects": 1801,
@@ -4280,26 +4263,26 @@
         "placementUnresolvedObjects": 0,
         "renderableCount": 1833,
         "sceneObjectCount": 2267,
-        "debugInfoText": "FPS: 2 | Map: 560x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1801/3091 (unresolved: 0) | Sel: none | Frame: 233",
+        "debugInfoText": "FPS: 2 | Map: 560x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 1801/3091 (unresolved: 0) | Sel: none | Frame: 181",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 4553.140314110228,
-          "y": 506.0451206124354,
-          "z": 1188.3717934561998
+          "x": 4527.69970703125,
+          "y": 505.88185740523244,
+          "z": 561.2228381111772
         },
         "cameraQuaternion": {
-          "x": -0.013728883855466162,
-          "y": 0.7161209828787057,
-          "z": 0.6976988523366704,
-          "w": 0.014091383076634144
+          "x": -0.707097565931517,
+          "y": 0,
+          "z": 0,
+          "w": 0.7071159963214833
         },
         "rtsCameraState": {
-          "targetX": 4552.765625,
-          "targetZ": 1197.888916015625,
-          "angle": 3.1022429763373163,
+          "targetX": 4527.69970703125,
+          "targetZ": 561.2133178710938,
+          "angle": 0,
           "zoom": 600,
-          "pitch": 50
+          "pitch": 50000
         },
         "scriptCameraEffectsState": {
           "grayscale": 0,
@@ -4312,7 +4295,7 @@
         },
         "objectVisuals": {
           "visualEntityCount": 1833,
-          "modelEntityCount": 1423,
+          "modelEntityCount": 1294,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,
           "unresolvedEntityIds": []
@@ -4371,34 +4354,34 @@
         "AssetManager: cache read timed out for \"models/W3D/Art/W3D/PMToxicTnk_D.glb\", falling back to fetch."
       ],
       "debugState": {
-        "frame": 694,
+        "frame": 634,
         "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA06_INTRO/MD_USA06_INTRO.json",
         "placementResolvedObjects": 241,
         "placementSpawnedObjects": 241,
         "placementTotalObjects": 1088,
         "placementUnresolvedObjects": 0,
-        "renderableCount": 291,
-        "sceneObjectCount": 687,
-        "debugInfoText": "FPS: 3 | Map: 560x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 241/1088 (unresolved: 0) | Sel: none | Frame: 694",
+        "renderableCount": 280,
+        "sceneObjectCount": 676,
+        "debugInfoText": "FPS: 4 | Map: 560x560 | INI: 2130 objects, 368 weapons, 5405 audio | Objects: 241/1088 (unresolved: 0) | Sel: none | Frame: 634",
         "skyboxLoaded": true,
         "skyboxVisible": true,
         "cameraPosition": {
-          "x": 3200.714849440016,
-          "y": 211.62628860906602,
-          "z": 809.0030949454706
+          "x": 2765.6959001421437,
+          "y": 382.3941339705605,
+          "z": 2537.540258144188
         },
         "cameraQuaternion": {
-          "x": 0.023815152089447497,
-          "y": 0.9469723214175924,
-          "z": -0.07224087078843519,
-          "w": 0.31218186620568034
+          "x": -0.019109072418373323,
+          "y": 0.7159910157828333,
+          "z": 0.6975722286295044,
+          "w": 0.019613630832722845
         },
         "rtsCameraState": {
-          "targetX": 3123.3985584146344,
-          "targetZ": 913.5245292559183,
-          "angle": 2.5047051559491496,
-          "zoom": 163.87372278470065,
-          "pitch": -0.20000000298023224
+          "targetX": 2797.9342019892624,
+          "targetZ": 2583.6066356612932,
+          "angle": 3.0868189860582715,
+          "zoom": 600,
+          "pitch": 50
         },
         "scriptCameraEffectsState": {
           "grayscale": 0,
@@ -4410,7 +4393,7 @@
           "shakeOffsetY": 0
         },
         "objectVisuals": {
-          "visualEntityCount": 291,
+          "visualEntityCount": 280,
           "modelEntityCount": 271,
           "placeholderEntityCount": 0,
           "unresolvedEntityCount": 0,

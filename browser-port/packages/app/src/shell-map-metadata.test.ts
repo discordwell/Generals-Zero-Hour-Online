@@ -64,6 +64,70 @@ describe('buildSourceBackedShellMapInfos', () => {
     ]);
   });
 
+  it('matches source map-list skips and player-count ordering', async () => {
+    const mapData = new Map<string, MapDataJSON>([
+      [
+        'maps/_extracted/MapsZH/Maps/Whiteout/Whiteout.json',
+        mapWithWaypoints([
+          'Player_1_Start',
+          'Player_2_Start',
+          'Player_3_Start',
+          'Player_4_Start',
+          'Player_5_Start',
+          'Player_6_Start',
+          'Player_7_Start',
+          'Player_8_Start',
+        ]),
+      ],
+      [
+        'maps/_extracted/MapsZH/Maps/Armored Fury/Armored Fury.json',
+        mapWithWaypoints([
+          'Player_1_Start',
+          'Player_2_Start',
+          'Player_3_Start',
+          'Player_4_Start',
+          'Player_5_Start',
+          'Player_6_Start',
+        ]),
+      ],
+      [
+        'maps/_extracted/MapsZH/Maps/Golden Oasis/Golden Oasis.json',
+        mapWithWaypoints(['Player_1_Start', 'Player_2_Start', 'Player_3_Start', 'Player_4_Start']),
+      ],
+      [
+        'maps/_extracted/MapsZH/Maps/Tournament Desert/Tournament Desert.json',
+        mapWithWaypoints(['Player_1_Start', 'Player_2_Start']),
+      ],
+      [
+        'maps/_extracted/MapsZH/Maps/Scorched Earth/Scorched Earth.json',
+        mapWithWaypoints(['Player_1_Start', 'Player_2_Start']),
+      ],
+    ]);
+
+    const infos = await buildSourceBackedShellMapInfos(
+      [
+        'maps/_extracted/MapsZH/Maps/Whiteout/Whiteout.json',
+        'maps/_extracted/MapsZH/Maps/Armored Fury/Armored Fury.json',
+        'maps/_extracted/MapsZH/Maps/Golden Oasis/Golden Oasis.json',
+        'maps/_extracted/MapsZH/Maps/Tournament Desert/Tournament Desert.json',
+        'maps/_extracted/MapsZH/Maps/Scorched Earth/Scorched Earth.json',
+      ],
+      async (outputPath) => {
+        const value = mapData.get(outputPath);
+        if (!value) {
+          throw new Error(`Unexpected map load: ${outputPath}`);
+        }
+        return value;
+      },
+    );
+
+    expect(infos.map((info) => info.name)).toEqual([
+      'Tournament Desert (2)',
+      'Golden Oasis (4)',
+      'Whiteout (8)',
+    ]);
+  });
+
   it('uses converter-provided map metadata when present', async () => {
     const infos = await buildSourceBackedShellMapInfos(
       ['maps/_extracted/MapsZH/Maps/Whiteout/Whiteout.json'],

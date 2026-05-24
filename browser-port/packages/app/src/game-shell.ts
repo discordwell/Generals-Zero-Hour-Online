@@ -28,6 +28,11 @@ import {
   getDefaultStartingCreditsValue,
   type StartingCreditsOption,
 } from './shell-runtime-data.js';
+import {
+  compareSourceMapListOrder,
+  isSourceMultiplayerMapInfo,
+  isSourceSkippedSkirmishMapPath,
+} from './source-map-list.js';
 
 // ──── Types ─────────────────────────────────────────────────────────────────
 
@@ -126,38 +131,6 @@ export interface MapInfo {
   numPlayers?: number;
   /** Source MapMetaData::m_isMultiplayer when known. */
   isMultiplayer?: boolean;
-}
-
-/**
- * Filter out non-skirmish maps by naming convention.
- *
- * Source parity: the original engine filters by an isMultiplayer flag
- * embedded in each .map file header.  We approximate this with name
- * heuristics since the browser port's map converter doesn't yet extract
- * that flag.
- */
-const NON_SKIRMISH_PREFIXES = ['MD ', 'GC ', 'ShellMap', 'USA05 ', 'USA07'];
-const NON_SKIRMISH_SUFFIXES = ['CINE', 'INTRO', 'END', 'END1', 'Sound'];
-const NON_SKIRMISH_EXACT = new Set([
-  'AllBuildingsAllSidesUnitTest Save',
-  'BUG SavedGameandEnabledFolders',
-  'Art Review New Units',
-  'ScenarioSkirmish',
-  'SmokeTest',
-  'Hovercraft',
-]);
-
-export function isSkirmishMapName(name: string): boolean {
-  if (!name) return false;
-  if (NON_SKIRMISH_EXACT.has(name)) return false;
-  for (const prefix of NON_SKIRMISH_PREFIXES) {
-    if (name.startsWith(prefix)) return false;
-  }
-  const lastWord = name.split(' ').pop() ?? '';
-  for (const suffix of NON_SKIRMISH_SUFFIXES) {
-    if (lastWord === suffix) return false;
-  }
-  return true;
 }
 
 export interface GameShellCallbacks {
@@ -1601,7 +1574,7 @@ export class GameShell {
    * Source parity: SkirmishGameOptionsMenu.cpp populates the map list from
    * MapCache entries whose MapMetaData::m_isMultiplayer flag is true. Runtime
    * callers should pass MapInfo objects built from converted map waypoint data.
-   * Plain output paths are still accepted for tests and legacy manifests.
+   * Plain output paths are still accepted for already-filtered legacy manifests.
    */
   setAvailableMaps(mapEntries: readonly (string | MapInfo)[]): void {
     this.availableMaps = mapEntries
@@ -1620,12 +1593,9 @@ export class GameShell {
         };
       })
       .filter((entry): entry is MapInfo => entry !== null)
-      .filter((entry) => (
-        typeof entry.isMultiplayer === 'boolean'
-          ? entry.isMultiplayer
-          : isSkirmishMapName(entry.name)
-      ))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .filter(isSourceMultiplayerMapInfo)
+      .filter((entry) => !isSourceSkippedSkirmishMapPath(entry.path))
+      .sort(compareSourceMapListOrder);
   }
 
   /**

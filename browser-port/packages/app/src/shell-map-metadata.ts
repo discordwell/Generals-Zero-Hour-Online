@@ -3,6 +3,10 @@ import {
   type MapDataJSON,
 } from '@generals/terrain';
 import type { MapInfo } from './game-shell.js';
+import {
+  compareSourceMapListOrder,
+  isSourceSkippedSkirmishMapPath,
+} from './source-map-list.js';
 
 function isRuntimeMapJsonPath(outputPath: string): boolean {
   return /^maps\//i.test(outputPath) && /\.json$/i.test(outputPath);
@@ -28,7 +32,7 @@ export async function buildSourceBackedShellMapInfos(
   const mapInfos = await Promise.all(mapPaths.map(async (path): Promise<MapInfo | null> => {
     const mapData = await loadMapData(path);
     const metadata = getMapMetadata(mapData);
-    if (!metadata.isMultiplayer) {
+    if (!metadata.isMultiplayer || isSourceSkippedSkirmishMapPath(path)) {
       return null;
     }
 
@@ -43,5 +47,5 @@ export async function buildSourceBackedShellMapInfos(
 
   return mapInfos
     .filter((mapInfo): mapInfo is MapInfo => mapInfo !== null)
-    .sort((left, right) => left.name.localeCompare(right.name));
+    .sort(compareSourceMapListOrder);
 }
